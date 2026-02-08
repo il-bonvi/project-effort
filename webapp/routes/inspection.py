@@ -13,7 +13,7 @@ Handles the inspection/effort editor view with ECharts visualization
 import sys
 import json
 import logging
-from html import escape as html_escape
+from html import escape
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
@@ -248,7 +248,7 @@ def generate_inspection_html(
     ftp_json = json.dumps(ftp)
     
     # Escape filename for safe HTML rendering
-    safe_filename = html_escape(filename)
+    safe_filename = escape(filename)
 
     html = f"""
 <!DOCTYPE html>

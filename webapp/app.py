@@ -57,10 +57,6 @@ sessions: Dict[str, Dict[str, Any]] = {}
 
 logger.info("Initializing PEFFORT Web Application...")
 
-# ============================================================================
-# FASTAPI APPLICATION INITIALIZATION
-# ============================================================================
-
 # Initialize all route modules with shared sessions dictionary
 logger.info("Setting up route modules with shared sessions...")
 setup_home_router(sessions)

@@ -114,8 +114,7 @@ async def upload_fit(
 
     # Sanitize filename to prevent path traversal attacks
     # Only keep the basename and replace any problematic characters
-    from pathlib import Path as PathLib
-    safe_filename = PathLib(file.filename).name
+    safe_filename = Path(file.filename).name
     # Remove any remaining path separators and special chars
     safe_filename = safe_filename.replace('/', '_').replace('\\', '_')
 
