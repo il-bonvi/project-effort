@@ -34,10 +34,10 @@ _shared_sessions: Dict[str, Dict[str, Any]] = {}
 def setup_inspection_router(sessions_dict: Dict[str, Dict[str, Any]]) -> APIRouter:
     """
     Set up the inspection router with access to shared sessions.
-    
+
     Args:
         sessions_dict: Reference to the main sessions dictionary from app.py
-        
+
     Returns:
         Configured APIRouter instance
     """
@@ -66,7 +66,7 @@ async def inspection_view(session_id: str):
     """
     if session_id not in _shared_sessions:
         raise HTTPException(status_code=404, detail="Session not found. Please upload a FIT file.")
-    
+
     session = _shared_sessions[session_id]
     df = session['df']
     efforts = session['efforts']
@@ -74,7 +74,7 @@ async def inspection_view(session_id: str):
     ftp = session['ftp']
     weight = session['weight']
     stats = session.get('stats', {})
-    
+
     # Generate HTML using the same logic as inspection_web_gui.py
     html_content = generate_inspection_html(
         df=df,
@@ -86,7 +86,7 @@ async def inspection_view(session_id: str):
         session_id=session_id,
         filename=session['filename']
     )
-    
+
     return HTMLResponse(content=html_content)
 
 
@@ -115,7 +115,7 @@ def generate_inspection_html(
     - Save modifications button with JSON download
     - Complete JavaScript for: centered moving average calculation, drag-drop,
       zoom/pan controls, effort rebinding
-    
+
     Args:
         df: Pandas DataFrame with FIT data (time_sec, power columns required)
         efforts: List of effort tuples (start_idx, end_idx, avg_power)
@@ -125,7 +125,7 @@ def generate_inspection_html(
         stats: Dictionary of ride statistics
         session_id: Session ID for API calls
         filename: Original FIT filename
-        
+
     Returns:
         Complete HTML document as string
     """
@@ -133,11 +133,11 @@ def generate_inspection_html(
     time_axis = df['time_sec'].tolist()
     power_data = df['power'].tolist()
     n_samples = len(time_axis)
-    
+
     # Convert efforts to timeline format
     efforts_data = []
     colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6']
-    
+
     for i, (start_idx, end_idx, avg_w) in enumerate(efforts):
         # Validate indices
         if not (0 <= start_idx < n_samples):
@@ -146,11 +146,11 @@ def generate_inspection_html(
             continue
         if end_idx <= start_idx:
             continue
-        
+
         start_time = time_axis[start_idx]
         last_included_idx = end_idx - 1
         end_time = time_axis[last_included_idx]
-        
+
         color = colors[i % len(colors)]
         efforts_data.append({
             'id': i,
@@ -160,21 +160,21 @@ def generate_inspection_html(
             'color': color,
             'label': f"Effort {i+1}"
         })
-    
+
     # Convert sprints to display format
     sprints_data = []
     sprint_colors = ['#dc2626', '#ea580c', '#f59e0b', '#84cc16', '#10b981', '#06b6d4']
-    
+
     for i, sprint in enumerate(sprints):
         start_idx = sprint.get('start_idx', sprint.get('start', 0))
         end_idx = sprint.get('end_idx', sprint.get('end', start_idx + 1))
-        
+
         if not (0 <= start_idx < n_samples and 0 < end_idx <= n_samples and end_idx > start_idx):
             continue
-        
+
         start_time = time_axis[start_idx]
         end_time = time_axis[end_idx - 1]
-        
+
         color = sprint_colors[i % len(sprint_colors)]
         sprints_data.append({
             'id': i,
@@ -186,7 +186,7 @@ def generate_inspection_html(
             'color': color,
             'label': f"Sprint {i+1}"
         })
-    
+
     # Format stats for display
     def format_duration(sec):
         h = int(sec // 3600)
@@ -198,7 +198,7 @@ def generate_inspection_html(
             return f"{m}m {s}s"
         else:
             return f"{s}s"
-    
+
     stats_html = f"""
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 15px;">
             <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); padding: 12px; border-radius: 6px; border: 2px solid #93c5fd;">
@@ -239,14 +239,14 @@ def generate_inspection_html(
             </div>
         </div>
     """ if stats else ""
-    
+
     # Generate JSON for JavaScript
     time_axis_json = json.dumps(time_axis)
     power_data_json = json.dumps(power_data)
     efforts_data_json = json.dumps(efforts_data)
     sprints_data_json = json.dumps(sprints_data)
     ftp_json = json.dumps(ftp)
-    
+
     # Escape filename for safe HTML rendering
     safe_filename = escape(filename)
 
@@ -508,21 +508,21 @@ def generate_inspection_html(
         </div>
         <a href="/" class="back-btn">⬅️ Nuovo Upload</a>
     </div>
-    
+
     {stats_html}
 
     <div id="mainChart" style="width: 100%; height: 800px; border-radius: 6px; border: 1px solid #d1d5db; background: #ffffff;"></div>
-    
+
     <div style="margin: 20px 0;">
         <h3 style="font-size: 1.2rem; color: #374151; margin-bottom: 10px;">💪 Efforts Detected</h3>
         <div class="legend" id="legend"></div>
     </div>
-    
+
     <div style="margin: 20px 0;" id="sprintsContainer">
         <h3 style="font-size: 1.2rem; color: #374151; margin-bottom: 10px;">🚀 Sprints Detected</h3>
         <div class="legend" id="sprintsLegend"></div>
     </div>
-    
+
     <div class="control-panel">
         <div class="control-group">
             <label for="avg30sSeconds">🟠 Chart 2 - Avg</label>
@@ -531,7 +531,7 @@ def generate_inspection_html(
                 <input type="range" id="avg30sSeconds" value="30" min="1" max="60" step="1">
             </div>
         </div>
-        
+
         <div class="control-group">
             <label for="avg60sSeconds">🔴 Chart 3 - Avg</label>
             <div class="slider-container">
@@ -540,7 +540,7 @@ def generate_inspection_html(
             </div>
         </div>
     </div>
-    
+
     <div class="ftp-panel">
         <div class="ftp-control">
             <label for="ftpInput">FTP:</label>
@@ -548,12 +548,12 @@ def generate_inspection_html(
             <span style="font-size: 12px; color: #1e40af; font-weight: bold;">W</span>
         </div>
     </div>
-    
+
     <div class="save-controls">
         <button id="saveButton" class="save-btn">💾 Salva Modifiche</button>
         <div id="saveStatus"></div>
     </div>
-    
+
     <div class="instructions">
         <strong>🎮 Controlli Interattivi:</strong>
         <div class="tip">• <strong>🔵 Grafico 1:</strong> Potenza istantanea per vedere i picchi</div>
@@ -572,15 +572,15 @@ def generate_inspection_html(
             const effortsData = {efforts_data_json};
             const sprintsData = {sprints_data_json};
             let ftp = {ftp_json};
-            
+
             const samplingRate = timeAxis.length > 1 ? 1 / (timeAxis[1] - timeAxis[0]) : 1;
             let avg30sSeconds = 30;
             let avg60sSeconds = 60;
-            
+
             if (sprintsData.length === 0) {{
                 document.getElementById('sprintsContainer').style.display = 'none';
             }}
-            
+
             function calculateCenteredMovingAverage(data, windowSize) {{
                 const result = [];
                 const halfWindow = Math.floor(windowSize / 2);
@@ -593,17 +593,17 @@ def generate_inspection_html(
                 }}
                 return result;
             }}
-            
+
             const power30s = calculateCenteredMovingAverage(powerData, Math.round(avg30sSeconds * samplingRate));
             const power60s = calculateCenteredMovingAverage(powerData, Math.round(avg60sSeconds * samplingRate));
-            
+
             const powerCoords = timeAxis.map((time, idx) => [time, powerData[idx]]);
             const power30sCoords = timeAxis.map((time, idx) => [time, power30s[idx]]);
             const power60sCoords = timeAxis.map((time, idx) => [time, power60s[idx]]);
-            
+
             const deletedEfforts = new Set();
             const legendDiv = document.getElementById('legend');
-            
+
             effortsData.forEach((effort, idx) => {{
                 const item = document.createElement('div');
                 item.className = 'legend-item';
@@ -622,7 +622,7 @@ def generate_inspection_html(
                     <button class="delete-btn" data-effort-idx="${{idx}}">×</button>
                 `;
                 legendDiv.appendChild(item);
-                
+
                 const deleteBtn = item.querySelector('.delete-btn');
                 deleteBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
@@ -637,7 +637,7 @@ def generate_inspection_html(
                     rebuildChart();
                 }});
             }});
-            
+
             const sprintsLegendDiv = document.getElementById('sprintsLegend');
             sprintsData.forEach((sprint, idx) => {{
                 const item = document.createElement('div');
@@ -657,13 +657,13 @@ def generate_inspection_html(
                 `;
                 sprintsLegendDiv.appendChild(item);
             }});
-            
+
             const mainChartDiv = document.getElementById('mainChart');
             let myChart = echarts.init(mainChartDiv, 'light');
             const minTime = Math.min(...timeAxis);
             const maxTime = Math.max(...timeAxis);
             const maxPower = Math.max(...powerData);
-            
+
             function buildOption() {{
                 const option = {{
                     tooltip: {{
@@ -729,14 +729,14 @@ def generate_inspection_html(
                            sampling: 'average', itemStyle: {{ color: '#ef4444' }}, z: 1 }}
                     ]
                 }};
-                
+
                 effortsData.forEach((effort, idx) => {{
                     if (deletedEfforts.has(idx)) return;
                     const startIdx = timeAxis.findIndex(t => t >= effort.start);
                     const endIdx = timeAxis.findIndex(t => t >= effort.end);
                     const startPower = startIdx >= 0 ? powerData[startIdx] : 0;
                     const endPower = endIdx >= 0 ? powerData[endIdx] : 0;
-                    
+
                     for (let gridIdx = 0; gridIdx < 3; gridIdx++) {{
                         option.series.push({{
                             name: effort.label, type: 'line', xAxisIndex: gridIdx, yAxisIndex: gridIdx,
@@ -752,7 +752,7 @@ def generate_inspection_html(
                                 data: [[{{ xAxis: effort.start }}, {{ xAxis: effort.end }}]]
                             }}, z: 0
                         }});
-                        
+
                         if (gridIdx === 0) {{
                             option.series.push({{
                                 name: effort.label + ' (punti)', type: 'scatter', xAxisIndex: gridIdx, yAxisIndex: gridIdx,
@@ -768,7 +768,7 @@ def generate_inspection_html(
                         }}
                     }}
                 }});
-                
+
                 const ftpLineData = timeAxis.map((t, i) => [t, ftp]);
                 for (let i = 0; i < 3; i++) {{
                     option.series.push({{
@@ -777,7 +777,7 @@ def generate_inspection_html(
                         smooth: false, z: 999, symbol: 'none', animation: false
                     }});
                 }}
-                
+
                 sprintsData.forEach((sprint, idx) => {{
                     option.series.push({{
                         name: sprint.label, type: 'line', xAxisIndex: 0, yAxisIndex: 0,
@@ -794,10 +794,10 @@ def generate_inspection_html(
                         }}, z: 2
                     }});
                 }});
-                
+
                 return option;
             }}
-            
+
             function rebuildChart() {{
                 const currentOption = myChart.getOption();
                 let dataZoomState = null;
@@ -813,7 +813,7 @@ def generate_inspection_html(
                 }}
                 myChart.setOption(newOption, {{ notMerge: true }});
             }}
-            
+
             function updateMovingAverages() {{
                 const window30sSize = Math.round(avg30sSeconds * samplingRate);
                 const power30sAvg = calculateCenteredMovingAverage(powerData, window30sSize);
@@ -827,15 +827,15 @@ def generate_inspection_html(
                 power60sCoords.push(...power60sNewCoords);
                 rebuildChart();
             }}
-            
+
             myChart.setOption(buildOption());
-            
+
             const avg30sInput = document.getElementById('avg30sSeconds');
             const avg30sValue = document.getElementById('avg30sValue');
             const avg60sInput = document.getElementById('avg60sSeconds');
             const avg60sValue = document.getElementById('avg60sValue');
             const ftpInput = document.getElementById('ftpInput');
-            
+
             let updateTimeout = null;
             avg30sInput.addEventListener('input', function() {{
                 avg30sSeconds = parseInt(this.value);
@@ -843,24 +843,24 @@ def generate_inspection_html(
                 if (updateTimeout) clearTimeout(updateTimeout);
                 updateTimeout = setTimeout(updateMovingAverages, 50);
             }});
-            
+
             avg60sInput.addEventListener('input', function() {{
                 avg60sSeconds = parseInt(this.value);
                 avg60sValue.textContent = avg60sSeconds + 's';
                 if (updateTimeout) clearTimeout(updateTimeout);
                 updateTimeout = setTimeout(updateMovingAverages, 50);
             }});
-            
+
             ftpInput.addEventListener('change', function() {{
                 ftp = parseInt(this.value);
                 rebuildChart();
             }});
-            
+
             let draggingState = null;
             document.addEventListener('contextmenu', function(e) {{
                 if (mainChartDiv.contains(e.target)) e.preventDefault();
             }});
-            
+
             document.addEventListener('mousedown', function(e) {{
                 if (!mainChartDiv.contains(e.target) || e.button !== 2) return;
                 e.preventDefault();
@@ -890,7 +890,7 @@ def generate_inspection_html(
                     draggingState = {{ ...closestMatch, gridIndex: Math.min(gridIndex, 2) }};
                 }}
             }});
-            
+
             document.addEventListener('mousemove', function(e) {{
                 if (!draggingState) return;
                 const effort = effortsData[draggingState.effortIdx];
@@ -917,15 +917,15 @@ def generate_inspection_html(
                     }}
                 }}
             }});
-            
+
             document.addEventListener('mouseup', function() {{
                 draggingState = null;
             }});
-            
+
             window.addEventListener('resize', function() {{
                 myChart.resize();
             }});
-            
+
             document.getElementById('saveButton').addEventListener('click', function() {{
                 const saveBtn = this;
                 const saveStatus = document.getElementById('saveStatus');
@@ -973,7 +973,7 @@ def generate_inspection_html(
 </body>
 </html>
     """
-    
+
     return html
 
 

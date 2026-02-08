@@ -208,7 +208,7 @@ async def home():
     <div class="container">
         <h1>🚴 PEFFORT Web</h1>
         <p class="subtitle">Analisi Effort da File FIT</p>
-        
+
         <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
             <div class="upload-area" id="uploadArea">
                 <div class="upload-icon">📁</div>
@@ -217,7 +217,7 @@ async def home():
                 <input type="file" id="fitFile" name="file" accept=".fit" required>
                 <div class="selected-file" id="selectedFile" style="display: none;"></div>
             </div>
-            
+
             <div class="settings-section">
                 <div class="settings-title">⚙️ Parametri Atleta</div>
                 <div class="form-row">
@@ -230,7 +230,7 @@ async def home():
                         <input type="number" id="weight" name="weight" value="70" min="30" max="150" step="0.5">
                     </div>
                 </div>
-                
+
                 <div class="settings-title" style="margin-top: 20px;">🎯 Parametri Effort Detection</div>
                 <div class="form-row">
                     <div class="form-group">
@@ -246,7 +246,7 @@ async def home():
                         <input type="number" id="merge_pct" name="merge_pct" value="15" min="5" max="50">
                     </div>
                 </div>
-                
+
                 <div class="settings-title" style="margin-top: 20px;">✂️ Trim & Extend</div>
                 <div class="form-row">
                     <div class="form-group">
@@ -266,7 +266,7 @@ async def home():
                         <input type="number" id="extend_low" name="extend_low" value="80" min="50" max="100">
                     </div>
                 </div>
-                
+
                 <div class="settings-title" style="margin-top: 20px;">🚀 Sprint Detection</div>
                 <div class="form-row">
                     <div class="form-group">
@@ -283,11 +283,11 @@ async def home():
                     </div>
                 </div>
             </div>
-            
+
             <button type="submit" class="submit-btn" id="submitBtn" disabled>
                 🚀 Analizza e Visualizza Effort
             </button>
-            
+
             <div class="loading" id="loading">
                 <div class="spinner"></div>
                 <p style="margin-top: 15px; color: #94a3b8;">Elaborazione in corso...</p>

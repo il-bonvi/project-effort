@@ -40,32 +40,32 @@ async def map3d_view(session_id: str):
     """
     Generate 3D map visualization with terrain, efforts markers and elevation chart.
     Uses the same MapLibre GL JS implementation as the original PEFFORT desktop app.
-    
+
     Args:
         session_id: Session identifier from upload
-        
+
     Returns:
         HTMLResponse with interactive 3D map
     """
     # Check session exists
     if session_id not in _shared_sessions:
         raise HTTPException(status_code=404, detail="Session not found. Please upload a FIT file first.")
-    
+
     session = _shared_sessions[session_id]
-    
+
     # Extract session data
     df = session['df']
     efforts = session['efforts']
     ftp = session['ftp']
     weight = session['weight']
-    
+
     # Check for GPS data availability
     if 'position_lat' not in df.columns or 'position_long' not in df.columns:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="GPS data not available in this FIT file. 3D map requires GPS coordinates."
         )
-    
+
     try:
         # Generate 3D map HTML using the same function as desktop app
         html_content = generate_3d_map_html(
@@ -74,10 +74,10 @@ async def map3d_view(session_id: str):
             ftp=ftp,
             weight=weight
         )
-        
+
         logger.info(f"3D Map visualization generated for session {session_id}")
         return HTMLResponse(content=html_content)
-        
+
     except Exception as e:
         logger.error(f"Error generating 3D map view: {e}")
         raise HTTPException(status_code=500, detail=f"Error generating 3D map: {str(e)}")

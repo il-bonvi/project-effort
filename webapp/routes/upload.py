@@ -64,7 +64,7 @@ async def upload_fit(
 ):
     """
     Handle FIT file upload, parse it, detect efforts, and redirect to inspection view.
-    
+
     Args:
         file: Uploaded FIT file
         ftp: Functional Threshold Power (W)
@@ -79,7 +79,7 @@ async def upload_fit(
         sprint_min_power: Sprint minimum power (W)
         sprint_min_duration: Sprint minimum duration (s)
         sprint_merge_gap: Sprint merge gap (s)
-    
+
     Returns:
         RedirectResponse to dashboard with session_id
     """
@@ -127,7 +127,7 @@ async def upload_fit(
         if len(content) > max_size:
             raise HTTPException(
                 status_code=400,
-                detail=f"File too large. Max size is 50MB"
+                detail="File too large. Max size is 50MB"
             )
         if len(content) == 0:
             raise HTTPException(
@@ -144,7 +144,7 @@ async def upload_fit(
         raise HTTPException(
             status_code=500, detail=f"Error saving file: {str(e)}"
         )
-    
+
     # Parse FIT file
     try:
         df = parse_fit(str(file_path))
@@ -155,7 +155,7 @@ async def upload_fit(
         if file_path.exists():
             file_path.unlink()
         raise HTTPException(status_code=400, detail=f"Error parsing FIT file: {str(e)}")
-    
+
     # Create effort config with all parameters
     effort_config = EffortConfig(
         window_seconds=window_sec,
@@ -166,7 +166,7 @@ async def upload_fit(
         extend_window_seconds=extend_win,
         extend_low_percent=extend_low
     )
-    
+
     # Detect efforts
     try:
         efforts = create_efforts(
@@ -178,7 +178,7 @@ async def upload_fit(
             trim_win=effort_config.trim_window_seconds,
             trim_low=effort_config.trim_low_percent
         )
-        
+
         # Merge and extend
         efforts = merge_extend(
             df=df,
@@ -189,15 +189,15 @@ async def upload_fit(
             extend_win=extend_win,
             extend_low=extend_low
         )
-        
+
         # Split included efforts
         efforts = split_included(df=df, efforts=efforts)
-        
+
         logger.info(f"Detected {len(efforts)} efforts")
     except Exception as e:
         logger.error(f"Error detecting efforts: {e}")
         raise HTTPException(status_code=500, detail=f"Error detecting efforts: {str(e)}")
-    
+
     # Detect sprints with user parameters
     try:
         sprint_config = SprintConfig(
@@ -215,10 +215,10 @@ async def upload_fit(
     except Exception as e:
         logger.warning(f"Sprint detection failed: {e}")
         sprints = []
-    
+
     # Calculate ride statistics
     ride_stats = calculate_ride_stats(df, ftp)
-    
+
     # Store session data (in memory only - no persistent disk storage)
     _shared_sessions[session_id] = {
         'filename': file.filename,
@@ -231,6 +231,6 @@ async def upload_fit(
         'sprint_config': sprint_config,
         'stats': ride_stats
     }
-    
+
     # Redirect to dashboard with tabs
     return RedirectResponse(url=f"/dashboard/{session_id}", status_code=303)

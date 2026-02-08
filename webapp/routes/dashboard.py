@@ -53,10 +53,10 @@ async def dashboard_view(request: Request, session_id: str):
     """
     if session_id not in _shared_sessions:
         raise HTTPException(status_code=404, detail="Session not found. Please upload a FIT file.")
-    
+
     session = _shared_sessions[session_id]
     stats = session.get('stats', {})
-    
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
