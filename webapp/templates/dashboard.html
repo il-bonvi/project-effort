@@ -292,6 +292,47 @@
             height: 100%;
             padding: 10px 0;
         }
+        #load-map3d-btn:hover {
+            background: linear-gradient(135deg, #1e3a8a, #172554);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(30, 64, 175, 0.5);
+        }
+        #load-map3d-btn:active {
+            transform: translateY(0);
+        }
+        /* Fullscreen mode for 3D map */
+        body.map3d-fullscreen .header,
+        body.map3d-fullscreen .tabs,
+        body.map3d-fullscreen .back-btn {
+            display: none !important;
+        }
+        body.map3d-fullscreen .tab-container {
+            height: 100vh !important;
+            margin: 0 !important;
+        }
+        body.map3d-fullscreen #map3d {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            background: #0f172a;
+        }
+        #fullscreen-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #059669, #047857);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        #fullscreen-btn:hover {
+            background: linear-gradient(135deg, #047857, #065f46);
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -313,6 +354,7 @@
             <div class="tab active" data-tab="overview">📊 Overview</div>
             <div class="tab" data-tab="inspection">🔍 Inspection</div>
             <div class="tab" data-tab="altimetria">📈 Altimetria</div>
+            <div class="tab" data-tab="map3d">🗺️ 3D Map</div>
             <div class="tab" data-tab="settings">⚙️ Settings</div>
             <div class="tab" data-tab="export">📤 Export</div>
         </div>
@@ -393,6 +435,43 @@
                     <span style="color: #6b7280; font-size: 0.85rem;">Per confronto identico con app originale</span>
                 </div>
                 <iframe src="/altimetria/{{ session_id }}" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: white;"></iframe>
+            </div>
+            
+            <!-- 3D MAP TAB -->
+            <div class="tab-pane" id="map3d" style="height: 100%; position: relative;">
+                <div id="map3d-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+                    <div style="text-align: center; color: white; max-width: 600px; padding: 40px;">
+                        <div style="font-size: 4rem; margin-bottom: 20px;">🗺️</div>
+                        <h2 style="color: #60a5fa; font-size: 2rem; margin-bottom: 15px;">Vista 3D Mappa Interattiva</h2>
+                        <p style="color: #9ca3af; font-size: 1.1rem; line-height: 1.6; margin-bottom: 30px;">
+                            Visualizza la traccia in 3D con terrain reale, altimetria interattiva e markers efforts colorati per zona potenza.
+                        </p>
+                        <button id="load-map3d-btn" onclick="loadMap3D()" 
+                                style="padding: 18px 40px; background: linear-gradient(135deg, #1e40af, #1e3a8a); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 1.2rem; box-shadow: 0 4px 20px rgba(30, 64, 175, 0.4); transition: all 0.3s ease;">
+                            🚀 Carica Mappa 3D
+                        </button>
+                        <p style="color: #6b7280; font-size: 0.85rem; margin-top: 20px;">
+                            💡 La mappa viene caricata solo quando richiesto per risparmiare API tiles
+                        </p>
+                        <button onclick="window.open('/map3d/{{ session_id }}', '_blank', 'width=1400,height=900')" 
+                                style="margin-top: 15px; padding: 10px 20px; background: transparent; color: #60a5fa; border: 2px solid #60a5fa; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.95rem;">
+                            🪟 Apri in Nuova Finestra
+                        </button>
+                    </div>
+                </div>
+                <div id="map3d-container" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; margin: 0; padding: 0;">
+                    <div id="map3d-toolbar" style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
+                        <button id="fullscreen-btn" onclick="toggleMap3DFullscreen()">
+                            🖥️ Schermo Intero
+                        </button>
+                        <button onclick="window.open('/map3d/{{ session_id }}', '_blank', 'width=1400,height=900')" 
+                                style="padding: 8px 16px; background: linear-gradient(135deg, #1e40af, #1e3a8a); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                            🗺️ Apri in Nuova Finestra
+                        </button>
+                        <span style="color: #6b7280; font-size: 0.85rem;">Vista 3D con terrain e altimetria interattiva</span>
+                    </div>
+                    <iframe id="map3d-iframe" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: #0f172a; margin: 0; padding: 0; display: block;"></iframe>
+                </div>
             </div>
             
             <!-- SETTINGS TAB -->
@@ -534,6 +613,67 @@
         function exportJson() { window.location.href = `/export/${sessionId}/json`; }
         function exportGpx() { window.location.href = `/export/${sessionId}/gpx`; }
         function exportCsv() { window.location.href = `/export/${sessionId}/csv`; }
+
+        let map3dLoaded = false;
+        let isFullscreen = false;
+        
+        function loadMap3D() {
+            if (map3dLoaded) return;
+            
+            const placeholder = document.getElementById('map3d-placeholder');
+            const container = document.getElementById('map3d-container');
+            const iframe = document.getElementById('map3d-iframe');
+            
+            // Nascondi placeholder, mostra container
+            placeholder.style.display = 'none';
+            container.style.display = 'block';
+            
+            // Carica iframe
+            iframe.src = `/map3d/${sessionId}`;
+            map3dLoaded = true;
+            
+            console.log('3D Map loaded successfully');
+        }
+        
+        function toggleMap3DFullscreen() {
+            const body = document.body;
+            const btn = document.getElementById('fullscreen-btn');
+            const toolbar = document.getElementById('map3d-toolbar');
+            const iframe = document.getElementById('map3d-iframe');
+            
+            isFullscreen = !isFullscreen;
+            
+            if (isFullscreen) {
+                // Entra in fullscreen
+                body.classList.add('map3d-fullscreen');
+                btn.innerHTML = '❌ Esci da Schermo Intero';
+                btn.style.background = 'linear-gradient(135deg, #dc2626, #b91c1c)';
+                
+                // Espandi iframe a tutto schermo (meno toolbar)
+                iframe.style.top = '50px';
+                iframe.style.height = 'calc(100vh - 50px)';
+                
+                // Lascia visibile solo la toolbar
+                toolbar.style.position = 'fixed';
+                toolbar.style.top = '0';
+                toolbar.style.left = '0';
+                toolbar.style.right = '0';
+                toolbar.style.zIndex = '10000';
+            } else {
+                // Esci da fullscreen
+                body.classList.remove('map3d-fullscreen');
+                btn.innerHTML = '🖥️ Schermo Intero';
+                btn.style.background = 'linear-gradient(135deg, #059669, #047857)';
+                
+                // Ripristina dimensioni normali
+                iframe.style.top = '50px';
+                iframe.style.height = 'calc(100% - 50px)';
+                
+                // Ripristina toolbar normale
+                toolbar.style.position = 'absolute';
+                toolbar.style.zIndex = '10';
+            }
+        }
 
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', function() {

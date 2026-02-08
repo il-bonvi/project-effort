@@ -1,5 +1,8 @@
 APP FUTURE/
 
+# Configuration files with API keys (DO NOT COMMIT!)
+config.py
+
 # Python
 __pycache__/
 *.py[cod]

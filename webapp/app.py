@@ -52,6 +52,7 @@ from routes.upload import router as upload_router, setup_upload_router
 from routes.dashboard import router as dashboard_router, setup_dashboard_router
 from routes.inspection import router as inspection_router, setup_inspection_router
 from routes.altimetria import router as altimetria_router, setup_altimetria_router
+from routes.map3d import router as map3d_router, setup_map3d_router
 from routes.api import router as api_router, setup_api_router
 
 # Initialize all route modules with shared sessions dictionary
@@ -61,16 +62,18 @@ setup_upload_router(sessions)
 setup_dashboard_router(sessions)
 setup_inspection_router(sessions)
 setup_altimetria_router(sessions)
+setup_map3d_router(sessions)
 setup_api_router(sessions)
 
 # Register all routers with the FastAPI application
-# Registration order: home → upload → dashboard → inspection → altimetria → API
+# Registration order: home → upload → dashboard → inspection → altimetria → map3d → API
 logger.info("Registering routes...")
 app.include_router(home_router, tags=["home"])
 app.include_router(upload_router, tags=["upload"])
 app.include_router(dashboard_router, tags=["dashboard"])
 app.include_router(inspection_router, tags=["inspection"])
 app.include_router(altimetria_router, tags=["altimetria"])
+app.include_router(map3d_router, tags=["map3d"])
 app.include_router(api_router, tags=["api"])
 
 logger.info("PEFFORT Web Application initialized successfully!")
@@ -80,6 +83,7 @@ logger.info("  POST /upload                - Upload and analyze FIT file")
 logger.info("  GET  /dashboard/{id}        - View analysis dashboard")
 logger.info("  GET  /inspection/{id}       - Interactive effort editor")
 logger.info("  GET  /altimetria/{id}       - Elevation profile visualization")
+logger.info("  GET  /map3d/{id}            - 3D map with terrain visualization")
 logger.info("  GET  /api/session-data/{id} - Get session data as JSON")
 logger.info("  ...  /api/*                 - Various API endpoints (see routes/api.py)")
 

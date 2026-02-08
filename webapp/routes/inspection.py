@@ -19,12 +19,12 @@ from typing import List, Tuple, Dict, Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
-# Add PEFFORT to path for imports
-peffort_path = Path(__file__).parent.parent.parent / "PEFFORT"
-sys.path.insert(0, str(peffort_path))
+# Add parent directory to path for PEFFORT package imports
+_project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(_project_root))
 
-from peffort_engine import create_efforts, merge_extend, split_included  # type: ignore
-from peffort_config import EffortConfig  # type: ignore
+from PEFFORT.peffort_engine import create_efforts, merge_extend, split_included  # type: ignore
+from PEFFORT.peffort_config import EffortConfig  # type: ignore
 
 # Configure logging
 logger = logging.getLogger(__name__)

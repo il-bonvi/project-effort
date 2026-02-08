@@ -21,14 +21,14 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-# Add PEFFORT to path for imports
-peffort_path = Path(__file__).parent.parent.parent / "PEFFORT"
-sys.path.insert(0, str(peffort_path))
+# Add parent directory to path for PEFFORT package imports
+_project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(_project_root))
 
-from peffort_engine import (  # type: ignore
+from PEFFORT.peffort_engine import (  # type: ignore
     create_efforts, merge_extend, split_included, detect_sprints
 )
-from peffort_config import EffortConfig, SprintConfig  # type: ignore
+from PEFFORT.peffort_config import EffortConfig, SprintConfig  # type: ignore
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -600,19 +600,16 @@ async def redetect_sprints_json(session_id: str, params: Dict[str, Any]):
 @router.get("/export/{session_id}/fit")
 async def export_fit_file(session_id: str):
     """
-    Export modified FIT file. Currently returns original FIT.
-    TODO: Implement FIT file modification with new efforts
+    Export modified FIT file - NOT IMPLEMENTED
+    Files are not persisted to disk under normal operation.
+    TODO: Generate FIT from dataframe with effort modifications
     """
     if session_id not in _shared_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    session = _shared_sessions[session_id]
-    original_file_path = session['file_path']
-    
-    return FileResponse(
-        path=original_file_path,
-        filename=f"modified_{session['filename']}",
-        media_type="application/octet-stream"
+    raise HTTPException(
+        status_code=501, 
+        detail="FIT export not yet implemented. Use JSON export instead to get all data."
     )
 
 

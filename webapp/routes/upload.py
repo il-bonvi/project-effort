@@ -10,28 +10,25 @@
 import uuid
 import logging
 import sys
+import tempfile
 from pathlib import Path
 from typing import Dict, Any
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Form
 from fastapi.responses import RedirectResponse
 
-# Add PEFFORT to path for imports
-_peffort_path = Path(__file__).parent.parent.parent / "PEFFORT"
-sys.path.insert(0, str(_peffort_path))
+# Add parent directory to path for PEFFORT package imports
+_project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(_project_root))
 
-from peffort_engine import (  # type: ignore
+from PEFFORT.peffort_engine import (  # type: ignore
     parse_fit, create_efforts, merge_extend, split_included, detect_sprints
 )
-from peffort_config import EffortConfig, SprintConfig  # type: ignore
+from PEFFORT.peffort_config import EffortConfig, SprintConfig  # type: ignore
 
 from utils.metrics import calculate_ride_stats
 
 logger = logging.getLogger(__name__)
-
-# Upload directory
-UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 # This will be set by app.py
 _shared_sessions: Dict[str, Any] = {}
@@ -174,9 +171,8 @@ async def upload_fit(
     # Calculate ride statistics
     ride_stats = calculate_ride_stats(df, ftp)
     
-    # Store session data
+    # Store session data (in memory only - no persistent disk storage)
     _shared_sessions[session_id] = {
-        'file_path': str(file_path),
         'filename': file.filename,
         'df': df,
         'efforts': efforts,

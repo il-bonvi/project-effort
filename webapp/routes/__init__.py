@@ -7,6 +7,6 @@
 
 """Routes module for PEFFORT Web application"""
 
-from . import upload, dashboard, inspection, api
+from . import home, upload, dashboard, inspection, altimetria, map3d, api
 
-__all__ = ['upload', 'dashboard', 'inspection', 'api']
+__all__ = ['home', 'upload', 'dashboard', 'inspection', 'altimetria', 'map3d', 'api']
