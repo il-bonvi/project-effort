@@ -108,6 +108,47 @@ async def upload_fit(
             status_code=400,
             detail="Min FTP % must be between 50 and 300"
         )
+    # Additional parameter validation to prevent parameter-abuse DoS
+    if not (0 <= merge_pct <= 50):
+        raise HTTPException(
+            status_code=400,
+            detail="Merge % must be between 0 and 50"
+        )
+    if not (0 <= trim_win <= 120):
+        raise HTTPException(
+            status_code=400,
+            detail="Trim window must be between 0 and 120 seconds"
+        )
+    if not (50 <= trim_low <= 100):
+        raise HTTPException(
+            status_code=400,
+            detail="Trim low % must be between 50 and 100"
+        )
+    if not (0 <= extend_win <= 120):
+        raise HTTPException(
+            status_code=400,
+            detail="Extend window must be between 0 and 120 seconds"
+        )
+    if not (50 <= extend_low <= 100):
+        raise HTTPException(
+            status_code=400,
+            detail="Extend low % must be between 50 and 100"
+        )
+    if not (200 <= sprint_min_power <= 2000):
+        raise HTTPException(
+            status_code=400,
+            detail="Sprint minimum power must be between 200 and 2000 watts"
+        )
+    if not (1 <= sprint_min_duration <= 120):
+        raise HTTPException(
+            status_code=400,
+            detail="Sprint minimum duration must be between 1 and 120 seconds"
+        )
+    if not (0 <= sprint_merge_gap <= 60):
+        raise HTTPException(
+            status_code=400,
+            detail="Sprint merge gap must be between 0 and 60 seconds"
+        )
 
     # Generate session ID
     session_id = str(uuid.uuid4())[:8]
@@ -118,43 +159,66 @@ async def upload_fit(
     # Remove any remaining path separators and special chars
     safe_filename = safe_filename.replace('/', '_').replace('\\', '_')
 
-    # Save uploaded file
+    # Save uploaded file with streaming to prevent memory DoS
     file_path = UPLOAD_DIR / f"{session_id}_{safe_filename}"
     try:
-        content = await file.read()
-        # Validate file size (max 50MB for FIT files)
+        # Validate file size (max 50MB for FIT files) while streaming to disk
         max_size = 50 * 1024 * 1024  # 50MB
-        if len(content) > max_size:
-            raise HTTPException(
-                status_code=400,
-                detail="File too large. Max size is 50MB"
-            )
-        if len(content) == 0:
+        chunk_size = 1024 * 1024  # 1MB
+        total_size = 0
+
+        with open(file_path, 'wb') as f:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > max_size:
+                    # Remove partially written file before raising
+                    f.close()
+                    if file_path.exists():
+                        file_path.unlink()
+                    raise HTTPException(
+                        status_code=400,
+                        detail="File too large. Max size is 50MB"
+                    )
+                f.write(chunk)
+
+        if total_size == 0:
+            if file_path.exists():
+                file_path.unlink()
             raise HTTPException(
                 status_code=400,
                 detail="File is empty"
             )
-        with open(file_path, 'wb') as f:
-            f.write(content)
         logger.info(f"File saved: {file_path}")
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error saving file: {e}")
+        # Clean up partial file on error
+        if file_path.exists():
+            file_path.unlink()
         raise HTTPException(
-            status_code=500, detail=f"Error saving file: {str(e)}"
+            status_code=500, detail="Error saving file"
         )
 
     # Parse FIT file
     try:
         df = parse_fit(str(file_path))
         logger.info(f"FIT parsed: {len(df)} records")
+        # Clean up uploaded file after successful parse
+        # Data is now in memory, no need to keep the file
+        if file_path.exists():
+            file_path.unlink()
     except Exception as e:
         logger.error(f"Error parsing FIT: {e}")
         # Clean up
         if file_path.exists():
             file_path.unlink()
-        raise HTTPException(status_code=400, detail=f"Error parsing FIT file: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail="Error parsing FIT file"
+        )
 
     # Create effort config with all parameters
     effort_config = EffortConfig(
@@ -196,7 +260,9 @@ async def upload_fit(
         logger.info(f"Detected {len(efforts)} efforts")
     except Exception as e:
         logger.error(f"Error detecting efforts: {e}")
-        raise HTTPException(status_code=500, detail=f"Error detecting efforts: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Error detecting efforts"
+        )
 
     # Detect sprints with user parameters
     try:
