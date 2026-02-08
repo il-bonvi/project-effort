@@ -13,6 +13,7 @@ Handles the inspection/effort editor view with ECharts visualization
 import sys
 import json
 import logging
+from html import escape as html_escape
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
@@ -246,13 +247,16 @@ def generate_inspection_html(
     sprints_data_json = json.dumps(sprints_data)
     ftp_json = json.dumps(ftp)
     
+    # Escape filename for safe HTML rendering
+    safe_filename = html_escape(filename)
+
     html = f"""
 <!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PEFFORT Web - Inspection: {filename}</title>
+    <title>PEFFORT Web - Inspection: {safe_filename}</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <style>
         * {{
@@ -494,7 +498,7 @@ def generate_inspection_html(
         <div>
             <h1>🚴 PEFFORT Web - Effort Inspection</h1>
             <div class="header-info">
-                <span><strong>File:</strong> {filename}</span>
+                <span><strong>File:</strong> {safe_filename}</span>
                 <span><strong>Efforts:</strong> {len(efforts_data)}</span>
                 <span><strong>Sprints:</strong> {len(sprints_data)}</span>
                 <span><strong>FTP:</strong> {ftp}W</span>

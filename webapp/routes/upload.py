@@ -85,21 +85,66 @@ async def upload_fit(
     """
     # Validate file
     if not file.filename or not file.filename.lower().endswith('.fit'):
-        raise HTTPException(status_code=400, detail="File must be a .fit file")
-    
+        raise HTTPException(
+            status_code=400, detail="File must be a .fit file"
+        )
+
+    # Validate numeric parameters to prevent abuse
+    if not (50 <= ftp <= 600):
+        raise HTTPException(
+            status_code=400, detail="FTP must be between 50 and 600 watts"
+        )
+    if not (30 <= weight <= 200):
+        raise HTTPException(
+            status_code=400, detail="Weight must be between 30 and 200 kg"
+        )
+    if not (10 <= window_sec <= 600):
+        raise HTTPException(
+            status_code=400,
+            detail="Window seconds must be between 10 and 600"
+        )
+    if not (50 <= min_ftp_pct <= 300):
+        raise HTTPException(
+            status_code=400,
+            detail="Min FTP % must be between 50 and 300"
+        )
+
     # Generate session ID
     session_id = str(uuid.uuid4())[:8]
-    
+
+    # Sanitize filename to prevent path traversal attacks
+    # Only keep the basename and replace any problematic characters
+    from pathlib import Path as PathLib
+    safe_filename = PathLib(file.filename).name
+    # Remove any remaining path separators and special chars
+    safe_filename = safe_filename.replace('/', '_').replace('\\', '_')
+
     # Save uploaded file
-    file_path = UPLOAD_DIR / f"{session_id}_{file.filename}"
+    file_path = UPLOAD_DIR / f"{session_id}_{safe_filename}"
     try:
         content = await file.read()
+        # Validate file size (max 50MB for FIT files)
+        max_size = 50 * 1024 * 1024  # 50MB
+        if len(content) > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Max size is 50MB"
+            )
+        if len(content) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="File is empty"
+            )
         with open(file_path, 'wb') as f:
             f.write(content)
         logger.info(f"File saved: {file_path}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error saving file: {e}")
-        raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error saving file: {str(e)}"
+        )
     
     # Parse FIT file
     try:
