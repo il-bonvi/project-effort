@@ -1,0 +1,799 @@
+# ==============================================================================
+# Copyright (c) 2026 Andrea Bonvicin - bFactor Project
+# PROPRIETARY LICENSE - TUTTI I DIRITTI RISERVATI
+# Sharing, distribution or reproduction is strictly prohibited.
+# La condivisione, distribuzione o riproduzione è severamente vietata.
+# ==============================================================================
+
+"""
+API ROUTES - RESTful endpoints for effort/sprint manipulation and data export
+"""
+
+import sys
+import json
+import logging
+import csv
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+from io import StringIO, BytesIO
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from pydantic import BaseModel
+
+# Add PEFFORT to path for imports
+peffort_path = Path(__file__).parent.parent.parent / "PEFFORT"
+sys.path.insert(0, str(peffort_path))
+
+from peffort_engine import (  # type: ignore
+    create_efforts, merge_extend, split_included, detect_sprints
+)
+from peffort_config import EffortConfig, SprintConfig  # type: ignore
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Shared sessions dict - set by setup_api_router()
+_shared_sessions: Dict[str, Dict[str, Any]] = {}
+
+
+def setup_api_router(sessions_dict: Dict[str, Dict[str, Any]]) -> APIRouter:
+    """
+    Set up the API router with access to shared sessions.
+    
+    Args:
+        sessions_dict: Reference to the main sessions dictionary from app.py
+        
+    Returns:
+        Configured APIRouter instance
+    """
+    global _shared_sessions
+    _shared_sessions = sessions_dict
+    return router
+
+
+# Create the APIRouter
+router = APIRouter(
+    prefix="/api",
+    tags=["api"],
+    responses={404: {"description": "Not found"}}
+)
+
+
+# =============================================================================
+# PYDANTIC MODELS - Request/Response schemas
+# =============================================================================
+
+class MergeRequest(BaseModel):
+    """Request to merge two consecutive efforts"""
+    effort_idx1: int
+    effort_idx2: int
+
+
+class ExtendRequest(BaseModel):
+    """Request to extend an effort before/after"""
+    effort_idx: int
+    extend_before_sec: Optional[int] = 0
+    extend_after_sec: Optional[int] = 0
+
+
+class SplitRequest(BaseModel):
+    """Request to split an effort at a specific time"""
+    effort_idx: int
+    split_time_sec: float
+
+
+# =============================================================================
+# SESSION DATA ENDPOINTS
+# =============================================================================
+
+@router.get("/session-data/{session_id}")
+async def get_session_data(session_id: str):
+    """
+    Get FIT data for inspection chart (time_sec, power, efforts, ftp)
+    
+    Returns:
+        JSON with time_sec, power arrays and effort list
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    try:
+        session = _shared_sessions[session_id]
+        df = session.get('df')
+        efforts = session.get('efforts', [])
+        ftp = session.get('ftp', 280)
+        
+        if df is None or df.empty:
+            raise HTTPException(status_code=400, detail="No FIT data available")
+        
+        time_sec = df['time_sec'].tolist()
+        power = df['power'].tolist()
+        
+        efforts_data = []
+        for start_idx, end_idx, avg_power in efforts:
+            efforts_data.append({
+                'start_idx': int(start_idx),
+                'end_idx': int(end_idx),
+                'avg_power': float(avg_power)
+            })
+        
+        return {
+            'success': True,
+            'data': {
+                'time_sec': time_sec,
+                'power': power
+            },
+            'efforts': efforts_data,
+            'ftp': float(ftp)
+        }
+    except Exception as e:
+        logger.error(f"Error getting session data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{session_id}/status")
+async def get_session_status(session_id: str):
+    """
+    Get current session status and effort/sprint counts
+    
+    Returns:
+        JSON with session_id, filename, record count, effort/sprint counts, FTP, weight
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    
+    return {
+        "session_id": session_id,
+        "filename": session['filename'],
+        "total_records": len(session['df']),
+        "total_efforts": len(session['efforts']),
+        "total_sprints": len(session.get('sprints', [])),
+        "ftp": session['ftp'],
+        "weight": session['weight']
+    }
+
+
+# =============================================================================
+# EFFORT MANIPULATION ENDPOINTS
+# =============================================================================
+
+@router.post("/{session_id}/merge")
+async def merge_efforts(session_id: str, request: MergeRequest):
+    """
+    Merge two efforts into one, creating new effort spanning both
+    
+    Args:
+        request: MergeRequest with effort_idx1 and effort_idx2
+        
+    Returns:
+        JSON confirmation with new total effort count
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    efforts = session['efforts']
+    
+    if request.effort_idx1 >= len(efforts) or request.effort_idx2 >= len(efforts):
+        raise HTTPException(status_code=400, detail="Invalid effort indices")
+    
+    e1 = efforts[request.effort_idx1]
+    e2 = efforts[request.effort_idx2]
+    
+    new_start = min(e1[0], e2[0])
+    new_end = max(e1[1], e2[1])
+    
+    df = session['df']
+    merged_data = df.iloc[new_start:new_end]
+    new_avg_power = merged_data['power'].mean() if len(merged_data) > 0 else (e1[2] + e2[2]) / 2
+    
+    new_efforts = [e for i, e in enumerate(efforts) if i not in [request.effort_idx1, request.effort_idx2]]
+    new_efforts.append((new_start, new_end, new_avg_power))
+    new_efforts.sort(key=lambda x: x[0])
+    
+    session['efforts'] = new_efforts
+    
+    return {
+        "success": True,
+        "message": f"Merged efforts {request.effort_idx1} and {request.effort_idx2}",
+        "total_efforts": len(new_efforts)
+    }
+
+
+@router.post("/{session_id}/extend")
+async def extend_effort(session_id: str, request: ExtendRequest):
+    """
+    Extend an effort before and/or after
+    
+    Args:
+        request: ExtendRequest with effort_idx and seconds to extend
+        
+    Returns:
+        JSON confirmation with new time boundaries and duration
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    efforts = session['efforts']
+    df = session['df']
+    
+    if request.effort_idx >= len(efforts):
+        raise HTTPException(status_code=400, detail="Invalid effort index")
+    
+    effort = efforts[request.effort_idx]
+    start_idx, end_idx, _ = effort
+    
+    time_diff = df['time_sec'].diff().median()
+    samples_per_sec = 1 / time_diff if time_diff > 0 else 1
+    
+    new_start = max(0, start_idx - int(request.extend_before_sec * samples_per_sec))
+    new_end = min(len(df), end_idx + int(request.extend_after_sec * samples_per_sec))
+    
+    extended_data = df.iloc[new_start:new_end]
+    new_avg_power = extended_data['power'].mean() if len(extended_data) > 0 else effort[2]
+    
+    efforts[request.effort_idx] = (new_start, new_end, new_avg_power)
+    
+    return {
+        "success": True,
+        "message": f"Extended effort {request.effort_idx}",
+        "new_start": int(df.iloc[new_start]['time_sec']),
+        "new_end": int(df.iloc[new_end-1]['time_sec']) if new_end > 0 else 0,
+        "new_duration": new_end - new_start
+    }
+
+
+@router.post("/{session_id}/split")
+async def split_effort(session_id: str, request: SplitRequest):
+    """
+    Split an effort at a specific time
+    
+    Args:
+        request: SplitRequest with effort_idx and split_time_sec
+        
+    Returns:
+        JSON confirmation with new total effort count
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    efforts = session['efforts']
+    df = session['df']
+    
+    if request.effort_idx >= len(efforts):
+        raise HTTPException(status_code=400, detail="Invalid effort index")
+    
+    effort = efforts[request.effort_idx]
+    start_idx, end_idx, _ = effort
+    
+    effort_df = df.iloc[start_idx:end_idx]
+    split_idx = effort_df[effort_df['time_sec'] >= request.split_time_sec].index
+    
+    if len(split_idx) == 0:
+        raise HTTPException(status_code=400, detail="Split time not within effort bounds")
+    
+    split_idx = split_idx[0]
+    
+    data1 = df.iloc[start_idx:split_idx]
+    data2 = df.iloc[split_idx:end_idx]
+    
+    avg_power1 = data1['power'].mean() if len(data1) > 0 else effort[2]
+    avg_power2 = data2['power'].mean() if len(data2) > 0 else effort[2]
+    
+    new_efforts = [e for i, e in enumerate(efforts) if i != request.effort_idx]
+    new_efforts.append((start_idx, split_idx, avg_power1))
+    new_efforts.append((split_idx, end_idx, avg_power2))
+    new_efforts.sort(key=lambda x: x[0])
+    
+    session['efforts'] = new_efforts
+    
+    return {
+        "success": True,
+        "message": f"Split effort {request.effort_idx} at {request.split_time_sec}s",
+        "total_efforts": len(new_efforts)
+    }
+
+
+@router.post("/{session_id}/trim")
+async def trim_effort(session_id: str, effort_idx: int, trim_start_sec: int = 0, trim_end_sec: int = 0):
+    """
+    Trim an effort by removing seconds from start and/or end
+    
+    Args:
+        effort_idx: Index of effort to trim
+        trim_start_sec: Seconds to remove from start (positive value)
+        trim_end_sec: Seconds to remove from end (positive value)
+        
+    Returns:
+        JSON confirmation with new time boundaries
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    efforts = session['efforts']
+    df = session['df']
+    
+    if effort_idx >= len(efforts) or effort_idx < 0:
+        raise HTTPException(status_code=400, detail="Invalid effort index")
+    
+    effort = efforts[effort_idx]
+    start_idx, end_idx, _ = effort
+    
+    time_diff = df['time_sec'].diff().median()
+    samples_per_sec = 1 / time_diff if time_diff > 0 else 1
+    
+    new_start = start_idx + int(trim_start_sec * samples_per_sec)
+    new_end = end_idx - int(trim_end_sec * samples_per_sec)
+    
+    if new_start >= new_end:
+        raise HTTPException(status_code=400, detail="Trim would result in invalid effort (start >= end)")
+    
+    if new_start < 0 or new_end > len(df):
+        raise HTTPException(status_code=400, detail="Trim exceeds data bounds")
+    
+    trimmed_data = df.iloc[new_start:new_end]
+    new_avg_power = trimmed_data['power'].mean() if len(trimmed_data) > 0 else effort[2]
+    
+    efforts[effort_idx] = (new_start, new_end, new_avg_power)
+    
+    return {
+        "success": True,
+        "message": f"Trimmed effort {effort_idx}: removed {trim_start_sec}s from start, {trim_end_sec}s from end",
+        "new_start_time": int(df.iloc[new_start]['time_sec']),
+        "new_end_time": int(df.iloc[new_end-1]['time_sec']) if new_end > 0 else 0,
+        "new_duration": new_end - new_start,
+        "new_avg_power": int(new_avg_power)
+    }
+
+
+@router.delete("/{session_id}/effort/{effort_idx}")
+async def delete_effort(session_id: str, effort_idx: int):
+    """
+    Delete a specific effort by index
+    
+    Args:
+        effort_idx: Index of effort to delete
+        
+    Returns:
+        JSON confirmation with effort data that was deleted
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    efforts = session['efforts']
+    
+    if effort_idx >= len(efforts) or effort_idx < 0:
+        raise HTTPException(status_code=400, detail="Invalid effort index")
+    
+    deleted = efforts.pop(effort_idx)
+    
+    return {
+        "success": True,
+        "message": f"Deleted effort {effort_idx}",
+        "deleted_effort": {
+            "start": int(session['df'].iloc[deleted[0]]['time_sec']),
+            "end": int(session['df'].iloc[deleted[1]-1]['time_sec']) if deleted[1] > 0 else 0,
+            "avg_power": deleted[2]
+        },
+        "remaining_efforts": len(efforts)
+    }
+
+
+@router.post("/{session_id}/import")
+async def import_modifications(session_id: str, modifications: Dict[str, Any]):
+    """
+    Import effort modifications from exported JSON
+    
+    Expected format:
+    {
+        "efforts": [{"index": 0, "new_start": 100, "new_end": 200, ...}],
+        "deleted_efforts": [2, 4]
+    }
+    
+    Returns:
+        JSON confirmation with import results
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    df = session['df']
+    
+    deleted_indices = set(modifications.get('deleted_efforts', []))
+    
+    new_efforts = []
+    for effort_mod in modifications.get('efforts', []):
+        if effort_mod['index'] in deleted_indices:
+            continue
+        
+        start_time = effort_mod['new_start']
+        end_time = effort_mod['new_end']
+        
+        start_idx_list = df[df['time_sec'] >= start_time].index.tolist()
+        start_idx = start_idx_list[0] if start_idx_list else 0
+        
+        end_idx_list = df[df['time_sec'] <= end_time].index.tolist()
+        end_idx = (end_idx_list[-1] + 1) if end_idx_list else len(df)
+        
+        segment_data = df.iloc[start_idx:end_idx]
+        avg_power = segment_data['power'].mean() if len(segment_data) > 0 else effort_mod.get('avg_power', 0)
+        
+        new_efforts.append((start_idx, end_idx, avg_power))
+    
+    session['efforts'] = new_efforts
+    
+    return {
+        "success": True,
+        "message": "Modifications imported successfully",
+        "total_efforts": len(new_efforts),
+        "deleted_count": len(deleted_indices)
+    }
+
+
+# =============================================================================
+# RE-DETECTION ENDPOINTS
+# =============================================================================
+
+async def redetect_efforts_impl(
+    session_id: str,
+    window_sec: int = 60,
+    min_ftp_pct: float = 100,
+    merge_pct: float = 15,
+    trim_win: int = 10,
+    trim_low: float = 85,
+    extend_win: int = 15,
+    extend_low: float = 80
+):
+    """
+    Re-detect efforts with new parameters without re-uploading file.
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    df = session['df']
+    ftp = session['ftp']
+    
+    try:
+        efforts = create_efforts(
+            df=df,
+            ftp=ftp,
+            window_sec=window_sec,
+            merge_pct=merge_pct,
+            min_ftp_pct=min_ftp_pct,
+            trim_win=trim_win,
+            trim_low=trim_low
+        )
+        
+        efforts = merge_extend(
+            df=df,
+            efforts=efforts,
+            merge_pct=merge_pct,
+            trim_win=trim_win,
+            trim_low=trim_low,
+            extend_win=extend_win,
+            extend_low=extend_low
+        )
+        
+        efforts = split_included(df=df, efforts=efforts)
+        
+        session['efforts'] = efforts
+        
+        if 'effort_config' not in session:
+            session['effort_config'] = EffortConfig()
+        session['effort_config'].window_seconds = window_sec
+        session['effort_config'].min_effort_intensity_ftp = min_ftp_pct
+        session['effort_config'].merge_power_diff_percent = merge_pct
+        session['effort_config'].trim_window_seconds = trim_win
+        session['effort_config'].trim_low_percent = trim_low
+        session['effort_config'].extend_window_seconds = extend_win
+        session['effort_config'].extend_low_percent = extend_low
+        
+        return {
+            "success": True,
+            "message": "Efforts re-detected successfully",
+            "total_efforts": len(efforts),
+            "parameters": {
+                "window_sec": window_sec,
+                "min_ftp_pct": min_ftp_pct,
+                "merge_pct": merge_pct,
+                "trim_win": trim_win,
+                "trim_low": trim_low,
+                "extend_win": extend_win,
+                "extend_low": extend_low
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error re-detecting efforts: {e}")
+        raise HTTPException(status_code=500, detail=f"Error re-detecting efforts: {str(e)}")
+
+
+async def redetect_sprints_impl(
+    session_id: str,
+    min_power: int = 500,
+    min_duration_sec: int = 5,
+    merge_gap_sec: int = 3
+):
+    """
+    Re-detect sprints with new parameters.
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    df = session['df']
+    
+    try:
+        sprints = detect_sprints(
+            df=df,
+            min_power=min_power,
+            min_duration_sec=min_duration_sec,
+            merge_gap_sec=merge_gap_sec
+        )
+        
+        session['sprints'] = sprints
+        
+        if 'sprint_config' not in session:
+            session['sprint_config'] = SprintConfig()
+        session['sprint_config'].min_power = min_power
+        session['sprint_config'].window_seconds = min_duration_sec
+        session['sprint_config'].merge_gap_sec = merge_gap_sec
+        
+        return {
+            "success": True,
+            "message": "Sprints re-detected successfully",
+            "total_sprints": len(sprints),
+            "parameters": {
+                "min_power": min_power,
+                "min_duration_sec": min_duration_sec,
+                "merge_gap_sec": merge_gap_sec
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error re-detecting sprints: {e}")
+        raise HTTPException(status_code=500, detail=f"Error re-detecting sprints: {str(e)}")
+
+
+@router.post("/{session_id}/redetect-efforts")
+async def redetect_efforts_json(session_id: str, params: Dict[str, Any]):
+    """
+    Re-detect efforts with new parameters via JSON body (called from dashboard).
+    """
+    return await redetect_efforts_impl(
+        session_id=session_id,
+        window_sec=int(params.get('window_sec', 60)),
+        min_ftp_pct=float(params.get('min_ftp_pct', 100)),
+        merge_pct=float(params.get('merge_pct', 15)),
+        trim_win=int(params.get('trim_win', 10)),
+        trim_low=float(params.get('trim_low', 85)),
+        extend_win=int(params.get('extend_win', 15)),
+        extend_low=float(params.get('extend_low', 80))
+    )
+
+
+@router.post("/{session_id}/redetect-sprints")
+async def redetect_sprints_json(session_id: str, params: Dict[str, Any]):
+    """
+    Re-detect sprints with new parameters via JSON body (called from dashboard).
+    """
+    return await redetect_sprints_impl(
+        session_id=session_id,
+        min_power=int(params.get('min_power', 500)),
+        min_duration_sec=int(params.get('min_duration_sec', 5)),
+        merge_gap_sec=int(params.get('merge_gap_sec', 3))
+    )
+
+
+# =============================================================================
+# EXPORT ENDPOINTS
+# =============================================================================
+
+@router.get("/export/{session_id}/fit")
+async def export_fit_file(session_id: str):
+    """
+    Export modified FIT file. Currently returns original FIT.
+    TODO: Implement FIT file modification with new efforts
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    original_file_path = session['file_path']
+    
+    return FileResponse(
+        path=original_file_path,
+        filename=f"modified_{session['filename']}",
+        media_type="application/octet-stream"
+    )
+
+
+@router.get("/export/{session_id}/json")
+async def export_json_data(session_id: str):
+    """
+    Export all data as JSON: efforts, sprints, statistics, parameters
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    df = session['df']
+    
+    efforts_export = []
+    for i, (start_idx, end_idx, avg_power) in enumerate(session['efforts']):
+        start_time = df.iloc[start_idx]['time_sec'] if start_idx < len(df) else 0
+        end_time = df.iloc[end_idx-1]['time_sec'] if end_idx > 0 and end_idx <= len(df) else 0
+        
+        efforts_export.append({
+            "index": i,
+            "start_time_sec": float(start_time),
+            "end_time_sec": float(end_time),
+            "duration_sec": float(end_time - start_time),
+            "avg_power_w": float(avg_power),
+            "start_idx": int(start_idx),
+            "end_idx": int(end_idx)
+        })
+    
+    sprints_export = []
+    for i, sprint in enumerate(session.get('sprints', [])):
+        start_idx = sprint.get('start_idx', 0)
+        end_idx = sprint.get('end_idx', 0)
+        start_time = df.iloc[start_idx]['time_sec'] if start_idx < len(df) else 0
+        end_time = df.iloc[end_idx-1]['time_sec'] if end_idx > 0 and end_idx <= len(df) else 0
+        
+        sprints_export.append({
+            "index": i,
+            "start_idx": start_idx,
+            "end_idx": end_idx,
+            "max_power_w": sprint.get('max_power', 0),
+            "avg_power_w": sprint.get('avg_power', 0),
+            "duration_sec": sprint.get('duration', 0)
+        })
+    
+    export_data = {
+        "session_info": {
+            "session_id": session_id,
+            "filename": session['filename'],
+            "ftp": session['ftp'],
+            "weight": session['weight']
+        },
+        "ride_statistics": session.get('stats', {}),
+        "efforts": efforts_export,
+        "sprints": sprints_export,
+        "detection_parameters": {
+            "effort_config": {
+                "window_seconds": session.get('effort_config', EffortConfig()).window_seconds,
+                "min_ftp_pct": session.get('effort_config', EffortConfig()).min_effort_intensity_ftp,
+                "merge_pct": session.get('effort_config', EffortConfig()).merge_power_diff_percent,
+                "trim_window": session.get('effort_config', EffortConfig()).trim_window_seconds,
+                "extend_window": session.get('effort_config', EffortConfig()).extend_window_seconds
+            },
+            "sprint_config": {
+                "min_power": session.get('sprint_config', SprintConfig()).min_power,
+                "window_seconds": session.get('sprint_config', SprintConfig()).window_seconds,
+                "merge_gap_sec": session.get('sprint_config', SprintConfig()).merge_gap_sec
+            }
+        }
+    }
+    
+    json_content = json.dumps(export_data, indent=2, default=str)
+    
+    return StreamingResponse(
+        BytesIO(json_content.encode('utf-8')),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=peffort_export_{session_id}.json"}
+    )
+
+
+@router.get("/export/{session_id}/gpx")
+async def export_gpx_file(session_id: str):
+    """
+    Export GPS track as GPX file if GPS data is available
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    df = session['df']
+    
+    if 'position_lat' not in df.columns or 'position_long' not in df.columns:
+        raise HTTPException(status_code=400, detail="No GPS data available for GPX export")
+    
+    gps_data = df[(df['position_lat'].notna()) & (df['position_long'].notna()) & 
+                  (df['position_lat'] != 0) & (df['position_long'] != 0)]
+    
+    if len(gps_data) == 0:
+        raise HTTPException(status_code=400, detail="No valid GPS coordinates found")
+    
+    gpx_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="PEFFORT Web" 
+     xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>{session['filename']} - PEFFORT Export</name>
+    <desc>Cycling activity exported from PEFFORT</desc>
+  </metadata>
+  <trk>
+    <name>Cycling Track</name>
+    <trkseg>
+'''
+    
+    for _, row in gps_data.iterrows():
+        lat = row['position_lat']
+        lon = row['position_long']
+        ele = row.get('altitude', 0)
+        time = row['time'].strftime('%Y-%m-%dT%H:%M:%SZ')
+        
+        gpx_content += f'      <trkpt lat="{lat:.7f}" lon="{lon:.7f}">\n'
+        gpx_content += f'        <ele>{ele:.1f}</ele>\n'
+        gpx_content += f'        <time>{time}</time>\n'
+        gpx_content += f'      </trkpt>\n'
+    
+    gpx_content += '''    </trkseg>
+  </trk>
+</gpx>'''
+    
+    return StreamingResponse(
+        BytesIO(gpx_content.encode('utf-8')),
+        media_type="application/gpx+xml",
+        headers={"Content-Disposition": f"attachment; filename=peffort_track_{session_id}.gpx"}
+    )
+
+
+@router.get("/export/{session_id}/csv")
+async def export_csv_data(session_id: str):
+    """
+    Export efforts and sprints data as CSV for analysis in Excel/Sheets
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = _shared_sessions[session_id]
+    df = session['df']
+    
+    csv_buffer = StringIO()
+    writer = csv.writer(csv_buffer)
+    
+    writer.writerow([
+        'Type', 'Index', 'Start_Time_Sec', 'End_Time_Sec', 'Duration_Sec', 
+        'Avg_Power_W', 'Max_Power_W', 'Start_Idx', 'End_Idx'
+    ])
+    
+    for i, (start_idx, end_idx, avg_power) in enumerate(session['efforts']):
+        start_time = df.iloc[start_idx]['time_sec'] if start_idx < len(df) else 0
+        end_time = df.iloc[end_idx-1]['time_sec'] if end_idx > 0 and end_idx <= len(df) else 0
+        
+        writer.writerow([
+            'Effort', i, start_time, end_time, end_time - start_time,
+            avg_power, '', start_idx, end_idx
+        ])
+    
+    for i, sprint in enumerate(session.get('sprints', [])):
+        start_idx = sprint.get('start_idx', 0)
+        end_idx = sprint.get('end_idx', 0)
+        start_time = df.iloc[start_idx]['time_sec'] if start_idx < len(df) else 0
+        end_time = df.iloc[end_idx-1]['time_sec'] if end_idx > 0 and end_idx <= len(df) else 0
+        
+        writer.writerow([
+            'Sprint', i, start_time, end_time, sprint.get('duration', 0),
+            sprint.get('avg_power', 0), sprint.get('max_power', 0), start_idx, end_idx
+        ])
+    
+    csv_content = csv_buffer.getvalue()
+    csv_buffer.close()
+    
+    return StreamingResponse(
+        BytesIO(csv_content.encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=peffort_data_{session_id}.csv"}
+    )
+
+
+__all__ = ['router', 'setup_api_router', 'redetect_efforts_impl', 'redetect_sprints_impl']

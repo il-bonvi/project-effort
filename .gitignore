@@ -1,0 +1,23 @@
+APP FUTURE/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Upload directory (runtime data)
+uploads/
+
+# IDE
+.vscode/
+.idea/
+
+# Virtual environments
+venv/
+.venv/
+env/
+__pycache__/
+PEFFORT/
