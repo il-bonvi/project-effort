@@ -18,13 +18,28 @@ from typing import Dict, Any
 
 from fastapi import FastAPI
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 # Add PEFFORT to path for modules that need it
 peffort_path = Path(__file__).parent.parent / "PEFFORT"
 sys.path.insert(0, str(peffort_path))
+
+# Import routers and their setup functions
+from routes.home import router as home_router, setup_home_router
+from routes.upload import router as upload_router, setup_upload_router
+from routes.dashboard import (
+    router as dashboard_router, setup_dashboard_router
+)
+from routes.inspection import (
+    router as inspection_router, setup_inspection_router
+)
+from routes.altimetria import (
+    router as altimetria_router, setup_altimetria_router
+)
+from routes.map3d import router as map3d_router, setup_map3d_router
+from routes.api import router as api_router, setup_api_router
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # FASTAPI APPLICATION INITIALIZATION
@@ -43,17 +58,8 @@ sessions: Dict[str, Dict[str, Any]] = {}
 logger.info("Initializing PEFFORT Web Application...")
 
 # ============================================================================
-# IMPORT AND REGISTER ROUTE MODULES
+# FASTAPI APPLICATION INITIALIZATION
 # ============================================================================
-
-# Import routers and their setup functions
-from routes.home import router as home_router, setup_home_router
-from routes.upload import router as upload_router, setup_upload_router
-from routes.dashboard import router as dashboard_router, setup_dashboard_router
-from routes.inspection import router as inspection_router, setup_inspection_router
-from routes.altimetria import router as altimetria_router, setup_altimetria_router
-from routes.map3d import router as map3d_router, setup_map3d_router
-from routes.api import router as api_router, setup_api_router
 
 # Initialize all route modules with shared sessions dictionary
 logger.info("Setting up route modules with shared sessions...")
@@ -80,12 +86,25 @@ logger.info("PEFFORT Web Application initialized successfully!")
 logger.info("Available endpoints:")
 logger.info("  GET  /                      - Home page with upload form")
 logger.info("  POST /upload                - Upload and analyze FIT file")
-logger.info("  GET  /dashboard/{id}        - View analysis dashboard")
-logger.info("  GET  /inspection/{id}       - Interactive effort editor")
-logger.info("  GET  /altimetria/{id}       - Elevation profile visualization")
-logger.info("  GET  /map3d/{id}            - 3D map with terrain visualization")
-logger.info("  GET  /api/session-data/{id} - Get session data as JSON")
-logger.info("  ...  /api/*                 - Various API endpoints (see routes/api.py)")
+logger.info(
+    "  GET  /dashboard/{id}        - View analysis dashboard"
+)
+logger.info(
+    "  GET  /inspection/{id}       - Interactive effort editor"
+)
+logger.info(
+    "  GET  /altimetria/{id}       - Elevation profile visualization"
+)
+logger.info(
+    "  GET  /map3d/{id}            - 3D map with terrain visualization"
+)
+logger.info(
+    "  GET  /api/session-data/{id} - Get session data as JSON"
+)
+logger.info(
+    "  ...  /api/*                 - Various API endpoints "
+    "(see routes/api.py)"
+)
 
 
 # ============================================================================

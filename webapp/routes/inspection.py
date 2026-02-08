@@ -16,15 +16,12 @@ import logging
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
-
 # Add parent directory to path for PEFFORT package imports
 _project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(_project_root))
 
-from PEFFORT.peffort_engine import create_efforts, merge_extend, split_included  # type: ignore
-from PEFFORT.peffort_config import EffortConfig  # type: ignore
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
 
 # Configure logging
 logger = logging.getLogger(__name__)

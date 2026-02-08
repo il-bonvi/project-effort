@@ -13,8 +13,6 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
-from utils.metrics import calculate_ride_stats
-
 logger = logging.getLogger(__name__)
 
 # Setup Jinja2 templates

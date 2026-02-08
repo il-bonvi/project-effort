@@ -14,12 +14,12 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Any
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form
-from fastapi.responses import RedirectResponse
-
 # Add parent directory to path for PEFFORT package imports
 _project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(_project_root))
+
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form
+from fastapi.responses import RedirectResponse
 
 from PEFFORT.peffort_engine import (  # type: ignore
     parse_fit, create_efforts, merge_extend, split_included, detect_sprints
@@ -32,6 +32,10 @@ logger = logging.getLogger(__name__)
 
 # This will be set by app.py
 _shared_sessions: Dict[str, Any] = {}
+
+# Upload directory for temporary FIT file storage
+UPLOAD_DIR = Path(tempfile.gettempdir()) / "peffort_uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter()
 

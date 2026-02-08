@@ -12,12 +12,12 @@ import sys
 from pathlib import Path
 from typing import Dict, Any
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
-
 # Add parent directory to path for PEFFORT package imports
 _project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(_project_root))
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
 
 from PEFFORT.map3d_builder import generate_3d_map_html  # type: ignore
 
