@@ -18,45 +18,6 @@
             padding: 15px;
             line-height: 1.6;
         }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            border-radius: 8px;
-            margin-bottom: 20px;
-            color: white;
-        }
-        .header h1 {
-            font-size: 1.5rem;
-            background: linear-gradient(135deg, #60a5fa, #3b82f6);
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .header-info {
-            display: flex;
-            gap: 20px;
-            font-size: 0.9rem;
-            color: #94a3b8;
-        }
-        .header-info strong {
-            color: #60a5fa;
-        }
-        .back-btn {
-            display: inline-block;
-            padding: 8px 16px;
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        .back-btn:hover {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        }
         #mainChart {
             width: 100%;
             height: 800px;
@@ -242,21 +203,6 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <div>
-            <h1>🚴 PEFFORT Web - Effort Inspection</h1>
-            <div class="header-info">
-                <span><strong>File:</strong> {{ safe_filename }}</span>
-                <span><strong>Efforts:</strong> {{ num_efforts }}</span>
-                <span><strong>Sprints:</strong> {{ num_sprints }}</span>
-                <span><strong>FTP:</strong> {{ ftp }}W</span>
-                <span><strong>Weight:</strong> {{ weight }}kg</span>
-                <span><strong>Session:</strong> {{ session_id }}</span>
-            </div>
-        </div>
-        <a href="/" class="back-btn">⬅️ Nuovo Upload</a>
-    </div>
-
     {% if stats_html %}
         {{ stats_html | safe }}
     {% endif %}
