@@ -24,3 +24,5 @@ venv/
 env/
 __pycache__/
 PEFFORT/
+.eslintignore
+.eslintrc.json
