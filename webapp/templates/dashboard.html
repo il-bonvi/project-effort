@@ -354,6 +354,7 @@
             <div class="tab active" data-tab="overview">📊 Overview</div>
             <div class="tab" data-tab="inspection">🔍 Inspection</div>
             <div class="tab" data-tab="altimetria">📈 Altimetria</div>
+            <div class="tab" data-tab="altimetria-echarts">📈 Altimetria Echarts</div>
             <div class="tab" data-tab="map3d">🗺️ 3D Map</div>
             <div class="tab" data-tab="settings">⚙️ Settings</div>
             <div class="tab" data-tab="export">📤 Export</div>
@@ -435,6 +436,18 @@
                     <span style="color: #6b7280; font-size: 0.85rem;">Per confronto identico con app originale</span>
                 </div>
                 <iframe src="/altimetria/{{ session_id }}" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: white;"></iframe>
+            </div>
+            
+            <!-- ALTIMETRIA ECHARTS TAB -->
+            <div class="tab-pane" id="altimetria-echarts" style="height: 100%; position: relative;">
+                <div style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
+                    <button onclick="window.open('/altimetria-echarts/{{ session_id }}', '_blank', 'width=1400,height=900')" 
+                            style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        🔍 Apri in Nuova Finestra
+                    </button>
+                    <span style="color: #6b7280; font-size: 0.85rem;">Versione ECharts con pannello metriche laterale</span>
+                </div>
+                <iframe src="/altimetria-echarts/{{ session_id }}" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: white;"></iframe>
             </div>
             
             <!-- 3D MAP TAB -->
