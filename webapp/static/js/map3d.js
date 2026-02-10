@@ -37,7 +37,6 @@ let showSprints = true;  // Toggle for sprints visibility
 
 function openEffortSidebar(idx) {
     const effort = currentEfforts[idx];
-    const sidebar = document.getElementById('sidebar');
     
     let hrHtml = effort.max_hr > 0 ? `
         <div class="sidebar-section">

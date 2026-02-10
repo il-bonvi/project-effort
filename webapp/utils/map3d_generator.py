@@ -11,7 +11,6 @@ from typing import List, Tuple, Dict, Any
 # Import moduli locali
 from .map3d_core import (
     export_traccia_geojson,
-    validate_and_filter_coordinates,
     calculate_zoom_level,
     prepare_efforts_data
 )
@@ -23,7 +22,7 @@ from pathlib import Path
 _root_path = str(Path(__file__).parent.parent.parent)
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
-from config import get_maptiler_key, get_mapbox_token
+from config import get_maptiler_key
 
 logger = logging.getLogger(__name__)
 
@@ -94,27 +93,28 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         zoom = calculate_zoom_level(lat, lon)
         
         # ===== STEP 4: Track Statistics =====
-        if 'altitude' in df.columns:
-            alt_min = df['altitude'].min()
-            alt_max = df['altitude'].max()
-            elevation_gain = alt_max - alt_min
-        else:
-            elevation_gain = 0
-        
-        power = df['power'].values
-        distance_km = (df['distance'].values[-1] - df['distance'].values[0]) / 1000 if 'distance' in df.columns else 0
+        # Note: elevation_gain and power calculations are performed in map3d_core.calculate_effort_parameters()
+        # for each individual effort/sprint segment, not for the entire track
         
         # ===== STEP 5: Elevation Data Preparation =====
-        alt_values = df['altitude'].values if 'altitude' in df.columns else np.zeros(len(df))
-        dist_km_values = df['distance_km'].values if 'distance_km' in df.columns else np.zeros(len(df))
-        alt_total = alt_values.tolist()
-        dist_total = dist_km_values.tolist()
+        # Full df arrays for energy/parameter calculations (used with full df indices)
+        alt_values_full = df['altitude'].values if 'altitude' in df.columns else np.zeros(len(df))
+        dist_km_values_full = df['distance_km'].values if 'distance_km' in df.columns else np.zeros(len(df))
+        
+        # Filtered arrays aligned with GeoJSON coordinates (for segment visualization)
+        alt_values_filtered = df_geom['altitude'].values if 'altitude' in df_geom.columns else np.zeros(len(df_geom))
+        dist_km_values_filtered = df_geom['distance_km'].values if 'distance_km' in df_geom.columns else np.zeros(len(df_geom))
+        
+        # For the full elevation graph, use complete df data
+        alt_total = alt_values_full.tolist()
+        dist_total = dist_km_values_full.tolist()
         
         # ===== STEP 6: Efforts Data Calculation (Using Core Module) =====
-        # Prepare data for core processing - use df (complete) for energy calcs to include all power data
+        # Prepare data for core processing - pass both full and filtered arrays
         efforts_data_json = prepare_efforts_data(
             df, efforts, sprints, ftp, weight, geojson_data, 
-            orig_indices, alt_values, dist_km_values
+            orig_indices, alt_values_full, dist_km_values_full,
+            alt_values_filtered, dist_km_values_filtered
         )
         
         # Parse to get efforts_list for elevation graph

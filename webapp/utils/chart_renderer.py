@@ -3,7 +3,7 @@ EXPORT MANAGER - Gestione esportazione PDF e generazione grafici
 Contiene: create_pdf_report, plot_unified_html, rendering plotly
 """
 
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Any
 import logging
 import numpy as np
 import pandas as pd
@@ -115,9 +115,6 @@ def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
                 seg_dist = dist[s:e]
                 seg_time = time_sec[s:e]
                 seg_hr = hr[s:e]
-                seg_grade = grade[s:e]
-                seg_cadence = cadence[s:e]
-                seg_dist_km = dist_km[s:e]
 
                 duration = int(seg_time[-1] - seg_time[0] + 1)
                 elevation_gain = seg_alt[-1] - seg_alt[0]
@@ -425,7 +422,6 @@ def plot_unified_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
         seg_alt = alt[start:end]
         seg_dist_km = dist_km[start:end]
         seg_dist = distance[start:end]
-        seg_time = time_sec[start:end]
         seg_hr = hr[start:end]
         seg_grade = grade[start:end]
         seg_cadence = cadence[start:end]

@@ -115,11 +115,11 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
     Calcola tutti i parametri di un singolo effort.
     
     Args:
-        s, e: Indici start/end dell'effort
+        s, e: Indici start/end dell'effort nel DataFrame completo
         avg: Potenza media
         df: DataFrame completo con dati attività
-        alt_values: Array altitudini filtrate
-        dist_km_values: Array distanze filtrate
+        alt_values: Array altitudini dal DataFrame COMPLETO (per calcoli con indici s, e)
+        dist_km_values: Array distanze dal DataFrame COMPLETO (per calcoli con indici s, e)
         ftp: Functional Threshold Power
         weight: Peso atleta
         joules_cumulative: Array Joules cumulativi
@@ -133,7 +133,6 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
     hr_all = df['heartrate'].values if 'heartrate' in df.columns else np.zeros(len(df))
     cadence_all = df['cadence'].values if 'cadence' in df.columns else np.zeros(len(df))
     grade_all = df['grade'].values if 'grade' in df.columns else np.zeros(len(df))
-    distance_all = df['distance'].values if 'distance' in df.columns else np.zeros(len(df))
     
     # Segmenti dati (con boundary checks appropriati)
     # Assicura che gli indici siano validi
@@ -233,20 +232,23 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
 def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
                         sprints: List[Dict[str, Any]], ftp: float, weight: float,
                         geojson_data: dict, orig_indices: List[int],
-                        alt_values: np.ndarray, dist_km_values: np.ndarray) -> str:
+                        alt_values_full: np.ndarray, dist_km_values_full: np.ndarray,
+                        alt_values_filtered: np.ndarray, dist_km_values_filtered: np.ndarray) -> str:
     """
     Prepara i dati efforts e sprints per il JavaScript.
     
     Args:
-        df: DataFrame con dati attività
-        efforts: Lista efforts (start, end, avg_power)
-        sprints: Lista sprints (dict con start, end, avg_power, ecc.)
+        df: DataFrame completo con dati attività (usato per calcoli energetici)
+        efforts: Lista efforts (start, end, avg_power) con indici riferiti al df completo
+        sprints: Lista sprints (dict con start, end, avg_power, ecc.) con indici riferiti al df completo
         ftp: Functional Threshold Power
         weight: Peso atleta
-        geojson_data: GeoJSON della traccia
-        orig_indices: Indici originali per il mapping
-        alt_values: Array altitudini filtrate
-        dist_km_values: Array distanze filtrate
+        geojson_data: GeoJSON della traccia (da df filtrato)
+        orig_indices: Indici del df filtrato nel df completo
+        alt_values_full: Array altitudini da df COMPLETO (per calcoli parametri)
+        dist_km_values_full: Array distanze da df COMPLETO (per calcoli parametri)
+        alt_values_filtered: Array altitudini da df FILTRATO (allineato con coords GeoJSON)
+        dist_km_values_filtered: Array distanze da df FILTRATO (allineato con coords GeoJSON)
         
     Returns:
         JSON string con dati efforts e sprints
@@ -293,13 +295,13 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         
         zone_color = get_zone_color(avg, ftp)
         
-        # Segmenti per visualizzazione
+        # Segmenti per visualizzazione (usa array filtrati allineati con coords)
         segment_coords = coords[pos_start:pos_end+1]
-        segment_alt = alt_values[pos_start:pos_end+1].tolist() if pos_end < len(alt_values) else []
-        segment_dist = dist_km_values[pos_start:pos_end+1].tolist() if pos_end < len(dist_km_values) else []
+        segment_alt = alt_values_filtered[pos_start:pos_end+1].tolist() if pos_end < len(alt_values_filtered) else []
+        segment_dist = dist_km_values_filtered[pos_start:pos_end+1].tolist() if pos_end < len(dist_km_values_filtered) else []
         
-        # Calcola parametri
-        params = calculate_effort_parameters(s, e, avg, df, alt_values, dist_km_values, 
+        # Calcola parametri (usa array completi dal df originale)
+        params = calculate_effort_parameters(s, e, avg, df, alt_values_full, dist_km_values_full, 
                                             ftp, weight, joules_cumulative, joules_over_cp_cumulative)
         
         if len(segment_coords) > 0:
@@ -344,13 +346,13 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         # Sprint color (nero per distinguerli dagli efforts)
         sprint_color = '#000000'
         
-        # Segmenti per visualizzazione
+        # Segmenti per visualizzazione (usa array filtrati allineati con coords)
         segment_coords = coords[pos_start:pos_end+1]
-        segment_alt = alt_values[pos_start:pos_end+1].tolist() if pos_end < len(alt_values) else []
-        segment_dist = dist_km_values[pos_start:pos_end+1].tolist() if pos_end < len(dist_km_values) else []
+        segment_alt = alt_values_filtered[pos_start:pos_end+1].tolist() if pos_end < len(alt_values_filtered) else []
+        segment_dist = dist_km_values_filtered[pos_start:pos_end+1].tolist() if pos_end < len(dist_km_values_filtered) else []
         
-        # Calcola parametri per sprint (usando stessa logica degli efforts)
-        params = calculate_effort_parameters(s, e, avg, df, alt_values, dist_km_values, 
+        # Calcola parametri per sprint (usando stessa logica degli efforts, usa array completi)
+        params = calculate_effort_parameters(s, e, avg, df, alt_values_full, dist_km_values_full, 
                                             ftp, weight, joules_cumulative, joules_over_cp_cumulative)
         
         if len(segment_coords) > 0:

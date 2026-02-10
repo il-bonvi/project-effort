@@ -11,14 +11,13 @@ import logging
 import sys
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any
 
 # Add parent directory to path for PEFFORT package imports
 _project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(_project_root))
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
 from starlette.templating import Jinja2Templates
 import numpy as np
 
@@ -28,8 +27,9 @@ from utils.effort_analyzer import (
 
 logger = logging.getLogger(__name__)
 
-# Setup Jinja2 templates
-templates = Jinja2Templates(directory="templates")
+# Setup Jinja2 templates using an absolute path based on this file's location
+_templates_dir = Path(__file__).resolve().parent.parent / "templates"
+templates = Jinja2Templates(directory=str(_templates_dir))
 
 # This will be set by app.py
 _shared_sessions: Dict[str, Any] = {}
@@ -228,7 +228,6 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         seg_alt = alt[start:end]
         seg_dist_km = dist_km[start:end]
         seg_dist = distance[start:end]
-        seg_time = time_sec[start:end]
         seg_hr = hr[start:end]
         seg_grade = grade[start:end]
         seg_cadence = cadence[start:end]

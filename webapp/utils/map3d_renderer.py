@@ -5,9 +5,8 @@ Handles HTML template rendering by loading from templates/ folder.
 Separated from business logic (map3d_core.py) and orchestration (map3d_generator.py).
 """
 
-import json
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
 def generate_3d_map_html(efforts_data_json: str, elevation_data_json: str, geojson_str: str,
@@ -29,9 +28,12 @@ def generate_3d_map_html(efforts_data_json: str, elevation_data_json: str, geojs
     Returns:
         str: Complete HTML document
     """
-    # Load template from templates/ folder
+    # Load template from templates/ folder with autoescape enabled for security
     templates_dir = Path(__file__).parent.parent / 'templates'
-    env = Environment(loader=FileSystemLoader(str(templates_dir)))
+    env = Environment(
+        loader=FileSystemLoader(str(templates_dir)),
+        autoescape=select_autoescape(['html', 'xml'])
+    )
     template = env.get_template('map3d.html')
     
     html = template.render(

@@ -13,6 +13,7 @@ import sys
 import json
 import logging
 import csv
+import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional
 from io import StringIO, BytesIO
@@ -821,10 +822,13 @@ async def export_csv_data(session_id: str):
 
 
 @router.post("/import-modifications/{session_id}")
-async def import_modifications(session_id: str, modifications: Dict[str, Any]):
+async def import_dashboard_modifications(session_id: str, modifications: Dict[str, Any]):
     """
-    Import effort modifications from JSON file.
+    Import effort modifications from JSON file for dashboard.
     Validates that modifications are for the correct session/file.
+    
+    Note: This is a separate endpoint from /{session_id}/import. This one is used
+    by the dashboard UI and includes additional validation and session_id matching.
     """
     if session_id not in _shared_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -842,44 +846,125 @@ async def import_modifications(session_id: str, modifications: Dict[str, Any]):
 
         session = _shared_sessions[session_id]
 
+        # Normalize deleted indices for efforts and sprints
+        deleted_efforts = set(modifications.get('deleted_efforts') or [])
+        deleted_sprints = set(modifications.get('deleted_sprints') or [])
+
         # Apply modifications to efforts
-        original_efforts = session['efforts']
+        original_efforts = session.get('efforts', [])
         modified_efforts = []
+
+        df = session['df']
+        time_axis = df['time_sec'].tolist()
+        time_array = np.array(time_axis)  # Convert once for efficient lookups
+        max_idx = len(time_axis) - 1
+        has_power_column = 'power' in df.columns  # Check once outside the loop
 
         # Reconstruct efforts with modifications
         for effort_data in modifications['efforts']:
+            # Skip if this effort is marked as deleted in the payload
             if effort_data.get('deleted', False):
                 continue
 
             # Find original effort by index if available, otherwise create new
             effort_idx = effort_data.get('index')
+
+            # If the original index is explicitly listed as deleted, do not reintroduce it
+            if effort_idx is not None and effort_idx in deleted_efforts:
+                continue
+
             if effort_idx is not None and 0 <= effort_idx < len(original_efforts):
                 # Modify existing effort
-                start_idx, end_idx, avg_power = original_efforts[effort_idx]
+                orig_start_idx, orig_end_idx, orig_avg_power = original_efforts[effort_idx]
 
-                # Convert time back to indices (approximate)
-                df = session['df']
-                time_axis = df['time_sec'].tolist()
+                # Convert time back to indices (efficiently using numpy)
+                new_start_idx = int(np.argmin(np.abs(time_array - effort_data['new_start'])))
+                new_end_idx = int(np.argmin(np.abs(time_array - effort_data['new_end'])))
 
-                new_start_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_start']))
-                new_end_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_end']))
+                # Clamp to valid bounds
+                new_start_idx = max(0, min(new_start_idx, max_idx))
+                new_end_idx = max(0, min(new_end_idx, max_idx))
 
-                modified_efforts.append((new_start_idx, new_end_idx, effort_data['avg_power']))
+                # Ensure ordering: start < end
+                if new_start_idx > new_end_idx:
+                    logger.warning(
+                        "Swapping reversed indices for effort %s: start %s > end %s",
+                        effort_idx,
+                        new_start_idx,
+                        new_end_idx,
+                    )
+                    new_start_idx, new_end_idx = new_end_idx, new_start_idx
+
+                # Skip zero-length or invalid efforts
+                if new_start_idx == new_end_idx:
+                    logger.warning(
+                        "Skipping zero-length effort at index %s (start_idx == end_idx == %s)",
+                        effort_idx,
+                        new_start_idx,
+                    )
+                    continue
+
+                # Recompute avg_power from the DataFrame slice when possible
+                if has_power_column:
+                    effort_slice = df.iloc[new_start_idx:new_end_idx + 1]
+                    if not effort_slice.empty:
+                        avg_power = float(effort_slice['power'].mean())
+                    else:
+                        avg_power = float(orig_avg_power)
+                else:
+                    # Fallback to original avg_power if power column is missing
+                    avg_power = float(orig_avg_power)
+
+                modified_efforts.append((new_start_idx, new_end_idx, avg_power))
             else:
-                # This is a new effort - convert times to indices
-                df = session['df']
-                time_axis = df['time_sec'].tolist()
+                # This is a new effort - convert times to indices (efficiently using numpy)
+                start_idx = int(np.argmin(np.abs(time_array - effort_data['new_start'])))
+                end_idx = int(np.argmin(np.abs(time_array - effort_data['new_end'])))
 
-                start_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_start']))
-                end_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_end']))
+                # Clamp to valid bounds
+                start_idx = max(0, min(start_idx, max_idx))
+                end_idx = max(0, min(end_idx, max_idx))
 
-                modified_efforts.append((start_idx, end_idx, effort_data['avg_power']))
+                # Ensure ordering: start < end
+                if start_idx > end_idx:
+                    logger.warning(
+                        "Swapping reversed indices for new effort: start %s > end %s",
+                        start_idx,
+                        end_idx,
+                    )
+                    start_idx, end_idx = end_idx, start_idx
+
+                # Skip zero-length or invalid efforts
+                if start_idx == end_idx:
+                    logger.warning(
+                        "Skipping zero-length new effort with start_idx == end_idx == %s",
+                        start_idx,
+                    )
+                    continue
+
+                # Recompute avg_power from the DataFrame slice when possible
+                if has_power_column:
+                    effort_slice = df.iloc[start_idx:end_idx + 1]
+                    if not effort_slice.empty:
+                        avg_power = float(effort_slice['power'].mean())
+                    else:
+                        avg_power = float(effort_data.get('avg_power', 0.0))
+                else:
+                    # Fallback to any provided avg_power, if present
+                    avg_power = float(effort_data.get('avg_power', 0.0))
+
+                modified_efforts.append((start_idx, end_idx, avg_power))
 
         # Update session with modified efforts
         session['efforts'] = modified_efforts
 
-        # Handle deleted efforts/sprints if needed
-        # (For now, we just update the efforts list)
+        # Apply deleted_sprints, if the session has sprints data
+        if 'sprints' in session:
+            original_sprints = session['sprints']
+            session['sprints'] = [
+                sprint for idx, sprint in enumerate(original_sprints)
+                if idx not in deleted_sprints
+            ]
 
         return {"success": True, "message": f"Imported {len(modified_efforts)} efforts successfully"}
 

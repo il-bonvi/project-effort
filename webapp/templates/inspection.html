@@ -653,17 +653,13 @@
             document.addEventListener('mousemove', function(e) {
                 if (!draggingState) return;
                 
-                let item, itemData, legendPrefix, deletedSet;
+                let item, legendPrefix;
                 if (draggingState.type === 'effort') {
                     item = effortsData[draggingState.idx];
-                    itemData = effortsData;
                     legendPrefix = 'effort-';
-                    deletedSet = deletedEfforts;
                 } else {
                     item = sprintsData[draggingState.idx];
-                    itemData = sprintsData;
                     legendPrefix = 'sprint-';
-                    deletedSet = deletedSprints;
                 }
                 
                 const rect = mainChartDiv.getBoundingClientRect();
