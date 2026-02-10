@@ -25,10 +25,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from PEFFORT.peffort_engine import (  # type: ignore
+from utils.effort_analyzer import (
     create_efforts, merge_extend, split_included, detect_sprints
 )
-from PEFFORT.peffort_config import EffortConfig, SprintConfig  # type: ignore
+from utils.analysis_config import EffortConfig, SprintConfig
 
 # Configure logging
 logger = logging.getLogger(__name__)

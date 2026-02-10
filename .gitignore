@@ -1,9 +1,13 @@
-APP FUTURE/
+env/
 
-# Configuration files with API keys (DO NOT COMMIT!)
+# === Project folders ===
+APP FUTURE/
+uploads/
+
+# === Sensitive/Config files ===
 config.py
 
-# Python
+# === Python artifacts ===
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -11,18 +15,19 @@ __pycache__/
 dist/
 build/
 
-# Upload directory (runtime data)
-uploads/
-
-# IDE
-.vscode/
-.idea/
-
-# Virtual environments
+# === Virtual environments ===
 venv/
 .venv/
 env/
-__pycache__/
-PEFFORT/
+
+# === IDE/Editor ===
+.vscode/
+.idea/
+
+# === Node/JS/Other ===
 .eslintignore
 .eslintrc.json
+
+# === Misc ===
+*.bat
+PEFFORT/

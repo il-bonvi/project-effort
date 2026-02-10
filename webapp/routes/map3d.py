@@ -19,7 +19,7 @@ sys.path.insert(0, str(_project_root))
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
-from PEFFORT.map3d_builder import generate_3d_map_html  # type: ignore
+from utils.map3d_generator import generate_3d_map_html
 
 logger = logging.getLogger(__name__)
 

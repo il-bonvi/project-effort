@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse
 from starlette.templating import Jinja2Templates
 import numpy as np
 
-from PEFFORT.peffort_engine import (
+from utils.effort_analyzer import (
     format_time_hhmmss, format_time_mmss, get_zone_color
 )
 

@@ -21,10 +21,10 @@ sys.path.insert(0, str(_project_root))
 from fastapi import APIRouter, File, UploadFile, HTTPException, Form
 from fastapi.responses import RedirectResponse
 
-from PEFFORT.peffort_engine import (  # type: ignore
+from utils.effort_analyzer import (
     parse_fit, create_efforts, merge_extend, split_included, detect_sprints
 )
-from PEFFORT.peffort_config import EffortConfig, SprintConfig  # type: ignore
+from utils.analysis_config import EffortConfig, SprintConfig
 
 from utils.metrics import calculate_ride_stats
 

@@ -18,10 +18,6 @@ from typing import Dict, Any
 
 from fastapi import FastAPI
 
-# Add PEFFORT to path for modules that need it
-peffort_path = Path(__file__).parent.parent / "PEFFORT"
-sys.path.insert(0, str(peffort_path))
-
 # Import routers and their setup functions
 from routes.home import router as home_router, setup_home_router
 from routes.upload import router as upload_router, setup_upload_router
