@@ -19,7 +19,9 @@
             margin: 0;
             padding: 0;
             height: 100vh;
-            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
             font-size: 16px;
         }
         .header {
@@ -67,6 +69,8 @@
         .tab-container {
             display: flex;
             flex-direction: column;
+            flex: 1;
+            min-height: 0;
         }
         .tabs {
             display: flex;
@@ -103,6 +107,9 @@
             padding: 0;
             position: relative;
             min-height: 400px;
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
         }
         .tab-pane {
             display: none;
@@ -110,6 +117,16 @@
         }
         .tab-pane.active {
             display: block;
+        }
+        #altimetria,
+        #altimetria-echarts,
+        #map3d {
+            height: 100% !important;
+            min-height: 0 !important;
+        }        #map3d-placeholder,
+        #map3d-container {
+            height: 100% !important;
+            min-height: 0 !important;
         }
         .overview-content {
             padding: 10px 0;

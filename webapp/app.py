@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 # Import routers and their setup functions
 from routes.home import router as home_router, setup_home_router
@@ -49,6 +50,10 @@ app = FastAPI(
     description="Web interface for FIT file analysis and effort inspection",
     version="1.0.0"
 )
+
+# Mount static files directory
+static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Session storage (in-memory, stores analysis results and dataframes)
 # Shared across all route modules via setup_XXXX_router(sessions) functions

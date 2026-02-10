@@ -26,6 +26,7 @@
         #chart {
             flex: 1;
             height: 100%;
+            overflow: hidden;
         }
         #sidebar {
             width: 350px;
@@ -261,7 +262,7 @@
                 left: 60,
                 right: 20,
                 top: 60,
-                bottom: 60
+                bottom: 20
             },
             xAxis: {
                 type: 'value',
@@ -304,9 +305,12 @@
                     type: 'slider',
                     show: true,
                     xAxisIndex: [0],
-                    left: '10%',
+                    left: 60,
+                    right: 20,
                     start: 0,
-                    end: 100
+                    end: 100,
+                    height: 20,
+                    bottom: 0
                 },
                 {
                     type: 'inside',
@@ -327,7 +331,6 @@
             FTP: ${chartData.ftp}W | Weight: ${chartData.weight}kg<br/>
             Efforts: WIN ${chartData.config.window_sec}s | MRG ${chartData.config.merge_pct}% | MIN ${chartData.config.min_ftp_pct}%<br/>
             Sprints: WIN ${chartData.config.sprint_window_sec}s | MIN ${chartData.config.min_sprint_power}W<br/>
-            <strong>Elevation:</strong> ${minAlt.toFixed(0)}m - ${maxAlt.toFixed(0)}m (gain: ${elevationGain.toFixed(0)}m)<br/>
             <strong>Y-axis:</strong> ${yMin}m - ${yMax}m (range: ${(yMax-yMin)}m)
         `;
         

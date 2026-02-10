@@ -531,6 +531,8 @@ def plot_unified_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
     
     logger.info(f"Grafico generato con {len(efforts)} efforts e {len(sprints)} sprints")
     html_str = pio.to_html(fig, full_html=True)
+    if "<!DOCTYPE html>" not in html_str[:200]:
+        html_str = "<!DOCTYPE html>\n" + html_str
     
     style_fix = """
     <style>
