@@ -13,6 +13,7 @@ Handles the inspection/effort editor view with ECharts visualization
 import sys
 import json
 import logging
+import numpy as np
 from html import escape
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
@@ -168,23 +169,28 @@ def generate_inspection_data(
     sprint_colors = ['#dc2626', '#ea580c', '#f59e0b', '#84cc16', '#10b981', '#06b6d4']
 
     for i, sprint in enumerate(sprints):
-        start_idx = sprint.get('start_idx', sprint.get('start', 0))
-        end_idx = sprint.get('end_idx', sprint.get('end', start_idx + 1))
+        start_idx = sprint.get('start', 0)
+        end_idx = sprint.get('end', start_idx + 1)
 
         if not (0 <= start_idx < n_samples and 0 < end_idx <= n_samples and end_idx > start_idx):
             continue
 
         start_time = time_axis[start_idx]
         end_time = time_axis[end_idx - 1]
+        
+        # Calculate power statistics for this sprint
+        sprint_power_data = power_data[start_idx:end_idx]
+        max_power = float(np.max(sprint_power_data)) if sprint_power_data else 0.0
+        avg_power = float(np.mean(sprint_power_data)) if sprint_power_data else 0.0
 
         color = sprint_colors[i % len(sprint_colors)]
         sprints_data.append({
             'id': i,
             'start': start_time,
             'end': end_time,
-            'max_power': sprint.get('max_power', 0),
-            'avg_power': sprint.get('avg_power', 0),
-            'duration': sprint.get('duration', end_time - start_time),
+            'max_power': max_power,
+            'avg_power': avg_power,
+            'duration': end_time - start_time,
             'color': color,
             'label': f"Sprint {i+1}"
         })

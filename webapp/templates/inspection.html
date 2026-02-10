@@ -33,11 +33,11 @@
             margin-bottom: 20px;
         }
         .legend-item {
-            padding: 10px;
+            padding: 8px;
             background: #f9fafb;
             border-radius: 6px;
             border-left: 4px solid;
-            font-size: 12px;
+            font-size: 11px;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -309,6 +309,7 @@
             const power60sCoords = timeAxis.map((time, idx) => [time, power60s[idx]]);
 
             const deletedEfforts = new Set();
+            const deletedSprints = new Set();
             const legendDiv = document.getElementById('legend');
 
             effortsData.forEach((effort, idx) => {
@@ -349,6 +350,7 @@
             sprintsData.forEach((sprint, idx) => {
                 const item = document.createElement('div');
                 item.className = 'legend-item';
+                item.id = `sprint-${idx}`;
                 item.style.borderLeftColor = sprint.color;
                 item.style.background = '#fef2f2';
                 item.innerHTML = `
@@ -357,12 +359,27 @@
                         <div>
                             <strong>${sprint.label}</strong><br>
                             <span style="color: #9ca3b8;">
-                                ${sprint.start.toFixed(0)}s - ${sprint.end.toFixed(0)}s | ${sprint.duration.toFixed(1)}s | Max: ${sprint.max_power.toFixed(0)}W | Avg: ${sprint.avg_power.toFixed(0)}W
+                                ${sprint.start.toFixed(0)}s - ${sprint.end.toFixed(0)}s | ${sprint.duration.toFixed(0)}s | ${sprint.max_power.toFixed(0)}W | ${sprint.avg_power.toFixed(0)}W
                             </span>
                         </div>
                     </div>
+                    <button class="delete-btn" data-sprint-idx="${idx}">×</button>
                 `;
                 sprintsLegendDiv.appendChild(item);
+
+                const deleteBtn = item.querySelector('.delete-btn');
+                deleteBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const sprintIdx = parseInt(this.dataset.sprintIdx);
+                    if (deletedSprints.has(sprintIdx)) {
+                        deletedSprints.delete(sprintIdx);
+                        item.classList.remove('deleted');
+                    } else {
+                        deletedSprints.add(sprintIdx);
+                        item.classList.add('deleted');
+                    }
+                    rebuildChart();
+                });
             });
 
             const mainChartDiv = document.getElementById('mainChart');
@@ -486,6 +503,7 @@
                 }
 
                 sprintsData.forEach((sprint, idx) => {
+                    if (deletedSprints.has(idx)) return;
                     option.series.push({
                         name: sprint.label, type: 'line', xAxisIndex: 0, yAxisIndex: 0,
                         data: [], lineStyle: { opacity: 0 },
@@ -499,6 +517,22 @@
                             },
                             data: [[{ xAxis: sprint.start }, { xAxis: sprint.end }]]
                         }, z: 2
+                    });
+                    
+                    // Add draggable points for sprints (only on first grid)
+                    const startPower = powerData[Math.min(Math.floor(sprint.start / samplingRate), powerData.length - 1)] || 0;
+                    const endPower = powerData[Math.min(Math.floor(sprint.end / samplingRate), powerData.length - 1)] || 0;
+                    
+                    option.series.push({
+                        name: sprint.label + ' (punti)', type: 'scatter', xAxisIndex: 0, yAxisIndex: 0,
+                        data: [[sprint.start, startPower], [sprint.end, endPower]],
+                        symbolSize: 10, color: sprint.color,
+                        itemStyle: { color: sprint.color, borderColor: '#fff', borderWidth: 1, opacity: 0.8 },
+                        label: {
+                            show: true, position: 'top', color: sprint.color, fontSize: 9, fontWeight: 'bold',
+                            formatter: function(params) { return params.dataIndex === 0 ? 'START' : 'END'; },
+                            backgroundColor: '#ffffff', borderColor: sprint.color, borderWidth: 1, borderRadius: 2, padding: [1, 3]
+                        }, z: 4
                     });
                 });
 
@@ -548,14 +582,14 @@
                 avg30sSeconds = parseInt(this.value);
                 avg30sValue.textContent = avg30sSeconds + 's';
                 if (updateTimeout) clearTimeout(updateTimeout);
-                updateTimeout = setTimeout(updateMovingAverages, 50);
+                updateTimeout = setTimeout(updateMovingAverages, 1);
             });
 
             avg60sInput.addEventListener('input', function() {
                 avg60sSeconds = parseInt(this.value);
                 avg60sValue.textContent = avg60sSeconds + 's';
                 if (updateTimeout) clearTimeout(updateTimeout);
-                updateTimeout = setTimeout(updateMovingAverages, 50);
+                updateTimeout = setTimeout(updateMovingAverages, 1);
             });
 
             ftpInput.addEventListener('change', function() {
@@ -580,19 +614,37 @@
                 const tolerance = (maxTime - minTime) * 0.01;
                 let closestMatch = null;
                 let closestDistance = Infinity;
+                
+                // Check efforts
                 effortsData.forEach((effort, effortIdx) => {
                     if (deletedEfforts.has(effortIdx)) return;
                     const distToStart = Math.abs(clickTime - effort.start);
                     if (distToStart < tolerance && distToStart < closestDistance) {
-                        closestMatch = { effortIdx, isStart: true };
+                        closestMatch = { type: 'effort', idx: effortIdx, isStart: true };
                         closestDistance = distToStart;
                     }
                     const distToEnd = Math.abs(clickTime - effort.end);
                     if (distToEnd < tolerance && distToEnd < closestDistance) {
-                        closestMatch = { effortIdx, isStart: false };
+                        closestMatch = { type: 'effort', idx: effortIdx, isStart: false };
                         closestDistance = distToEnd;
                     }
                 });
+                
+                // Check sprints
+                sprintsData.forEach((sprint, sprintIdx) => {
+                    if (deletedSprints.has(sprintIdx)) return;
+                    const distToStart = Math.abs(clickTime - sprint.start);
+                    if (distToStart < tolerance && distToStart < closestDistance) {
+                        closestMatch = { type: 'sprint', idx: sprintIdx, isStart: true };
+                        closestDistance = distToStart;
+                    }
+                    const distToEnd = Math.abs(clickTime - sprint.end);
+                    if (distToEnd < tolerance && distToEnd < closestDistance) {
+                        closestMatch = { type: 'sprint', idx: sprintIdx, isStart: false };
+                        closestDistance = distToEnd;
+                    }
+                });
+                
                 if (closestMatch) {
                     draggingState = { ...closestMatch, gridIndex: Math.min(gridIndex, 2) };
                 }
@@ -600,27 +652,52 @@
 
             document.addEventListener('mousemove', function(e) {
                 if (!draggingState) return;
-                const effort = effortsData[draggingState.effortIdx];
+                
+                let item, itemData, legendPrefix, deletedSet;
+                if (draggingState.type === 'effort') {
+                    item = effortsData[draggingState.idx];
+                    itemData = effortsData;
+                    legendPrefix = 'effort-';
+                    deletedSet = deletedEfforts;
+                } else {
+                    item = sprintsData[draggingState.idx];
+                    itemData = sprintsData;
+                    legendPrefix = 'sprint-';
+                    deletedSet = deletedSprints;
+                }
+                
                 const rect = mainChartDiv.getBoundingClientRect();
                 const pixelCoords = myChart.convertFromPixel({ gridIndex: draggingState.gridIndex }, [e.clientX - rect.left, e.clientY - rect.top]);
                 if (!pixelCoords) return;
                 const newTime = Math.max(0, Math.min(maxTime, pixelCoords[0]));
+                
                 if (draggingState.isStart) {
-                    if (newTime < effort.end - 5) effort.start = newTime;
+                    if (newTime < item.end - 5) item.start = newTime;
                 } else {
-                    if (newTime > effort.start + 5) effort.end = newTime;
+                    if (newTime > item.start + 5) item.end = newTime;
                 }
+                
                 rebuildChart();
-                const legendItem = document.getElementById(`effort-${draggingState.effortIdx}`);
+                
+                const legendItem = document.getElementById(`${legendPrefix}${draggingState.idx}`);
                 if (legendItem) {
                     const infoDiv = legendItem.querySelector('div > div:last-child');
                     if (infoDiv) {
-                        infoDiv.innerHTML = `
-                            <strong>${effort.label}</strong><br>
-                            <span style="color: #9ca3b8;">
-                                ${effort.start.toFixed(0)}s - ${effort.end.toFixed(0)}s | ${(effort.end - effort.start).toFixed(0)}s | ${effort.avg_power.toFixed(0)}W
-                            </span>
-                        `;
+                        if (draggingState.type === 'effort') {
+                            infoDiv.innerHTML = `
+                                <strong>${item.label}</strong><br>
+                                <span style="color: #9ca3b8;">
+                                    ${item.start.toFixed(0)}s - ${item.end.toFixed(0)}s | ${(item.end - item.start).toFixed(0)}s | ${item.avg_power.toFixed(0)}W
+                                </span>
+                            `;
+                        } else {
+                            infoDiv.innerHTML = `
+                                <strong>${item.label}</strong><br>
+                                <span style="color: #9ca3b8;">
+                                    ${item.start.toFixed(0)}s - ${item.end.toFixed(0)}s | ${item.duration.toFixed(0)}s | ${item.max_power.toFixed(0)}W | ${item.avg_power.toFixed(0)}W
+                                </span>
+                            `;
+                        }
                     }
                 }
             });
@@ -652,9 +729,12 @@
                     session_id: '{{ session_id }}',
                     efforts: activeEfforts,
                     deleted_efforts: Array.from(deletedEfforts),
+                    deleted_sprints: Array.from(deletedSprints),
                     timestamp: new Date().toISOString(),
                     total_efforts_original: modifiedEfforts.length,
-                    total_efforts_active: activeEfforts.length
+                    total_efforts_active: activeEfforts.length,
+                    total_sprints_original: sprintsData.length,
+                    total_sprints_active: sprintsData.length - deletedSprints.size
                 };
                 const jsonData = JSON.stringify(dataToSend, null, 2);
                 const blob = new Blob([jsonData], { type: 'application/json' });

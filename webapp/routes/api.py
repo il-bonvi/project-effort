@@ -386,6 +386,40 @@ async def delete_effort(session_id: str, effort_idx: int):
     }
 
 
+@router.delete("/{session_id}/sprint/{sprint_idx}")
+async def delete_sprint(session_id: str, sprint_idx: int):
+    """
+    Delete a specific sprint by index
+
+    Args:
+        sprint_idx: Index of sprint to delete
+
+    Returns:
+        JSON confirmation with sprint data that was deleted
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = _shared_sessions[session_id]
+    sprints = session['sprints']
+
+    if sprint_idx >= len(sprints) or sprint_idx < 0:
+        raise HTTPException(status_code=400, detail="Invalid sprint index")
+
+    deleted = sprints.pop(sprint_idx)
+
+    return {
+        "success": True,
+        "message": f"Deleted sprint {sprint_idx}",
+        "deleted_sprint": {
+            "start": deleted.get('start', 0),
+            "end": deleted.get('end', 0),
+            "avg_power": deleted.get('avg', 0)
+        },
+        "remaining_sprints": len(sprints)
+    }
+
+
 @router.post("/{session_id}/import")
 async def import_modifications(session_id: str, modifications: Dict[str, Any]):
     """
@@ -394,7 +428,8 @@ async def import_modifications(session_id: str, modifications: Dict[str, Any]):
     Expected format:
     {
         "efforts": [{"index": 0, "new_start": 100, "new_end": 200, ...}],
-        "deleted_efforts": [2, 4]
+        "deleted_efforts": [2, 4],
+        "deleted_sprints": [1, 3]
     }
 
     Returns:
@@ -406,11 +441,12 @@ async def import_modifications(session_id: str, modifications: Dict[str, Any]):
     session = _shared_sessions[session_id]
     df = session['df']
 
-    deleted_indices = set(modifications.get('deleted_efforts', []))
+    deleted_effort_indices = set(modifications.get('deleted_efforts', []))
+    deleted_sprint_indices = set(modifications.get('deleted_sprints', []))
 
     new_efforts = []
     for effort_mod in modifications.get('efforts', []):
-        if effort_mod['index'] in deleted_indices:
+        if effort_mod['index'] in deleted_effort_indices:
             continue
 
         start_time = effort_mod['new_start']
@@ -429,11 +465,18 @@ async def import_modifications(session_id: str, modifications: Dict[str, Any]):
 
     session['efforts'] = new_efforts
 
+    # Remove deleted sprints
+    sprints = session.get('sprints', [])
+    new_sprints = [sprint for i, sprint in enumerate(sprints) if i not in deleted_sprint_indices]
+    session['sprints'] = new_sprints
+
     return {
         "success": True,
         "message": "Modifications imported successfully",
         "total_efforts": len(new_efforts),
-        "deleted_count": len(deleted_indices)
+        "total_sprints": len(new_sprints),
+        "deleted_efforts_count": len(deleted_effort_indices),
+        "deleted_sprints_count": len(deleted_sprint_indices)
     }
 
 
@@ -596,22 +639,6 @@ async def redetect_sprints_json(session_id: str, params: Dict[str, Any]):
 # =============================================================================
 # EXPORT ENDPOINTS
 # =============================================================================
-
-@router.get("/export/{session_id}/fit")
-async def export_fit_file(session_id: str):
-    """
-    Export modified FIT file - NOT IMPLEMENTED
-    Files are not persisted to disk under normal operation.
-    TODO: Generate FIT from dataframe with effort modifications
-    """
-    if session_id not in _shared_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    raise HTTPException(
-        status_code=501,
-        detail="FIT export not yet implemented. Use JSON export instead to get all data."
-    )
-
 
 @router.get("/export/{session_id}/json")
 async def export_json_data(session_id: str):
@@ -793,4 +820,118 @@ async def export_csv_data(session_id: str):
     )
 
 
-__all__ = ['router', 'setup_api_router', 'redetect_efforts_impl', 'redetect_sprints_impl']
+@router.post("/import-modifications/{session_id}")
+async def import_modifications(session_id: str, modifications: Dict[str, Any]):
+    """
+    Import effort modifications from JSON file.
+    Validates that modifications are for the correct session/file.
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    try:
+        # Validate JSON structure
+        required_fields = ['session_id', 'efforts', 'deleted_efforts', 'deleted_sprints']
+        for field in required_fields:
+            if field not in modifications:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+
+        # Double-check session ID matches
+        if modifications['session_id'] != session_id:
+            raise HTTPException(status_code=400, detail="Session ID mismatch - this JSON is from a different FIT file")
+
+        session = _shared_sessions[session_id]
+
+        # Apply modifications to efforts
+        original_efforts = session['efforts']
+        modified_efforts = []
+
+        # Reconstruct efforts with modifications
+        for effort_data in modifications['efforts']:
+            if effort_data.get('deleted', False):
+                continue
+
+            # Find original effort by index if available, otherwise create new
+            effort_idx = effort_data.get('index')
+            if effort_idx is not None and 0 <= effort_idx < len(original_efforts):
+                # Modify existing effort
+                start_idx, end_idx, avg_power = original_efforts[effort_idx]
+
+                # Convert time back to indices (approximate)
+                df = session['df']
+                time_axis = df['time_sec'].tolist()
+
+                new_start_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_start']))
+                new_end_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_end']))
+
+                modified_efforts.append((new_start_idx, new_end_idx, effort_data['avg_power']))
+            else:
+                # This is a new effort - convert times to indices
+                df = session['df']
+                time_axis = df['time_sec'].tolist()
+
+                start_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_start']))
+                end_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_end']))
+
+                modified_efforts.append((start_idx, end_idx, effort_data['avg_power']))
+
+        # Update session with modified efforts
+        session['efforts'] = modified_efforts
+
+        # Handle deleted efforts/sprints if needed
+        # (For now, we just update the efforts list)
+
+        return {"success": True, "message": f"Imported {len(modified_efforts)} efforts successfully"}
+
+    except Exception as e:
+        logger.error(f"Error importing modifications: {e}")
+        raise HTTPException(status_code=400, detail=f"Error importing modifications: {str(e)}")
+
+
+@router.get("/export-modifications/{session_id}")
+async def export_modifications(session_id: str):
+    """
+    Export current effort/sprint modifications as JSON (for dashboard download).
+    Returns original efforts/sprints as "modifications" that can be imported.
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = _shared_sessions[session_id]
+    df = session['df']
+    efforts = session['efforts']
+    sprints = session['sprints']
+
+    # Convert efforts to modification format
+    efforts_modifications = []
+    for i, (start_idx, end_idx, avg_power) in enumerate(efforts):
+        start_time = df['time_sec'].iloc[start_idx]
+        end_time = df['time_sec'].iloc[end_idx - 1]
+
+        efforts_modifications.append({
+            'index': i,
+            'new_start': float(start_time),
+            'new_end': float(end_time),
+            'duration': float(end_time - start_time),
+            'avg_power': float(avg_power),
+            'label': f"Effort {i+1}",
+            'deleted': False
+        })
+
+    # Create modifications JSON
+    data = {
+        'session_id': session_id,
+        'efforts': efforts_modifications,
+        'deleted_efforts': [],
+        'deleted_sprints': [],
+        'timestamp': '2026-02-10T00:00:00.000Z',  # Placeholder timestamp
+        'total_efforts_original': len(efforts),
+        'total_efforts_active': len(efforts),
+        'total_sprints_original': len(sprints),
+        'total_sprints_active': len(sprints)
+    }
+
+    return data
+
+
+__all__ = ['router', 'setup_api_router', 'redetect_efforts_impl', 'redetect_sprints_impl', 'import_modifications', 'export_modifications']
