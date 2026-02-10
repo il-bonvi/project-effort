@@ -429,17 +429,19 @@ def split_included(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]) -> L
                     new_efforts = []
                     
                     # Prima di j
-                    pow1 = power[s:s2]
-                    if len(pow1) > 0:
-                        new_efforts.append((s, s2, pow1.mean()))
+                    if s2 > s:
+                        pow1 = power[s:s2]
+                        if len(pow1) > 0:
+                            new_efforts.append((s, s2, pow1.mean()))
                     
                     # j stesso
                     new_efforts.append((s2, e2, avg2))
                     
                     # Dopo j
-                    pow2 = power[e2:e]
-                    if len(pow2) > 0:
-                        new_efforts.append((e2, e, pow2.mean()))
+                    if e2 < e:
+                        pow2 = power[e2:e]
+                        if len(pow2) > 0:
+                            new_efforts.append((e2, e, pow2.mean()))
                     
                     # Rimuovi i e j, aggiungi nuovi
                     sorted_efforts = [eff for k, eff in enumerate(current_efforts) if k != i and k != j]

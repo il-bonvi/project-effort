@@ -881,6 +881,12 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
 
                 # Ensure ordering: start < end
                 if new_start_idx > new_end_idx:
+                    logger.warning(
+                        "Swapping reversed indices for effort %s: start %s > end %s",
+                        effort_idx,
+                        new_start_idx,
+                        new_end_idx,
+                    )
                     new_start_idx, new_end_idx = new_end_idx, new_start_idx
 
                 # Skip zero-length or invalid efforts
@@ -912,6 +918,11 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
 
                 # Ensure ordering: start < end
                 if start_idx > end_idx:
+                    logger.warning(
+                        "Swapping reversed indices for new effort: start %s > end %s",
+                        start_idx,
+                        end_idx,
+                    )
                     start_idx, end_idx = end_idx, start_idx
 
                 # Skip zero-length or invalid efforts
