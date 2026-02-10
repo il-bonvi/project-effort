@@ -858,6 +858,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dict[st
         time_axis = df['time_sec'].tolist()
         time_array = np.array(time_axis)  # Convert once for efficient lookups
         max_idx = len(time_axis) - 1
+        has_power_column = 'power' in df.columns  # Check once outside the loop
 
         # Reconstruct efforts with modifications
         for effort_data in modifications['efforts']:
@@ -904,7 +905,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dict[st
                     continue
 
                 # Recompute avg_power from the DataFrame slice when possible
-                if 'power' in df.columns:
+                if has_power_column:
                     effort_slice = df.iloc[new_start_idx:new_end_idx + 1]
                     if not effort_slice.empty:
                         avg_power = float(effort_slice['power'].mean())
@@ -942,7 +943,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dict[st
                     continue
 
                 # Recompute avg_power from the DataFrame slice when possible
-                if 'power' in df.columns:
+                if has_power_column:
                     effort_slice = df.iloc[start_idx:end_idx + 1]
                     if not effort_slice.empty:
                         avg_power = float(effort_slice['power'].mean())
