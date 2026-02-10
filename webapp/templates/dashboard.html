@@ -19,7 +19,9 @@
             margin: 0;
             padding: 0;
             height: 100vh;
-            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
             font-size: 16px;
         }
         .header {
@@ -65,9 +67,10 @@
             transform: translateY(-2px);
         }
         .tab-container {
-            height: calc(100vh - 130px);
             display: flex;
             flex-direction: column;
+            flex: 1;
+            min-height: 0;
         }
         .tabs {
             display: flex;
@@ -101,25 +104,31 @@
         }
         .tab-content {
             background: white;
-            flex: 1;
             padding: 0;
-            overflow: hidden;
             position: relative;
+            min-height: 400px;
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
         }
         .tab-pane {
             display: none;
             width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
         }
         .tab-pane.active {
             display: block;
         }
+        #altimetria,
+        #altimetria-echarts,
+        #map3d {
+            height: 100% !important;
+            min-height: 0 !important;
+        }        #map3d-placeholder,
+        #map3d-container {
+            height: 100% !important;
+            min-height: 0 !important;
+        }
         .overview-content {
-            overflow-y: auto;
-            height: 100%;
             padding: 10px 0;
         }
         .stats-grid {
@@ -136,15 +145,14 @@
             border: 2px solid;
             background: linear-gradient(135deg, var(--bg1), var(--bg2));
         }
-        .stat-card.duration { --bg1: #eff6ff; --bg2: #dbeafe; border-color: #93c5fd; }
-        .stat-card.power { --bg1: #fef3c7; --bg2: #fde68a; border-color: #fbbf24; }
-        .stat-card.np { --bg1: #fee2e2; --bg2: #fecaca; border-color: #f87171; }
-        .stat-card.if { --bg1: #f3e8ff; --bg2: #e9d5ff; border-color: #c084fc; }
-        .stat-card.tss { --bg1: #dcfce7; --bg2: #bbf7d0; border-color: #4ade80; }
-        .stat-card.vi { --bg1: #e0f2fe; --bg2: #bae6fd; border-color: #38bdf8; }
-        .stat-card.hr { --bg1: #fef2f2; --bg2: #fee2e2; border-color: #fca5a5; }
-        .stat-card.distance { --bg1: #fef3c7; --bg2: #fed7aa; border-color: #fb923c; }
-        .stat-card.elevation { --bg1: #e0e7ff; --bg2: #c7d2fe; border-color: #818cf8; }
+        .stat-card.duration { --bg1: #eff6ff; --bg2: #dbeafe; border-color: #3b82f6; }
+        .stat-card.power { --bg1: #fef3c7; --bg2: #fde68a; border-color: #f59e0b; }
+        .stat-card.np { --bg1: #dcfce7; --bg2: #bbf7d0; border-color: #10b981; }
+        .stat-card.if { --bg1: #f3e8ff; --bg2: #e9d5ff; border-color: #8b5cf6; }
+        .stat-card.vi { --bg1: #e0f2fe; --bg2: #bae6fd; border-color: #06b6d4; }
+        .stat-card.hr { --bg1: #fee2e2; --bg2: #fecaca; border-color: #ef4444; }
+        .stat-card.distance { --bg1: #fed7aa; --bg2: #fdba74; border-color: #ea580c; }
+        .stat-card.elevation { --bg1: #e0e7ff; --bg2: #c7d2fe; border-color: #6366f1; }
         .stat-label {
             font-size: 0.75rem;
             font-weight: bold;
@@ -283,13 +291,9 @@
             font-size: 0.85rem;
         }
         .settings-content {
-            overflow-y: auto;
-            height: 100%;
             padding: 10px 0;
         }
         .export-content {
-            overflow-y: auto;
-            height: 100%;
             padding: 10px 0;
         }
         #load-map3d-btn:hover {
@@ -354,6 +358,7 @@
             <div class="tab active" data-tab="overview">📊 Overview</div>
             <div class="tab" data-tab="inspection">🔍 Inspection</div>
             <div class="tab" data-tab="altimetria">📈 Altimetria</div>
+            <div class="tab" data-tab="altimetria-echarts">📈 Altimetria Echarts</div>
             <div class="tab" data-tab="map3d">🗺️ 3D Map</div>
             <div class="tab" data-tab="settings">⚙️ Settings</div>
             <div class="tab" data-tab="export">📤 Export</div>
@@ -381,10 +386,6 @@
                         <div class="stat-card if">
                             <div class="stat-label">📊 Intensity Factor</div>
                             <div class="stat-value">{{ "%.2f"|format(stats.intensity_factor) }}</div>
-                        </div>
-                        <div class="stat-card tss">
-                            <div class="stat-label">💪 Training Stress</div>
-                            <div class="stat-value">{{ stats.tss|int }}</div>
                         </div>
                         <div class="stat-card vi">
                             <div class="stat-label">📈 Variability Index</div>
@@ -421,12 +422,12 @@
             </div>
             
             <!-- INSPECTION TAB -->
-            <div class="tab-pane" id="inspection">
-                <iframe src="/inspection/{{ session_id }}" style="width: 100%; height: 100%; border: none; background: white;"></iframe>
+            <div class="tab-pane" id="inspection" style="min-height: 1400px;">
+                <iframe src="/inspection/{{ session_id }}" style="width: 100%; height: 1400px; border: none; background: white;"></iframe>
             </div>
             
             <!-- ALTIMETRIA TAB -->
-            <div class="tab-pane" id="altimetria" style="height: 100%; position: relative;">
+            <div class="tab-pane" id="altimetria" style="height: 80vh; min-height: 600px; position: relative;">
                 <div style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
                     <button onclick="window.open('/altimetria/{{ session_id }}', '_blank', 'width=1400,height=900')" 
                             style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -437,9 +438,21 @@
                 <iframe src="/altimetria/{{ session_id }}" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: white;"></iframe>
             </div>
             
+            <!-- ALTIMETRIA ECHARTS TAB -->
+            <div class="tab-pane" id="altimetria-echarts" style="height: 80vh; min-height: 600px; position: relative;">
+                <div style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
+                    <button onclick="window.open('/altimetria-echarts/{{ session_id }}', '_blank', 'width=1400,height=900')" 
+                            style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        🔍 Apri in Nuova Finestra
+                    </button>
+                    <span style="color: #6b7280; font-size: 0.85rem;">Versione ECharts con pannello metriche laterale</span>
+                </div>
+                <iframe src="/altimetria-echarts/{{ session_id }}" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: white;"></iframe>
+            </div>
+            
             <!-- 3D MAP TAB -->
-            <div class="tab-pane" id="map3d" style="height: 100%; position: relative;">
-                <div id="map3d-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+            <div class="tab-pane" id="map3d" style="height: 80vh; min-height: 600px; position: relative;">
+                <div id="map3d-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; min-height: 600px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
                     <div style="text-align: center; color: white; max-width: 600px; padding: 40px;">
                         <div style="font-size: 4rem; margin-bottom: 20px;">🗺️</div>
                         <h2 style="color: #60a5fa; font-size: 2rem; margin-bottom: 15px;">Vista 3D Mappa Interattiva</h2>
@@ -522,19 +535,21 @@
             <!-- EXPORT TAB -->
             <div class="tab-pane" id="export">
                 <div class="export-content" style="padding: 20px;">
-                    <h2 style="margin-bottom: 25px; color: #374151;">📤 Export & Download</h2>
+                    <h2 style="margin-bottom: 25px; color: #374151;">📥 Import & 📤 Export</h2>
                     
                     <div class="export-grid">
                         <div class="export-card">
-                            <h3>🔥 Modified FIT</h3>
-                            <p>Download FIT file with your effort modifications applied</p>
-                            <button class="btn btn-success" onclick="exportFit()">Download FIT</button>
+                            <h3>📥 Import Modifications</h3>
+                            <p>Load previously saved effort modifications from a JSON file. Only JSON files from the same FIT file are accepted.</p>
+                            <input type="file" id="jsonImportFile" accept=".json" style="display: none;">
+                            <button class="btn btn-primary" onclick="document.getElementById('jsonImportFile').click()">📥 Import JSON</button>
+                            <div id="importStatus" style="margin-top: 10px; font-weight: bold; font-size: 12px;"></div>
                         </div>
                         
                         <div class="export-card">
-                            <h3>📊 JSON Data</h3>
-                            <p>Export all efforts, sprints, and statistics as JSON</p>
-                            <button class="btn btn-success" onclick="exportJson()">Download JSON</button>
+                            <h3>📝 Effort Modifications</h3>
+                            <p>Download JSON file with your effort and sprint modifications for later import</p>
+                            <button class="btn btn-success" onclick="downloadModificationsJson()">Download JSON</button>
                         </div>
                         
                         <div class="export-card">
@@ -609,7 +624,89 @@
             }
         }
         
-        function exportFit() { window.location.href = `/export/${sessionId}/fit`; }
+        // Auto-import when file is selected
+        document.getElementById('jsonImportFile').addEventListener('change', function() {
+            importJsonModifications();
+        });
+        
+        async function importJsonModifications() {
+            const fileInput = document.getElementById('jsonImportFile');
+            const importStatus = document.getElementById('importStatus');
+            
+            if (!fileInput.files.length) {
+                importStatus.textContent = '❌ No file selected.';
+                importStatus.style.color = '#ef4444';
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            importStatus.textContent = '⏳ Reading file...';
+            importStatus.style.color = '#f59e0b';
+            
+            try {
+                const text = await file.text();
+                const jsonData = JSON.parse(text);
+                
+                // Validate JSON structure
+                if (!jsonData.session_id || !jsonData.efforts) {
+                    throw new Error('Invalid JSON format. Missing required fields.');
+                }
+                
+                // Check if JSON is from the same FIT file
+                if (jsonData.session_id !== sessionId) {
+                    importStatus.textContent = '❌ Error: This JSON file is from a different FIT file. You can only import modifications for the currently loaded FIT file.';
+                    importStatus.style.color = '#ef4444';
+                    return;
+                }
+                
+                importStatus.textContent = '⏳ Applying modifications...';
+                
+                // Send to server for validation and application
+                const response = await fetch(`/api/import-modifications/${sessionId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(jsonData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    importStatus.textContent = '✅ Modifications imported successfully! Reloading page...';
+                    importStatus.style.color = '#22c55e';
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    importStatus.textContent = `❌ Error: ${result.message}`;
+                    importStatus.style.color = '#ef4444';
+                }
+            } catch (error) {
+                importStatus.textContent = `❌ Error: ${error.message}`;
+                importStatus.style.color = '#ef4444';
+            }
+        }
+        
+        async function downloadModificationsJson() {
+            try {
+                const response = await fetch(`/api/export-modifications/${sessionId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                const jsonData = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'effort_modifications.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+            } catch (error) {
+                alert(`❌ Error downloading modifications: ${error.message}`);
+            }
+        }
+        
         function exportJson() { window.location.href = `/export/${sessionId}/json`; }
         function exportGpx() { window.location.href = `/export/${sessionId}/gpx`; }
         function exportCsv() { window.location.href = `/export/${sessionId}/csv`; }

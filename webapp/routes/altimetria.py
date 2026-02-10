@@ -19,7 +19,7 @@ sys.path.insert(0, str(_project_root))
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
-from PEFFORT.peffort_exporter import plot_unified_html  # type: ignore
+from utils.chart_renderer import plot_unified_html
 
 logger = logging.getLogger(__name__)
 

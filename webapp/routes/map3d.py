@@ -19,7 +19,7 @@ sys.path.insert(0, str(_project_root))
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
-from PEFFORT.map3d_builder import generate_3d_map_html  # type: ignore
+from utils.map3d_generator import generate_3d_map_html
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ async def map3d_view(session_id: str):
     # Extract session data
     df = session['df']
     efforts = session['efforts']
+    sprints = session['sprints']
     ftp = session['ftp']
     weight = session['weight']
 
@@ -71,6 +72,7 @@ async def map3d_view(session_id: str):
         html_content = generate_3d_map_html(
             df=df,
             efforts=efforts,
+            sprints=sprints,
             ftp=ftp,
             weight=weight
         )

@@ -1,11 +1,4 @@
-﻿# ==============================================================================
-# Copyright (c) 2026 Andrea Bonvicin - bFactor Project
-# PROPRIETARY LICENSE - TUTTI I DIRITTI RISERVATI
-# Sharing, distribution or reproduction is strictly prohibited.
-# La condivisione, distribuzione o riproduzione è severamente vietata.
-# ==============================================================================
-
-"""
+﻿"""
 WEBAPP - FastAPI web application for PEFFORT
 Main entry point - Imports and registers modular routes from /routes directory
 Each route module handles a specific functional area and uses APIRouter pattern
@@ -17,10 +10,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from fastapi import FastAPI
-
-# Add PEFFORT to path for modules that need it
-peffort_path = Path(__file__).parent.parent / "PEFFORT"
-sys.path.insert(0, str(peffort_path))
+from fastapi.staticfiles import StaticFiles
 
 # Import routers and their setup functions
 from routes.home import router as home_router, setup_home_router
@@ -33,6 +23,9 @@ from routes.inspection import (
 )
 from routes.altimetria import (
     router as altimetria_router, setup_altimetria_router
+)
+from routes.altimetria_echarts import (
+    router as altimetria_echarts_router, setup_altimetria_echarts_router
 )
 from routes.map3d import router as map3d_router, setup_map3d_router
 from routes.api import router as api_router, setup_api_router
@@ -51,6 +44,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Mount static files directory
+static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 # Session storage (in-memory, stores analysis results and dataframes)
 # Shared across all route modules via setup_XXXX_router(sessions) functions
 sessions: Dict[str, Dict[str, Any]] = {}
@@ -64,6 +61,7 @@ setup_upload_router(sessions)
 setup_dashboard_router(sessions)
 setup_inspection_router(sessions)
 setup_altimetria_router(sessions)
+setup_altimetria_echarts_router(sessions)
 setup_map3d_router(sessions)
 setup_api_router(sessions)
 
@@ -75,6 +73,7 @@ app.include_router(upload_router, tags=["upload"])
 app.include_router(dashboard_router, tags=["dashboard"])
 app.include_router(inspection_router, tags=["inspection"])
 app.include_router(altimetria_router, tags=["altimetria"])
+app.include_router(altimetria_echarts_router, tags=["altimetria-echarts"])
 app.include_router(map3d_router, tags=["map3d"])
 app.include_router(api_router, tags=["api"])
 
@@ -90,6 +89,9 @@ logger.info(
 )
 logger.info(
     "  GET  /altimetria/{id}       - Elevation profile visualization"
+)
+logger.info(
+    "  GET  /altimetria-echarts/{id} - Elevation profile with ECharts.js"
 )
 logger.info(
     "  GET  /map3d/{id}            - 3D map with terrain visualization"
