@@ -133,7 +133,6 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
     hr_all = df['heartrate'].values if 'heartrate' in df.columns else np.zeros(len(df))
     cadence_all = df['cadence'].values if 'cadence' in df.columns else np.zeros(len(df))
     grade_all = df['grade'].values if 'grade' in df.columns else np.zeros(len(df))
-    distance_all = df['distance'].values if 'distance' in df.columns else np.zeros(len(df))
     
     # Segmenti dati (con boundary checks appropriati)
     # Assicura che gli indici siano validi

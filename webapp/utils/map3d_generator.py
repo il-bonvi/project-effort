@@ -11,7 +11,6 @@ from typing import List, Tuple, Dict, Any
 # Import moduli locali
 from .map3d_core import (
     export_traccia_geojson,
-    validate_and_filter_coordinates,
     calculate_zoom_level,
     prepare_efforts_data
 )
@@ -23,7 +22,7 @@ from pathlib import Path
 _root_path = str(Path(__file__).parent.parent.parent)
 if _root_path not in sys.path:
     sys.path.insert(0, _root_path)
-from config import get_maptiler_key, get_mapbox_token
+from config import get_maptiler_key
 
 logger = logging.getLogger(__name__)
 
@@ -94,15 +93,7 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         zoom = calculate_zoom_level(lat, lon)
         
         # ===== STEP 4: Track Statistics =====
-        if 'altitude' in df.columns:
-            alt_min = df['altitude'].min()
-            alt_max = df['altitude'].max()
-            elevation_gain = alt_max - alt_min
-        else:
-            elevation_gain = 0
-        
-        power = df['power'].values
-        distance_km = (df['distance'].values[-1] - df['distance'].values[0]) / 1000 if 'distance' in df.columns else 0
+        # (elevation_gain and power are calculated in map3d_core as needed)
         
         # ===== STEP 5: Elevation Data Preparation =====
         alt_values = df['altitude'].values if 'altitude' in df.columns else np.zeros(len(df))
