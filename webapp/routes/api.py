@@ -13,6 +13,7 @@ import sys
 import json
 import logging
 import csv
+import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional
 from io import StringIO, BytesIO
@@ -855,6 +856,7 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
 
         df = session['df']
         time_axis = df['time_sec'].tolist()
+        time_array = np.array(time_axis)  # Convert once for efficient lookups
         max_idx = len(time_axis) - 1
 
         # Reconstruct efforts with modifications
@@ -874,9 +876,9 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
                 # Modify existing effort
                 orig_start_idx, orig_end_idx, orig_avg_power = original_efforts[effort_idx]
 
-                # Convert time back to indices (approximate)
-                new_start_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_start']))
-                new_end_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_end']))
+                # Convert time back to indices (efficiently using numpy)
+                new_start_idx = int(np.argmin(np.abs(time_array - effort_data['new_start'])))
+                new_end_idx = int(np.argmin(np.abs(time_array - effort_data['new_end'])))
 
                 # Clamp to valid bounds
                 new_start_idx = max(0, min(new_start_idx, max_idx))
@@ -911,9 +913,9 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
 
                 modified_efforts.append((new_start_idx, new_end_idx, avg_power))
             else:
-                # This is a new effort - convert times to indices
-                start_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_start']))
-                end_idx = min(range(len(time_axis)), key=lambda i: abs(time_axis[i] - effort_data['new_end']))
+                # This is a new effort - convert times to indices (efficiently using numpy)
+                start_idx = int(np.argmin(np.abs(time_array - effort_data['new_start'])))
+                end_idx = int(np.argmin(np.abs(time_array - effort_data['new_end'])))
 
                 # Clamp to valid bounds
                 start_idx = max(0, min(start_idx, max_idx))
