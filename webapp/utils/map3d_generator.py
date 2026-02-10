@@ -93,7 +93,8 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         zoom = calculate_zoom_level(lat, lon)
         
         # ===== STEP 4: Track Statistics =====
-        # (elevation_gain and power are calculated in map3d_core as needed)
+        # Note: elevation_gain and power calculations are performed in map3d_core.calculate_effort_parameters()
+        # for each individual effort/sprint segment, not for the entire track
         
         # ===== STEP 5: Elevation Data Preparation =====
         # Full df arrays for energy/parameter calculations (used with full df indices)

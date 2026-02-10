@@ -825,6 +825,9 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
     """
     Import effort modifications from JSON file for dashboard.
     Validates that modifications are for the correct session/file.
+    
+    Note: This is a separate endpoint from /{session_id}/import. This one is used
+    by the dashboard UI and includes additional validation and session_id matching.
     """
     if session_id not in _shared_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -900,7 +903,7 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
 
                 # Recompute avg_power from the DataFrame slice when possible
                 effort_slice = df.iloc[new_start_idx:new_end_idx + 1]
-                if not effort_slice.empty and 'power' in effort_slice:
+                if not effort_slice.empty and 'power' in effort_slice.columns:
                     avg_power = float(effort_slice['power'].mean())
                 else:
                     # Fallback to original avg_power if power data is unavailable
@@ -935,7 +938,7 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
 
                 # Recompute avg_power from the DataFrame slice when possible
                 effort_slice = df.iloc[start_idx:end_idx + 1]
-                if not effort_slice.empty and 'power' in effort_slice:
+                if not effort_slice.empty and 'power' in effort_slice.columns:
                     avg_power = float(effort_slice['power'].mean())
                 else:
                     # Fallback to any provided avg_power, if present
