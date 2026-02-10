@@ -822,7 +822,7 @@ async def export_csv_data(session_id: str):
 
 
 @router.post("/import-modifications/{session_id}")
-async def import_modifications_dashboard(session_id: str, modifications: Dict[str, Any]):
+async def import_dashboard_modifications(session_id: str, modifications: Dict[str, Any]):
     """
     Import effort modifications from JSON file for dashboard.
     Validates that modifications are for the correct session/file.
@@ -904,11 +904,14 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
                     continue
 
                 # Recompute avg_power from the DataFrame slice when possible
-                effort_slice = df.iloc[new_start_idx:new_end_idx + 1]
-                if not effort_slice.empty and 'power' in effort_slice.columns:
-                    avg_power = float(effort_slice['power'].mean())
+                if 'power' in df.columns:
+                    effort_slice = df.iloc[new_start_idx:new_end_idx + 1]
+                    if not effort_slice.empty:
+                        avg_power = float(effort_slice['power'].mean())
+                    else:
+                        avg_power = float(orig_avg_power)
                 else:
-                    # Fallback to original avg_power if power data is unavailable
+                    # Fallback to original avg_power if power column is missing
                     avg_power = float(orig_avg_power)
 
                 modified_efforts.append((new_start_idx, new_end_idx, avg_power))
@@ -939,9 +942,12 @@ async def import_modifications_dashboard(session_id: str, modifications: Dict[st
                     continue
 
                 # Recompute avg_power from the DataFrame slice when possible
-                effort_slice = df.iloc[start_idx:end_idx + 1]
-                if not effort_slice.empty and 'power' in effort_slice.columns:
-                    avg_power = float(effort_slice['power'].mean())
+                if 'power' in df.columns:
+                    effort_slice = df.iloc[start_idx:end_idx + 1]
+                    if not effort_slice.empty:
+                        avg_power = float(effort_slice['power'].mean())
+                    else:
+                        avg_power = float(effort_data.get('avg_power', 0.0))
                 else:
                     # Fallback to any provided avg_power, if present
                     avg_power = float(effort_data.get('avg_power', 0.0))
