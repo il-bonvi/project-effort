@@ -231,15 +231,16 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
 
 
 def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
-                        ftp: float, weight: float,
+                        sprints: List[Dict[str, Any]], ftp: float, weight: float,
                         geojson_data: dict, orig_indices: List[int],
                         alt_values: np.ndarray, dist_km_values: np.ndarray) -> str:
     """
-    Prepara i dati efforts per il JavaScript.
+    Prepara i dati efforts e sprints per il JavaScript.
     
     Args:
         df: DataFrame con dati attività
         efforts: Lista efforts (start, end, avg_power)
+        sprints: Lista sprints (dict con start, end, avg_power, ecc.)
         ftp: Functional Threshold Power
         weight: Peso atleta
         geojson_data: GeoJSON della traccia
@@ -248,7 +249,7 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         dist_km_values: Array distanze filtrate
         
     Returns:
-        JSON string con dati efforts
+        JSON string con dati efforts e sprints
     """
     # Calcolo Joules cumulative
     time_sec = df['time_sec'].values if 'time_sec' in df.columns else np.arange(len(df))
@@ -315,5 +316,57 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
             }
             effort_dict.update(params)
             efforts_list.append(effort_dict)
+    
+    # ===== STEP 7: Sprints Data Processing =====
+    for sprint in sprints:
+        s = sprint['start']
+        e = sprint['end']
+        avg = sprint['avg']
+        
+        # Mappa indici da sprint a coordinate filtrate
+        pos_start = 0
+        for idx_f, idx_orig in enumerate(orig_indices):
+            if idx_orig >= s:
+                pos_start = idx_f
+                break
+        
+        pos_end = len(orig_indices) - 1
+        for idx_f, idx_orig in enumerate(orig_indices):
+            if idx_orig >= e:
+                pos_end = idx_f
+                break
+        
+        if pos_end < pos_start:
+            pos_end = pos_start + 1
+        if pos_end >= len(coords):
+            pos_end = len(coords) - 1
+        
+        # Sprint color (nero per distinguerli dagli efforts)
+        sprint_color = '#000000'
+        
+        # Segmenti per visualizzazione
+        segment_coords = coords[pos_start:pos_end+1]
+        segment_alt = alt_values[pos_start:pos_end+1].tolist() if pos_end < len(alt_values) else []
+        segment_dist = dist_km_values[pos_start:pos_end+1].tolist() if pos_end < len(dist_km_values) else []
+        
+        # Calcola parametri per sprint (usando stessa logica degli efforts)
+        params = calculate_effort_parameters(s, e, avg, df, alt_values, dist_km_values, 
+                                            ftp, weight, joules_cumulative, joules_over_cp_cumulative)
+        
+        if len(segment_coords) > 0:
+            sprint_dict = {
+                'pos': int(pos_start),
+                'start': int(pos_start),
+                'end': int(pos_end),
+                'avg': float(avg),
+                'color': sprint_color,
+                'segment': segment_coords,
+                'altitude': segment_alt,
+                'distance': segment_dist,
+                'distance_km': float(segment_dist[-1] - segment_dist[0]) if len(segment_dist) > 1 else 0,
+                'type': 'sprint'  # Marker per identificare gli sprint
+            }
+            sprint_dict.update(params)
+            efforts_list.append(sprint_dict)
     
     return json.dumps(efforts_list)

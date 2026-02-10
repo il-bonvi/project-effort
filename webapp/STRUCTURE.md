@@ -12,7 +12,7 @@ webapp/
 ├── requirements.txt                # Python dependencies
 │
 ├── templates/                      # HTML Templates
-│   ├── upload.html                # 🏠 Home page - FIT upload form
+│   ├── home.html                  # 🏠 Home page - FIT upload form
 │   ├── dashboard.html             # 📊 Main dashboard (12 tabs)
 │   └── inspection.html            # 🔍 Interactive effort editor
 │
@@ -38,7 +38,7 @@ webapp/
   - ✨ Ora riutilizzabile in altri progetti
   - 📦 Importazioni pulite: `from utils import calculate_ride_stats`
 
-- **`templates/upload.html`** - Estratto HTML dalla stringa Python
+- **`templates/home.html`** - Estratto HTML dalla stringa Python
   - ✨ Leggibile come file HTML vero
   - 🎨 Più facile modificare CSS/JS senza toccare Python
 
@@ -89,7 +89,7 @@ async def upload_fit(...):
 
 ## File Importanti
 
-### `templates/upload.html`
+### `templates/home.html`
 ```
 📁 Contenuto:
   ✓ HTML5 senza alcuna logica Python

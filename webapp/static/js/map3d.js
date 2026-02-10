@@ -32,6 +32,8 @@ let isAltimetrySelecting = false;
 let originalTracceGeoJSON = JSON.parse(JSON.stringify(geojson_str));
 let lastAltimetryUpdate = 0;
 let effortMarkers = [];  // Store effort marker references
+let showEfforts = true;  // Toggle for efforts visibility
+let showSprints = true;  // Toggle for sprints visibility
 
 function openEffortSidebar(idx) {
     const effort = currentEfforts[idx];
@@ -765,14 +767,75 @@ map.on('load', () => {
     addTerrain();
     addOverlays();
 
-    const efforts = currentEfforts;
+    // Initialize effort markers with current visibility settings
+    updateEffortVisibility();
+    updateToggleButtons();
+    
+    drawFullElevationChart();
+});
 
+map.on('error', (e) => { console.error('Map error:', e); });
+
+function updateStyleName() {
+    document.getElementById('styleSelect').value = currentStyleIndex;
+}
+
+function applyStyle(newIndex) {
+    currentStyleIndex = (newIndex + styles.length) % styles.length;
+    const url = styles[currentStyleIndex].url;
+    map.setStyle(url);
+    const onStyle = () => {
+        addTerrain();
+        addOverlays();
+        updateEffortVisibility();
+        updateStyleName();
+        map.off('styledata', onStyle);
+    };
+    map.on('styledata', onStyle);
+}
+
+function nextStyle() { applyStyle(currentStyleIndex + 1); }
+function prevStyle() { applyStyle(currentStyleIndex - 1); }
+
+document.getElementById('styleSelect').addEventListener('change', (e) => {
+    applyStyle(parseInt(e.target.value));
+});
+
+function toggleEfforts() {
+    showEfforts = !showEfforts;
+    updateEffortVisibility();
+    updateToggleButtons();
+}
+
+function toggleSprints() {
+    showSprints = !showSprints;
+    updateEffortVisibility();
+    updateToggleButtons();
+}
+
+function updateEffortVisibility() {
+    // Remove all existing markers
+    effortMarkers.forEach(({ marker }) => {
+        marker.remove();
+    });
+    effortMarkers = [];
+    
+    // Re-add markers based on current visibility settings
+    const efforts = currentEfforts;
+    const feature = tracceGeoJSON.features[0];
+    
+    if (!feature || !feature.geometry || !feature.geometry.coordinates) {
+        console.error('Invalid feature or coordinates:', feature);
+        return;
+    }
+    
     efforts.forEach(function(effort, idx) {
-        const feature = tracceGeoJSON.features[0];
-        if (!feature || !feature.geometry || !feature.geometry.coordinates) {
-            console.error('Invalid feature or coordinates:', feature);
-            return;
+        // Check visibility based on effort type
+        const isSprint = effort.type === 'sprint';
+        if ((isSprint && !showSprints) || (!isSprint && !showEfforts)) {
+            return; // Skip this effort/sprint if not visible
         }
+        
         const coordStart = feature.geometry.coordinates[effort.pos];
         if (!coordStart) {
             console.warn(`No coordinate at pos index ${effort.pos}`);
@@ -799,7 +862,7 @@ map.on('load', () => {
             .setLngLat([coordStart[0], coordStart[1]])
             .setPopup(new maplibregl.Popup({ anchor: 'top', offset: [0, 15], maxWidth: 250 }).setHTML(`
                 <div style="padding: 10px; font-size: 12px; color: #9ca3af; background: rgba(15,23,42,.95);">
-                    <b style="color: #60a5fa;">Effort #${idx + 1}</b><br>
+                    <b style="color: #60a5fa;">${isSprint ? 'Sprint' : 'Effort'} #${idx + 1}</b><br>
                     <div style="border-top: 1px solid rgba(255,255,255,.2); margin: 6px 0; padding-top: 6px;">
                         <div><b>⚡ ${effort.avg.toFixed(0)} W</b> | 🌀 ${effort.avg_cadence.toFixed(0)} rpm</div>
                         <div>⏱️ ${effort.duration}s | 🚴‍♂️ ${effort.avg_speed.toFixed(1)} km/h</div>
@@ -822,35 +885,22 @@ map.on('load', () => {
             marker.getPopup().addTo(map);
         });
     });
+}
+
+function updateToggleButtons() {
+    const effortsBtn = document.getElementById('toggleEfforts');
+    const sprintsBtn = document.getElementById('toggleSprints');
     
-    drawFullElevationChart();
-});
-
-map.on('error', (e) => { console.error('Map error:', e); });
-
-function updateStyleName() {
-    document.getElementById('styleSelect').value = currentStyleIndex;
+    if (effortsBtn) {
+        effortsBtn.textContent = showEfforts ? '👊 Efforts: ON' : '👊 Efforts: OFF';
+        effortsBtn.style.backgroundColor = showEfforts ? '#10b981' : '#ef4444';
+    }
+    
+    if (sprintsBtn) {
+        sprintsBtn.textContent = showSprints ? '🏃 Sprints: ON' : '🏃 Sprints: OFF';
+        sprintsBtn.style.backgroundColor = showSprints ? '#10b981' : '#ef4444';
+    }
 }
-
-function applyStyle(newIndex) {
-    currentStyleIndex = (newIndex + styles.length) % styles.length;
-    const url = styles[currentStyleIndex].url;
-    map.setStyle(url);
-    const onStyle = () => {
-        addTerrain();
-        addOverlays();
-        updateStyleName();
-        map.off('styledata', onStyle);
-    };
-    map.on('styledata', onStyle);
-}
-
-function nextStyle() { applyStyle(currentStyleIndex + 1); }
-function prevStyle() { applyStyle(currentStyleIndex - 1); }
-
-document.getElementById('styleSelect').addEventListener('change', (e) => {
-    applyStyle(parseInt(e.target.value));
-});
 
 function resetView() {
     map.flyTo({ center: [center_lon, center_lat], zoom: zoom, pitch: 45, bearing: 0, duration: 1500 });

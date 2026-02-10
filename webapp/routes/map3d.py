@@ -56,6 +56,7 @@ async def map3d_view(session_id: str):
     # Extract session data
     df = session['df']
     efforts = session['efforts']
+    sprints = session['sprints']
     ftp = session['ftp']
     weight = session['weight']
 
@@ -71,6 +72,7 @@ async def map3d_view(session_id: str):
         html_content = generate_3d_map_html(
             df=df,
             efforts=efforts,
+            sprints=sprints,
             ftp=ftp,
             weight=weight
         )
