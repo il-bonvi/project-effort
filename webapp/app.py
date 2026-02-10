@@ -1,11 +1,4 @@
-﻿# ==============================================================================
-# Copyright (c) 2026 Andrea Bonvicin - bFactor Project
-# PROPRIETARY LICENSE - TUTTI I DIRITTI RISERVATI
-# Sharing, distribution or reproduction is strictly prohibited.
-# La condivisione, distribuzione o riproduzione è severamente vietata.
-# ==============================================================================
-
-"""
+﻿"""
 WEBAPP - FastAPI web application for PEFFORT
 Main entry point - Imports and registers modular routes from /routes directory
 Each route module handles a specific functional area and uses APIRouter pattern
