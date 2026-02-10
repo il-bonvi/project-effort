@@ -96,16 +96,24 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         # (elevation_gain and power are calculated in map3d_core as needed)
         
         # ===== STEP 5: Elevation Data Preparation =====
-        alt_values = df['altitude'].values if 'altitude' in df.columns else np.zeros(len(df))
-        dist_km_values = df['distance_km'].values if 'distance_km' in df.columns else np.zeros(len(df))
-        alt_total = alt_values.tolist()
-        dist_total = dist_km_values.tolist()
+        # Full df arrays for energy/parameter calculations (used with full df indices)
+        alt_values_full = df['altitude'].values if 'altitude' in df.columns else np.zeros(len(df))
+        dist_km_values_full = df['distance_km'].values if 'distance_km' in df.columns else np.zeros(len(df))
+        
+        # Filtered arrays aligned with GeoJSON coordinates (for segment visualization)
+        alt_values_filtered = df_geom['altitude'].values if 'altitude' in df_geom.columns else np.zeros(len(df_geom))
+        dist_km_values_filtered = df_geom['distance_km'].values if 'distance_km' in df_geom.columns else np.zeros(len(df_geom))
+        
+        # For the full elevation graph, use complete df data
+        alt_total = alt_values_full.tolist()
+        dist_total = dist_km_values_full.tolist()
         
         # ===== STEP 6: Efforts Data Calculation (Using Core Module) =====
-        # Prepare data for core processing - use df (complete) for energy calcs to include all power data
+        # Prepare data for core processing - pass both full and filtered arrays
         efforts_data_json = prepare_efforts_data(
             df, efforts, sprints, ftp, weight, geojson_data, 
-            orig_indices, alt_values, dist_km_values
+            orig_indices, alt_values_full, dist_km_values_full,
+            alt_values_filtered, dist_km_values_filtered
         )
         
         # Parse to get efforts_list for elevation graph
