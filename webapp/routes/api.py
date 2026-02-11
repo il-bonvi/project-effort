@@ -158,6 +158,86 @@ async def get_session_status(session_id: str):
 
 
 # =============================================================================
+# FTP/WEIGHT UPDATE ENDPOINT
+# =============================================================================
+
+class UpdateFtpWeightRequest(BaseModel):
+    ftp: int
+    weight: int
+
+@router.post("/{session_id}/update-ftp-weight")
+async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
+    """
+    Update FTP and weight values for a session
+
+    Args:
+        session_id: Session ID
+        request: UpdateFtpWeightRequest with ftp and weight values
+
+    Returns:
+        JSON confirmation
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = _shared_sessions[session_id]
+
+    # Validate inputs
+    if not (50 <= request.ftp <= 500):
+        raise HTTPException(status_code=400, detail="FTP must be between 50 and 500 watts")
+
+    if not (40 <= request.weight <= 150):
+        raise HTTPException(status_code=400, detail="Weight must be between 40 and 150 kg")
+
+    # Update session values
+    session['ftp'] = request.ftp
+    session['weight'] = request.weight
+
+    # Recalculate stats if FTP changed
+    if 'stats' in session:
+        from utils.metrics import calculate_ride_stats
+        session['stats'] = calculate_ride_stats(session['df'], request.ftp)
+
+    # Re-detect efforts with new FTP
+    if 'effort_config' in session:
+        from utils.effort_analyzer import create_efforts, merge_extend, split_included
+        df = session['df']
+        config = session['effort_config']
+        
+        efforts = create_efforts(
+            df=df,
+            ftp=request.ftp,
+            window_sec=config.window_seconds,
+            merge_pct=config.merge_power_diff_percent,
+            min_ftp_pct=config.min_effort_intensity_ftp,
+            trim_win=config.trim_window_seconds,
+            trim_low=config.trim_low_percent
+        )
+
+        efforts = merge_extend(
+            df=df,
+            efforts=efforts,
+            merge_pct=config.merge_power_diff_percent,
+            trim_win=config.trim_window_seconds,
+            trim_low=config.trim_low_percent,
+            extend_win=config.extend_window_seconds,
+            extend_low=config.extend_low_percent
+        )
+
+        efforts = split_included(df=df, efforts=efforts)
+        session['efforts'] = efforts
+
+    logger.info(f"Updated session {session_id}: FTP={request.ftp}W, Weight={request.weight}kg")
+
+    return {
+        "status": "success",
+        "message": f"FTP updated to {request.ftp}W, Weight updated to {request.weight}kg",
+        "ftp": request.ftp,
+        "weight": request.weight
+    }
+
+
+# =============================================================================
 # EFFORT MANIPULATION ENDPOINTS
 # =============================================================================
 

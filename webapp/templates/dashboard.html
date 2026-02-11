@@ -493,19 +493,52 @@
                     <h2 style="margin-bottom: 25px; color: #374151;">⚙️ Detection Settings & Re-Analysis</h2>
                     
                     <div class="controls-section">
+                        <div class="controls-title">�‍♂️ Athlete Parameters</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="ftpValue">FTP (W)</label>
+                                <input type="number" id="ftpValue" value="{{ session.ftp }}" min="50" max="500" step="5">
+                            </div>
+                            <div class="form-group">
+                                <label for="weightValue">Weight (kg)</label>
+                                <input type="number" id="weightValue" value="{{ session.weight }}" min="40" max="150" step="0.5">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="updateFtpWeight()">💾 Update FTP & Weight</button>
+                    </div>
+                    
+                    <div class="controls-section">
                         <div class="controls-title">🎯 Effort Detection Parameters</div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="effortWindowSec">Window (s)</label>
-                                <input type="number" id="effortWindowSec" value="60" min="10" max="300">
+                                <input type="number" id="effortWindowSec" value="{{ session.effort_config.window_seconds | default(60) }}" min="10" max="300">
                             </div>
                             <div class="form-group">
                                 <label for="effortMinFtpPct">Min FTP (%)</label>
-                                <input type="number" id="effortMinFtpPct" value="100" min="50" max="200">
+                                <input type="number" id="effortMinFtpPct" value="{{ session.effort_config.min_effort_intensity_ftp | default(100) }}" min="50" max="200">
                             </div>
                             <div class="form-group">
                                 <label for="effortMergePct">Merge Tolerance (%)</label>
-                                <input type="number" id="effortMergePct" value="15" min="5" max="50">
+                                <input type="number" id="effortMergePct" value="{{ session.effort_config.merge_power_diff_percent | default(15) }}" min="5" max="50">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="trimWin">Trim Window (s)</label>
+                                <input type="number" id="trimWin" value="{{ session.effort_config.trim_window_seconds | default(10) }}" min="0" max="120">
+                            </div>
+                            <div class="form-group">
+                                <label for="trimLow">Trim Low (%)</label>
+                                <input type="number" id="trimLow" value="{{ session.effort_config.trim_low_percent | default(85) }}" min="50" max="100">
+                            </div>
+                            <div class="form-group">
+                                <label for="extendWin">Extend Window (s)</label>
+                                <input type="number" id="extendWin" value="{{ session.effort_config.extend_window_seconds | default(15) }}" min="0" max="120">
+                            </div>
+                            <div class="form-group">
+                                <label for="extendLow">Extend Low (%)</label>
+                                <input type="number" id="extendLow" value="{{ session.effort_config.extend_low_percent | default(80) }}" min="50" max="100">
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="redetectEfforts()">🔄 Re-Detect Efforts</button>
@@ -516,15 +549,15 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="sprintMinPower">Min Power (W)</label>
-                                <input type="number" id="sprintMinPower" value="500" min="200" max="1500">
+                                <input type="number" id="sprintMinPower" value="{{ session.sprint_config.min_power | default(500) }}" min="200" max="1500">
                             </div>
                             <div class="form-group">
                                 <label for="sprintMinDuration">Min Duration (s)</label>
-                                <input type="number" id="sprintMinDuration" value="5" min="3" max="30">
+                                <input type="number" id="sprintMinDuration" value="{{ session.sprint_config.window_seconds | default(5) }}" min="3" max="30">
                             </div>
                             <div class="form-group">
                                 <label for="sprintMergeGap">Merge Gap (s)</label>
-                                <input type="number" id="sprintMergeGap" value="3" min="1" max="10">
+                                <input type="number" id="sprintMergeGap" value="{{ session.sprint_config.merge_gap_sec | default(3) }}" min="1" max="10">
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="redetectSprints()">🔄 Re-Detect Sprints</button>
@@ -576,7 +609,11 @@
             const params = {
                 window_sec: document.getElementById('effortWindowSec').value,
                 min_ftp_pct: document.getElementById('effortMinFtpPct').value,
-                merge_pct: document.getElementById('effortMergePct').value
+                merge_pct: document.getElementById('effortMergePct').value,
+                trim_win: document.getElementById('trimWin').value,
+                trim_low: document.getElementById('trimLow').value,
+                extend_win: document.getElementById('extendWin').value,
+                extend_low: document.getElementById('extendLow').value
             };
             
             try {
@@ -615,6 +652,31 @@
                 const result = await response.json();
                 if (result.success) {
                     alert(`✅ Re-detected ${result.total_sprints} sprints!`);
+                    location.reload();
+                } else {
+                    alert(`❌ Error: ${result.message}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+        
+        async function updateFtpWeight() {
+            const params = {
+                ftp: parseInt(document.getElementById('ftpValue').value),
+                weight: parseInt(document.getElementById('weightValue').value)
+            };
+            
+            try {
+                const response = await fetch(`/api/${sessionId}/update-ftp-weight`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(params)
+                });
+                
+                const result = await response.json();
+                if (result.status === 'success') {
+                    alert(`✅ ${result.message}\n\nEfforts have been re-detected with the new FTP.`);
                     location.reload();
                 } else {
                     alert(`❌ Error: ${result.message}`);
