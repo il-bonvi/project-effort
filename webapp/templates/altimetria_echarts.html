@@ -253,16 +253,16 @@
         // Chart options
         const option = {
             title: {
-                text: `UNIFIED ANALYSIS | EFFORTS: MRG [${chartData.config.merge_pct}%] WIN [${chartData.config.window_sec}s] MIN [${chartData.config.min_ftp_pct}%FTP] | TRIM [${chartData.config.trim_win}s, ${chartData.config.trim_low}%] EXT [${chartData.config.extend_win}s, ${chartData.config.extend_low}%] | SPRINTS: WIN [${chartData.config.sprint_window_sec}s] MIN [${chartData.config.min_sprint_power}W]`,
+                text: '',
                 textStyle: { fontSize: 12, color: '#374151' },
                 left: 'center',
-                top: 10
+                top: 2
             },
             grid: {
                 left: 60,
                 right: 20,
-                top: 60,
-                bottom: 20
+                top: 15,
+                bottom: 70
             },
             xAxis: {
                 type: 'value',
@@ -295,7 +295,7 @@
                 type: 'scroll',
                 orient: 'vertical',
                 right: 10,
-                top: 60,
+                top: 10,
                 bottom: 20,
                 data: series.map(s => s.name),
                 textStyle: { fontSize: 11 }
@@ -310,7 +310,7 @@
                     start: 0,
                     end: 100,
                     height: 20,
-                    bottom: 0
+                    bottom: 20
                 },
                 {
                     type: 'inside',
