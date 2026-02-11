@@ -200,6 +200,311 @@
         .tip {
             margin: 3px 0;
         }
+
+        /* Intensity Zones Card Styles */
+        .intensity-zones-card {
+            margin: 10px 0;
+            background: linear-gradient(135deg, #fefefe, #fafafa);
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .zones-table-container {
+            padding: 10px;
+        }
+
+        .zones-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .zones-table thead {
+            background: #f8fafc;
+        }
+
+        .zones-table th {
+            padding: 6px 4px;
+            text-align: left;
+            font-size: 9px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .zones-table td:nth-child(1) {
+            text-align: center;
+            padding: 8px 4px;
+        }
+
+        .zones-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .zones-table input[type="color"] {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #9ca3af;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background: none;
+            padding: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .zones-table input[type="color"]:hover {
+            border-color: #3b82f6;
+            transform: scale(1.08);
+        }
+
+        .zones-table input[type="color"]:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15), 0 4px 12px rgba(37, 99, 235, 0.2);
+            transform: scale(1.05);
+        }
+
+        .zones-table input[type="color"]::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, transparent, rgb(255, 255, 255), transparent);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+
+        .zones-table input[type="color"]:hover::before {
+            opacity: 1;
+        }
+
+        .zones-table input[type="number"] {
+            width: 45px;
+            padding: 3px 4px;
+            border: 1px solid #d1d5db;
+            border-radius: 2px;
+            font-size: 10px;
+            text-align: center;
+            background: white;
+            transition: border-color 0.2s ease;
+        }
+
+        /* Small spinner: compact and nudged to the right edge of the cell */
+        .zones-table input[type="number"] {
+            box-sizing: border-box;
+            padding-left: 6px;
+            padding-right: 2px;
+        }
+
+        .zones-table input[type="number"]::-webkit-outer-spin-button,
+        .zones-table input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: auto; /* keep native spinner look */
+            margin: 0;
+            width: 14px;
+            height: 14px;
+            opacity: 0.6;
+            transform: translateX(4px); /* nudge toward right edge */
+        }
+
+        .zones-table input[type="number"]::-webkit-outer-spin-button:hover,
+        .zones-table input[type="number"]::-webkit-inner-spin-button:hover {
+            opacity: 1;
+            transform: translateX(4px);
+        }
+
+        /* Firefox fallback: keep smaller padding so spinner is close to the edge */
+        @-moz-document url-prefix() {
+            .zones-table input[type="number"] { padding-right: 2px; }
+        }
+
+        .zones-table input[type="number"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+        }
+
+        .zones-table input[type="text"] {
+            width: 90px;
+            padding: 3px 4px;
+            border: 1px solid #d1d5db;
+            border-radius: 2px;
+            font-size: 10px;
+            background: white;
+            transition: border-color 0.2s ease;
+        }
+
+        .zones-table input[type="text"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+        }
+
+        .range-label {
+            font-size: 9px;
+            color: #64748b;
+            font-weight: 500;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+
+        .watt-display {
+            font-size: 10px;
+            font-weight: 600;
+            color: #059669;
+            background: #ecfdf5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            min-width: 32px;
+            text-align: center;
+        }
+
+        .delete-zone-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 2px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .delete-zone-btn:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+
+        .delete-zone-btn:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .card-footer {
+            padding: 8px 10px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .zone-controls {
+            padding: 8px 10px;
+            background: #ffffff;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .zone-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .zone-toggle input[type="checkbox"] {
+            accent-color: #2563eb;
+            width: 14px;
+            height: 14px;
+        }
+
+        .zone-opacity-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
+            color: #374151;
+        }
+
+        .zone-opacity-control .value-display {
+            min-width: 36px;
+            text-align: right;
+            font-size: 10px;
+        }
+
+        .zone-opacity-control input[type="range"] {
+            width: 140px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #006aff;
+            border: 1px solid #e2e8f0;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #e2e8f0;
+            border-color: #cbd5e1;
+        }
+
+        .status-message {
+            font-size: 10px;
+            color: #10b981;
+            font-weight: 500;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .status-message.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -245,6 +550,56 @@
         </div>
     </div>
 
+    <!-- Intensity Zones Card -->
+    <div class="intensity-zones-card">
+        <div class="zones-table-container">
+            <table class="zones-table">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">Colore</th>
+                        <th style="width: 60px;">Min %</th>
+                        <th style="width: 80px;">Watt</th>
+                        <th style="width: 60px;">Max %</th>
+                        <th style="width: 100px;">Nome Zona</th>
+                        <th style="width: 50px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="zonesContainer">
+                    <!-- Zone saranno generate da JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-footer">
+            <button id="addZoneBtn" class="btn-primary">
+                <span class="btn-icon">+</span>
+                Aggiungi Zona
+            </button>
+            <button id="resetZonesBtn" class="btn-secondary">
+                <span class="btn-icon">🔄</span>
+                Ripristina
+            </button>
+            <div id="zonesStatus" class="status-message"></div>
+        </div>
+
+        <div class="zone-controls">
+            <label class="zone-toggle">
+                <input type="checkbox" id="zoneColorToggle" checked>
+                Colori zone grafici 2-3
+            </label>
+            <div class="zone-opacity-control">
+                <label for="zoneOpacity">Opacita riempimento</label>
+                <span class="value-display" id="zoneOpacityValue">18%</span>
+                <input type="range" id="zoneOpacity" min="0" max="100" step="5" value="18">
+            </div>
+            <div class="zone-bands-opacity-control">
+                <label for="zoneBandsOpacity">Opacita bande</label>
+                <span class="value-display" id="zoneBandsOpacityValue">12%</span>
+                <input type="range" id="zoneBandsOpacity" min="0" max="100" step="1" value="12">
+            </div>
+        </div>
+    </div>
+
     <div class="save-controls">
         <button id="saveButton" class="save-btn">💾 Salva Modifiche</button>
         <div id="saveStatus"></div>
@@ -280,6 +635,9 @@
             const samplingRate = timeAxis.length > 1 ? 1 / (timeAxis[1] - timeAxis[0]) : 1;
             let avg30sSeconds = 30;
             let avg60sSeconds = 60;
+            let zoneColorEnabled = true;
+            let zoneFillOpacity = 0.18;
+            let zoneBandsOpacity = 0.12;
 
             if (sprintsData.length === 0) {
                 document.getElementById('sprintsContainer').style.display = 'none';
@@ -307,6 +665,103 @@
             const powerCoords = timeAxis.map((time, idx) => [time, powerData[idx]]);
             const power30sCoords = timeAxis.map((time, idx) => [time, power30s[idx]]);
             const power60sCoords = timeAxis.map((time, idx) => [time, power60s[idx]]);
+
+            // Helper to build per-zone series with colored curve
+            function makeZoneSeries(dataCoords, gridIdx, axisIdx, zone) {
+                const minW = Math.round((zone.min / 100) * ftp);
+                const maxW = zone.max === 999 ? Infinity : Math.round((zone.max / 100) * ftp);
+
+                // Linear interpolation helper
+                function interpCross(x0, y0, x1, y1, target) {
+                    if (y1 === y0) return null;
+                    const t = (target - y0) / (y1 - y0);
+                    if (t < 0 || t > 1) return null;
+                    return [x0 + (x1 - x0) * t, target];
+                }
+
+                const curveData = [];
+                let lastWasInZone = false;
+
+                for (let i = 0; i < dataCoords.length - 1; i++) {
+                    const [x0, y0] = dataCoords[i];
+                    const [x1, y1] = dataCoords[i + 1];
+
+                    const inZone0 = y0 !== null && typeof y0 !== 'undefined' && y0 >= minW && (maxW === Infinity || y0 <= maxW);
+                    const inZone1 = y1 !== null && typeof y1 !== 'undefined' && y1 >= minW && (maxW === Infinity || y1 <= maxW);
+
+                    // Always include points that are in zone
+                    if (inZone0) {
+                        curveData.push([x0, y0]);
+                        lastWasInZone = true;
+                    }
+
+                    let crossings = null;
+
+                    // Check for crossings to add precise boundary points
+                    if (y0 !== null && y1 !== null && typeof y0 !== 'undefined' && typeof y1 !== 'undefined') {
+                        crossings = [];
+
+                        if (maxW === Infinity) {
+                            // Only check minW crossing
+                            if ((y0 < minW && y1 >= minW) || (y0 >= minW && y1 < minW)) {
+                                const crossPt = interpCross(x0, y0, x1, y1, minW);
+                                if (crossPt) crossings.push(crossPt);
+                            }
+                        } else {
+                            // Check both minW and maxW crossings
+                            if ((y0 < minW && y1 >= minW) || (y0 >= minW && y1 < minW)) {
+                                const crossPt = interpCross(x0, y0, x1, y1, minW);
+                                if (crossPt) crossings.push(crossPt);
+                            }
+                            if ((y0 < maxW && y1 >= maxW) || (y0 >= maxW && y1 < maxW)) {
+                                const crossPt = interpCross(x0, y0, x1, y1, maxW);
+                                if (crossPt) crossings.push(crossPt);
+                            }
+                        }
+
+                        // Sort crossings by x and add them
+                        crossings.sort((a, b) => a[0] - b[0]);
+                        for (const cross of crossings) {
+                            curveData.push(cross);
+                            lastWasInZone = !lastWasInZone; // Toggle zone status at crossing
+                            if (!lastWasInZone) {
+                                curveData.push([cross[0], null]);
+                            }
+                        }
+                    }
+
+                    if (lastWasInZone && !inZone1 && (!crossings || crossings.length === 0)) {
+                        curveData.push([x0, null]);
+                        lastWasInZone = false;
+                    }
+                }
+
+                // Handle last point
+                const last = dataCoords[dataCoords.length - 1];
+                if (last) {
+                    const [xl, yl] = last;
+                    const inZoneLast = yl !== null && typeof yl !== 'undefined' && yl >= minW && (maxW === Infinity || yl <= maxW);
+                    if (inZoneLast) {
+                        curveData.push([xl, yl]);
+                    }
+                }
+
+                // Return colored curve segments
+                return {
+                    name: zone.name,
+                    type: 'line',
+                    xAxisIndex: gridIdx,
+                    yAxisIndex: axisIdx,
+                    data: curveData,
+                    connectNulls: false,
+                    smooth: true,
+                    showSymbol: false,
+                    sampling: 'none',
+                    lineStyle: { color: zone.color, width: 2 },
+                    z: 2,
+                    silent: true
+                };
+            }
 
             const deletedEfforts = new Set();
             const deletedSprints = new Set();
@@ -382,6 +837,210 @@
                 });
             });
 
+            // =====================
+            // LOCAL INTENSITY ZONES (Independent from global coloring)
+            // =====================
+            
+            // Default zones (copied from global config - completely independent)
+            const defaultZones = [
+                { min: 0, max: 55, color: '#1f77b4', name: 'Z1' },
+                { min: 55, max: 75, color: '#3eb33e', name: 'Z2' },
+                { min: 75, max: 90, color: '#ff7f0e', name: 'Z3' },
+                { min: 90, max: 105, color: '#da2fbd', name: 'Z4' },
+                { min: 105, max: 120, color: '#7315ca', name: 'Z5' },
+                { min: 120, max: 150, color: '#e11d48', name: 'Z6' },
+                { min: 150, max: 999, color: '#6b3c3c', name: 'Z7' }
+            ];
+            
+            // Load local zones from localStorage or use defaults
+            let localZones = JSON.parse(localStorage.getItem('inspection_zones')) || defaultZones.map(z => ({ ...z }));
+
+            // Check if we need to update to new default structure (min/max format)
+            if (localZones.length === 0 || typeof localZones[0].threshold !== 'undefined') {
+                localZones = defaultZones.map(z => ({ ...z }));
+                localStorage.setItem('inspection_zones', JSON.stringify(localZones));
+            }
+            
+            // Initialize zones UI
+            function initializeZonesUI() {
+                const container = document.getElementById('zonesContainer');
+                container.innerHTML = '';
+
+                localZones.forEach((zone, idx) => {
+                    const row = document.createElement('tr');
+
+                    // Color input cell
+                    const colorCell = document.createElement('td');
+                    const colorContainer = document.createElement('div');
+                    colorContainer.style.display = 'flex';
+                    colorContainer.style.alignItems = 'center';
+                    colorContainer.style.justifyContent = 'center';
+                    colorContainer.style.gap = '6px';
+
+                    const colorInput = document.createElement('input');
+                    colorInput.type = 'color';
+                    colorInput.value = zone.color;
+                    colorInput.title = 'Clicca per cambiare colore della zona';
+                    colorInput.addEventListener('change', function() {
+                        localZones[idx].color = this.value;
+                        saveLocalZones();
+                        rebuildChart();
+                    });
+
+                    colorContainer.appendChild(colorInput);
+                    colorCell.appendChild(colorContainer);
+                    row.appendChild(colorCell);
+
+                    // Min input cell
+                    const minCell = document.createElement('td');
+                    const minInput = document.createElement('input');
+                    minInput.type = 'number';
+                    minInput.value = zone.min;
+                    minInput.min = '0';
+                    minInput.max = '999';
+                    minInput.step = '1';
+                    minInput.addEventListener('change', function() {
+                        const newMin = parseInt(this.value) || zone.min;
+                        localZones[idx].min = newMin;
+                        // Update max of previous zone
+                        if (idx > 0) {
+                            localZones[idx - 1].max = newMin;
+                        }
+                        saveLocalZones();
+                        initializeZonesUI();
+                        rebuildChart();
+                        updateWattDisplays();
+                    });
+                    minCell.appendChild(minInput);
+                    row.appendChild(minCell);
+
+                    // Watt display cell (range from FTP)
+                    const wattCell = document.createElement('td');
+                    const wattDisplay = document.createElement('span');
+                    wattDisplay.className = 'watt-display';
+                    const ftpValue = parseInt(document.getElementById('ftpInput').value) || 280;
+                    const minWatt = Math.round((zone.min / 100) * ftpValue);
+                    if (zone.max === 999) {
+                        wattDisplay.textContent = minWatt + 'W+';
+                    } else {
+                        const maxWatt = Math.round((zone.max / 100) * ftpValue);
+                        wattDisplay.textContent = minWatt + ' - ' + maxWatt + 'W';
+                    }
+                    wattCell.appendChild(wattDisplay);
+                    row.appendChild(wattCell);
+
+                    // Max input cell
+                    const maxCell = document.createElement('td');
+                    const maxInput = document.createElement('input');
+                    maxInput.type = 'number';
+                    maxInput.value = zone.max;
+                    maxInput.min = '0';
+                    maxInput.max = '999';
+                    maxInput.step = '1';
+                    maxInput.addEventListener('change', function() {
+                        const newMax = parseInt(this.value) || zone.max;
+                        localZones[idx].max = newMax;
+                        // Update min of next zone
+                        if (idx < localZones.length - 1) {
+                            localZones[idx + 1].min = newMax;
+                        }
+                        saveLocalZones();
+                        initializeZonesUI();
+                        rebuildChart();
+                        updateWattDisplays();
+                    });
+                    maxCell.appendChild(maxInput);
+                    row.appendChild(maxCell);
+
+                    // Name input cell
+                    const nameCell = document.createElement('td');
+                    const nameInput = document.createElement('input');
+                    nameInput.type = 'text';
+                    nameInput.value = zone.name;
+                    nameInput.addEventListener('change', function() {
+                        localZones[idx].name = this.value;
+                        saveLocalZones();
+                        rebuildChart();
+                    });
+                    nameCell.appendChild(nameInput);
+                    row.appendChild(nameCell);
+
+                    // Delete button cell
+                    const actionCell = document.createElement('td');
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-zone-btn';
+                    deleteBtn.textContent = '×';
+                    deleteBtn.title = 'Elimina zona';
+                    if (localZones.length <= 2) {
+                        deleteBtn.disabled = true;
+                    }
+                    deleteBtn.addEventListener('click', function() {
+                        if (localZones.length > 2) {
+                            localZones.splice(idx, 1);
+                            saveLocalZones();
+                            initializeZonesUI();
+                        }
+                    });
+                    actionCell.appendChild(deleteBtn);
+                    row.appendChild(actionCell);
+
+                    container.appendChild(row);
+                });
+            }
+
+            function saveLocalZones() {
+                localStorage.setItem('inspection_zones', JSON.stringify(localZones));
+                const statusEl = document.getElementById('zonesStatus');
+                statusEl.textContent = '✓ Zone salvate localmente';
+                statusEl.classList.add('show');
+                setTimeout(() => {
+                    statusEl.classList.remove('show');
+                    statusEl.textContent = '';
+                }, 2000);
+            }
+
+            // Reset zones to default
+            document.getElementById('resetZonesBtn').addEventListener('click', function() {
+                localZones = defaultZones.map(z => ({ ...z }));
+                saveLocalZones();
+                initializeZonesUI();
+                rebuildChart();
+                updateWattDisplays();
+            });
+
+            // Add new zone button
+            document.getElementById('addZoneBtn').addEventListener('click', function() {
+                // Add a new zone using min/max scheme: extend last zone max and add new one
+                const last = localZones[localZones.length - 1];
+                const newMin = last.max === 999 ? last.max : Math.min(last.max + 1, 999);
+                localZones.push({ min: newMin, max: Math.min(newMin + 10, 999), color: '#6366f1', name: 'Nuova Zona' });
+                saveLocalZones();
+                initializeZonesUI();
+                rebuildChart();
+            });
+
+            // Initialize zones on page load
+            initializeZonesUI();
+            updateWattDisplays();
+
+            // Function to update watt displays when FTP changes
+            function updateWattDisplays() {
+                const ftpValue = parseInt(document.getElementById('ftpInput').value) || 280;
+                const wattDisplays = document.querySelectorAll('.watt-display');
+                wattDisplays.forEach((display, idx) => {
+                    const zone = localZones[idx];
+                    if (zone) {
+                        const minWatt = Math.round((zone.min / 100) * ftpValue);
+                        if (zone.max === 999) {
+                            display.textContent = minWatt + 'W+';
+                        } else {
+                            const maxWatt = Math.round((zone.max / 100) * ftpValue);
+                            display.textContent = minWatt + ' - ' + maxWatt + 'W';
+                        }
+                    }
+                });
+            }
+
             const mainChartDiv = document.getElementById('mainChart');
             let myChart = echarts.init(mainChartDiv, 'light');
             const minTime = Math.min(...timeAxis);
@@ -421,17 +1080,17 @@
                            axisLine: { lineStyle: { color: '#6b7280', width: 1 } }
                         }
                     ],
-                    yAxis: [
-                        { gridIndex: 0, type: 'value', name: 'Power (W)', min: 0, max: Math.ceil(maxPower * 1.1),
-                           nameLocation: 'middle', nameRotate: 90, nameGap: 40, nameTextStyle: { color: '#374151', fontSize: 10 },
-                           axisLabel: { color: '#374151', fontSize: 9 }, splitLine: { lineStyle: { color: '#f3f4f6' } } },
-                        { gridIndex: 1, type: 'value', name: avg30sSeconds + 's Avg (W)', min: 0, max: Math.ceil(maxPower * 1.1),
-                           nameLocation: 'middle', nameRotate: 90, nameGap: 40, nameTextStyle: { color: '#374151', fontSize: 10 },
-                           axisLabel: { color: '#374151', fontSize: 9 }, splitLine: { lineStyle: { color: '#f3f4f6' } } },
-                        { gridIndex: 2, type: 'value', name: avg60sSeconds + 's Avg (W)', min: 0, max: Math.ceil(maxPower * 1.1),
-                           nameLocation: 'middle', nameRotate: 90, nameGap: 40, nameTextStyle: { color: '#374151', fontSize: 10 },
-                           axisLabel: { color: '#374151', fontSize: 9 }, splitLine: { lineStyle: { color: '#f3f4f6' } } }
-                    ],
+                          yAxis: [
+                                { gridIndex: 0, type: 'value', name: 'Power (W)', min: 0, max: function(value) { return Math.ceil((value.max || 0) * 1.05) || Math.ceil(maxPower * 1.05); },
+                                    nameLocation: 'middle', nameRotate: 90, nameGap: 40, nameTextStyle: { color: '#374151', fontSize: 10 },
+                                    axisLabel: { color: '#374151', fontSize: 9 }, splitLine: { lineStyle: { color: '#f3f4f6' } } },
+                                { gridIndex: 1, type: 'value', name: avg30sSeconds + 's Avg (W)', min: 0, max: function(value) { return Math.ceil((value.max || 0) * 1.05) || Math.ceil(maxPower * 1.05); },
+                                    nameLocation: 'middle', nameRotate: 90, nameGap: 40, nameTextStyle: { color: '#374151', fontSize: 10 },
+                                    axisLabel: { color: '#374151', fontSize: 9 }, splitLine: { lineStyle: { color: '#f3f4f6' } } },
+                                { gridIndex: 2, type: 'value', name: avg60sSeconds + 's Avg (W)', min: 0, max: function(value) { return Math.ceil((value.max || 0) * 1.05) || Math.ceil(maxPower * 1.05); },
+                                    nameLocation: 'middle', nameRotate: 90, nameGap: 40, nameTextStyle: { color: '#374151', fontSize: 10 },
+                                    axisLabel: { color: '#374151', fontSize: 9 }, splitLine: { lineStyle: { color: '#f3f4f6' } } }
+                          ],
                     dataZoom: [
                         { type: 'slider', show: true, xAxisIndex: [0, 1, 2], start: 0, end: 100,
                            textStyle: { color: '#374151' }, fillerColor: 'rgba(59, 130, 246, 0.15)',
@@ -443,16 +1102,78 @@
                            smooth: 0.5, lineStyle: { color: '#3b82f6', width: 2 },
                            areaStyle: { color: 'rgba(59, 130, 246, 0.1)' }, symbol: 'none',
                            sampling: 'average', itemStyle: { color: '#3b82f6' }, z: 1 },
-                        { name: '30s Avg Power', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: power30sCoords,
-                           smooth: 0.3, lineStyle: { color: '#f59e0b', width: 2 },
-                           areaStyle: { color: 'rgba(245, 158, 11, 0.1)' }, symbol: 'none',
-                           sampling: 'average', itemStyle: { color: '#f59e0b' }, z: 1 },
-                        { name: '60s Avg Power', type: 'line', xAxisIndex: 2, yAxisIndex: 2, data: power60sCoords,
-                           smooth: 0.3, lineStyle: { color: '#ef4444', width: 2 },
-                           areaStyle: { color: 'rgba(239, 68, 68, 0.1)' }, symbol: 'none',
-                           sampling: 'average', itemStyle: { color: '#ef4444' }, z: 1 }
+                        // 30s avg colored by zones
+                        // for each zone we add a series that shows only the segments within the zone
+                        // (this paints the curve in zone colors)
+                        // We'll add these below dynamically using localZones
+                        
+                        // 60s avg colored by zones will be added below as well
+                        
+
                     ]
                 };
+
+                if (zoneColorEnabled) {
+                    // Insert per-zone series for 30s avg (gridIndex 1)
+                    localZones.forEach((zone) => {
+                        option.series.push(makeZoneSeries(power30sCoords, 1, 1, zone));
+                    });
+
+                    // Insert per-zone series for 60s avg (gridIndex 2)
+                    localZones.forEach((zone) => {
+                        option.series.push(makeZoneSeries(power60sCoords, 2, 2, zone));
+                    });
+
+                    // Add horizontal zone bands for all three grids (lightweight markArea)
+                    // Each zone becomes one markArea series per grid so we can apply per-zone color
+                    localZones.forEach((zone) => {
+                        const minW = Math.round((zone.min / 100) * ftp);
+                        const maxW = zone.max === 999 ? Math.ceil(maxPower * 1.05) : Math.round((zone.max / 100) * ftp);
+                        for (let gridIdx = 0; gridIdx < 3; gridIdx++) {
+                            option.series.push({
+                                name: zone.name + '_band',
+                                type: 'line',
+                                xAxisIndex: gridIdx,
+                                yAxisIndex: gridIdx,
+                                data: [],
+                                lineStyle: { opacity: 0 },
+                                markArea: {
+                                    silent: true,
+                                    itemStyle: { color: zone.color, opacity: zoneBandsOpacity },
+                                    data: [[{ yAxis: minW }, { yAxis: maxW }]]
+                                },
+                                z: 0
+                            });
+                        }
+                    });
+                } else {
+                    option.series.push({
+                        name: avg30sSeconds + 's Avg',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: power30sCoords,
+                        smooth: true,
+                        showSymbol: false,
+                        sampling: 'none',
+                        lineStyle: { color: '#f59e0b', width: 2 },
+                        areaStyle: { color: '#f59e0b', opacity: zoneFillOpacity },
+                        z: 2
+                    });
+                    option.series.push({
+                        name: avg60sSeconds + 's Avg',
+                        type: 'line',
+                        xAxisIndex: 2,
+                        yAxisIndex: 2,
+                        data: power60sCoords,
+                        smooth: true,
+                        showSymbol: false,
+                        sampling: 'none',
+                        lineStyle: { color: '#ef4444', width: 2 },
+                        areaStyle: { color: '#ef4444', opacity: zoneFillOpacity },
+                        z: 2
+                    });
+                }
 
                 effortsData.forEach((effort, idx) => {
                     if (deletedEfforts.has(idx)) return;
@@ -576,6 +1297,32 @@
             const avg60sInput = document.getElementById('avg60sSeconds');
             const avg60sValue = document.getElementById('avg60sValue');
             const ftpInput = document.getElementById('ftpInput');
+            const zoneColorToggle = document.getElementById('zoneColorToggle');
+            const zoneOpacityInput = document.getElementById('zoneOpacity');
+            const zoneOpacityValue = document.getElementById('zoneOpacityValue');
+            const zoneBandsOpacityInput = document.getElementById('zoneBandsOpacity');
+            const zoneBandsOpacityValue = document.getElementById('zoneBandsOpacityValue');
+
+            const storedZoneColorEnabled = localStorage.getItem('inspection_zone_color_enabled');
+            if (storedZoneColorEnabled !== null) {
+                zoneColorEnabled = storedZoneColorEnabled === 'true';
+            }
+
+            const storedZoneOpacity = parseFloat(localStorage.getItem('inspection_zone_fill_opacity'));
+            if (!Number.isNaN(storedZoneOpacity)) {
+                zoneFillOpacity = storedZoneOpacity;
+            }
+
+            const storedZoneBandsOpacity = parseFloat(localStorage.getItem('inspection_zone_bands_opacity'));
+            if (!Number.isNaN(storedZoneBandsOpacity)) {
+                zoneBandsOpacity = storedZoneBandsOpacity;
+            }
+
+            zoneColorToggle.checked = zoneColorEnabled;
+            zoneOpacityInput.value = Math.round(zoneFillOpacity * 100);
+            zoneOpacityValue.textContent = zoneOpacityInput.value + '%';
+            zoneBandsOpacityInput.value = Math.round(zoneBandsOpacity * 100);
+            zoneBandsOpacityValue.textContent = zoneBandsOpacityInput.value + '%';
 
             let updateTimeout = null;
             avg30sInput.addEventListener('input', function() {
@@ -592,8 +1339,36 @@
                 updateTimeout = setTimeout(updateMovingAverages, 1);
             });
 
+            zoneColorToggle.addEventListener('change', function() {
+                zoneColorEnabled = this.checked;
+                localStorage.setItem('inspection_zone_color_enabled', String(zoneColorEnabled));
+                rebuildChart();
+            });
+
+            zoneOpacityInput.addEventListener('input', function() {
+                const opacityValue = Math.max(0, Math.min(100, parseInt(this.value) || 0));
+                zoneFillOpacity = opacityValue / 100;
+                zoneOpacityValue.textContent = opacityValue + '%';
+                localStorage.setItem('inspection_zone_fill_opacity', String(zoneFillOpacity));
+                rebuildChart();
+            });
+
+            zoneBandsOpacityInput.addEventListener('input', function() {
+                const opacityValue = Math.max(0, Math.min(100, parseInt(this.value) || 0));
+                zoneBandsOpacity = opacityValue / 100;
+                zoneBandsOpacityValue.textContent = opacityValue + '%';
+                localStorage.setItem('inspection_zone_bands_opacity', String(zoneBandsOpacity));
+                rebuildChart();
+            });
+
             ftpInput.addEventListener('change', function() {
                 ftp = parseInt(this.value);
+                rebuildChart();
+                updateWattDisplays();
+            });
+
+            ftpInput.addEventListener('input', function() {
+                updateWattDisplays();
                 rebuildChart();
             });
 
