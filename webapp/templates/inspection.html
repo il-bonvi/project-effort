@@ -11,12 +11,19 @@
             padding: 0;
             box-sizing: border-box;
         }
+        html {
+            height: 100%;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: #ffffff;
             color: #111827;
             padding: 15px;
             line-height: 1.6;
+            overflow-y: auto;
+            overflow-x: hidden;
+            min-height: 100%;
+            margin: 0;
         }
         #mainChart {
             width: 100%;

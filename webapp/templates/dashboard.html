@@ -11,6 +11,12 @@
             padding: 0;
             box-sizing: border-box;
         }
+        html {
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            position: fixed;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: #ffffff;
@@ -23,6 +29,12 @@
             flex-direction: column;
             overflow: hidden;
             font-size: 16px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
         }
         .header {
             background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -79,6 +91,7 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             overflow-x: auto;
             flex-shrink: 0;
+            position: relative;
         }
         .tab {
             padding: 10px 18px;
@@ -106,14 +119,28 @@
             background: white;
             padding: 0;
             position: relative;
-            min-height: 400px;
-            flex: 1;
+            flex: 1 1 auto;
             min-height: 0;
-            overflow: auto;
+            max-height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-gutter: stable;
+        }
+        /* When an iframe tab is active, hide the scroll on tab-content */
+        .tab-pane.has-iframe {
+            height: 100%;
+            overflow: hidden;
+        }
+        .tab-pane.has-iframe iframe {
+            display: block;
         }
         .tab-pane {
             display: none;
             width: 100%;
+        }
+        .tab-pane.full-height {
+            height: 100%;
         }
         .tab-pane.active {
             display: block;
@@ -129,7 +156,7 @@
             min-height: 0 !important;
         }
         .overview-content {
-            padding: 10px 0;
+            padding: 10px 0 50px 0;
         }
         .stats-grid {
             display: grid;
@@ -304,7 +331,60 @@
         #load-map3d-btn:active {
             transform: translateY(0);
         }
-        /* Fullscreen mode for 3D map */
+        /* Fullscreen button for tabs - minimal icon only, in tabs bar */
+        .tab-content {
+            position: relative;
+        }
+        .fullscreen-btn {
+            position: fixed;
+            top: 103px;
+            right: 7px;
+            z-index: 1001;
+            background: white;
+            color: #6b7280;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 5px 7px;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            min-width: 30px;
+            height: 30px;
+        }
+        .fullscreen-btn:hover {
+            background: #eff6ff;
+            border-color: #3b82f6;
+            color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+        }
+        .fullscreen-btn:active {
+            transform: scale(0.95);
+        }
+        .fullscreen-btn .fullscreen-text {
+            display: none;
+        }
+        
+        /* Fullscreen mode for any tab */
+        body.tab-fullscreen .header,
+        body.tab-fullscreen .tabs,
+        body.tab-fullscreen .back-btn {
+            display: none !important;
+        }
+        body.tab-fullscreen .tab-container {
+            height: 100vh !important;
+        }
+        body.tab-fullscreen .tab-content {
+            border-radius: 0;
+        }
+        body.tab-fullscreen .fullscreen-btn {
+            display: none;
+        }
+        
+        /* Legacy support for map3d fullscreen */
         body.map3d-fullscreen .header,
         body.map3d-fullscreen .tabs,
         body.map3d-fullscreen .back-btn {
@@ -367,6 +447,9 @@
         <div class="tab-content">
             <!-- OVERVIEW TAB -->
             <div class="tab-pane active" id="overview">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('overview')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div class="overview-content">
                     <h2 style="margin-bottom: 25px; color: #374151; padding: 20px 20px 0;">📈 Ride Summary & Statistics</h2>
                     
@@ -422,12 +505,18 @@
             </div>
             
             <!-- INSPECTION TAB -->
-            <div class="tab-pane" id="inspection" style="min-height: 1400px;">
-                <iframe src="/inspection/{{ session_id }}" style="width: 100%; height: 1400px; border: none; background: white;"></iframe>
+            <div class="tab-pane full-height has-iframe" id="inspection">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('inspection')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
+                <iframe src="/inspection/{{ session_id }}" style="width: 100%; height: 100%; border: none; background: white;"></iframe>
             </div>
             
             <!-- ALTIMETRIA TAB -->
-            <div class="tab-pane" id="altimetria" style="height: 80vh; min-height: 600px; position: relative;">
+            <div class="tab-pane full-height" id="altimetria" style="position: relative;">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
                     <button onclick="window.open('/altimetria/{{ session_id }}', '_blank', 'width=1400,height=900')" 
                             style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -439,7 +528,10 @@
             </div>
             
             <!-- ALTIMETRIA ECHARTS TAB -->
-            <div class="tab-pane" id="altimetria-echarts" style="height: 80vh; min-height: 600px; position: relative;">
+            <div class="tab-pane full-height" id="altimetria-echarts" style="position: relative;">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria-echarts')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div style="height: 40px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding: 0 10px;">
                     <button onclick="window.open('/altimetria-echarts/{{ session_id }}', '_blank', 'width=1400,height=900')" 
                             style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -451,7 +543,10 @@
             </div>
             
             <!-- 3D MAP TAB -->
-            <div class="tab-pane" id="map3d" style="height: 80vh; min-height: 600px; position: relative;">
+            <div class="tab-pane full-height" id="map3d" style="position: relative;">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('map3d')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div id="map3d-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; min-height: 600px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
                     <div style="text-align: center; color: white; max-width: 600px; padding: 40px;">
                         <div style="font-size: 4rem; margin-bottom: 20px;">🗺️</div>
@@ -489,6 +584,9 @@
             
             <!-- SETTINGS TAB -->
             <div class="tab-pane" id="settings">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('settings')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div class="settings-content" style="padding: 20px;">
                     <h2 style="margin-bottom: 25px; color: #374151;">⚙️ Detection Settings & Re-Analysis</h2>
                     
@@ -567,6 +665,9 @@
             
             <!-- EXPORT TAB -->
             <div class="tab-pane" id="export">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('export')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div class="export-content" style="padding: 20px;">
                     <h2 style="margin-bottom: 25px; color: #374151;">📥 Import & 📤 Export</h2>
                     
@@ -834,14 +935,65 @@
             }
         }
 
+        // Generic fullscreen toggle for any tab
+        function toggleFullscreen(tabId) {
+            const body = document.body;
+            const isFullscreen = body.classList.contains('tab-fullscreen');
+            const button = document.querySelector(`#${tabId} .fullscreen-btn`);
+            const icon = button.querySelector('.fullscreen-icon');
+            
+            if (!isFullscreen) {
+                body.classList.add('tab-fullscreen');
+                icon.textContent = '✕';
+                button.style.background = '#fee2e2';
+                button.style.borderColor = '#ef4444';
+                button.style.color = '#dc2626';
+            } else {
+                body.classList.remove('tab-fullscreen');
+                icon.textContent = '⛶';
+                button.style.background = 'white';
+                button.style.borderColor = '#e5e7eb';
+                button.style.color = '#6b7280';
+            }
+        }
+
+        // Exit fullscreen when switching tabs
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', function() {
+                // Exit fullscreen mode when switching tabs
+                if (document.body.classList.contains('tab-fullscreen')) {
+                    document.body.classList.remove('tab-fullscreen');
+                    // Reset all fullscreen buttons
+                    document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+                        const icon = btn.querySelector('.fullscreen-icon');
+                        icon.textContent = '⛶';
+                        btn.style.background = 'white';
+                        btn.style.borderColor = '#e5e7eb';
+                        btn.style.color = '#6b7280';
+                    });
+                }
+                
                 const tabName = this.getAttribute('data-tab');
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
                 this.classList.add('active');
                 document.getElementById(tabName).classList.add('active');
             });
+        });
+
+        // ESC key to exit fullscreen
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.body.classList.contains('tab-fullscreen')) {
+                document.body.classList.remove('tab-fullscreen');
+                // Reset all fullscreen buttons
+                document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+                    const icon = btn.querySelector('.fullscreen-icon');
+                    icon.textContent = '⛶';
+                    btn.style.background = 'white';
+                    btn.style.borderColor = '#e5e7eb';
+                    btn.style.color = '#6b7280';
+                });
+            }
         });
     </script>
 </body>
