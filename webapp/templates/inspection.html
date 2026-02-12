@@ -117,7 +117,7 @@
         }
         .control-group input[type="range"] {
             width: 250px;
-            height: 10px;
+            height: 6px;
             border-radius: 5px;
             background: linear-gradient(to right, #fee2e2 0%, #fecaca 50%, #fca5a5 100%);
             outline: none;
@@ -574,34 +574,78 @@
         <div class="legend" id="sprintsLegend"></div>
     </div>
 
-    <div class="control-panel">
-        <div class="control-group">
-            <label for="avg30sSeconds">🟠 Chart 2 - Avg</label>
-            <div class="slider-container">
-                <span class="value-display" id="avg30sValue">30s</span>
-                <input type="range" id="avg30sSeconds" value="30" min="1" max="60" step="1">
-            </div>
-        </div>
-
-        <div class="control-group">
-            <label for="avg60sSeconds">🔴 Chart 3 - Avg</label>
-            <div class="slider-container">
-                <span class="value-display" id="avg60sValue">60s</span>
-                <input type="range" id="avg60sSeconds" value="60" min="60" max="360" step="1">
-            </div>
-        </div>
-    </div>
-
-    <div class="ftp-panel">
-        <div class="ftp-control">
-            <label for="ftpInput">FTP:</label>
-            <input type="number" id="ftpInput" value="{{ ftp | int }}" min="50" max="500" step="5">
-            <span style="font-size: 12px; color: #1e40af; font-weight: bold;">W</span>
-        </div>
-    </div>
-
     <!-- Intensity Zones Card -->
     <div class="intensity-zones-card">
+        <div style="padding: 15px; background: linear-gradient(135deg, #eff6ff, #f0f9ff); border-bottom: 1px solid #bfdbfe;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 30px; flex-wrap: wrap;">
+                <!-- FTP Control -->
+                <div class="ftp-control">
+                    <label for="ftpInput">FTP:</label>
+                    <input type="number" id="ftpInput" value="{{ ftp | int }}" min="50" max="500" step="5">
+                    <span style="font-size: 12px; color: #1e40af; font-weight: bold;">W</span>
+                </div>
+                
+                <!-- Chart 2 Slider -->
+                <div class="control-group" style="min-width: auto;">
+                    <label for="avg30sSeconds" style="font-size: 12px; color: #1e40af;">🟠 Chart 2 - Avg</label>
+                    <div class="slider-container" style="gap: 10px;">
+                        <span class="value-display" id="avg30sValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">30s</span>
+                        <input type="range" id="avg30sSeconds" value="30" min="1" max="60" step="1">
+                    </div>
+                </div>
+                
+                <!-- Chart 3 Slider -->
+                <div class="control-group" style="min-width: auto;">
+                    <label for="avg60sSeconds" style="font-size: 12px; color: #1e40af;">🔴 Chart 3 - Avg</label>
+                    <div class="slider-container" style="gap: 10px;">
+                        <span class="value-display" id="avg60sValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">60s</span>
+                        <input type="range" id="avg60sSeconds" value="60" min="60" max="360" step="1">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Seconda riga con Colori grafici e Opacità bande -->
+            <div style="display: flex; align-items: center; justify-content: center; gap: 30px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #bfdbfe; flex-wrap: wrap;">
+                <!-- Colori zone grafici Toggle -->
+                <label class="zone-toggle" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #1e40af; font-weight: bold;">
+                    <input type="checkbox" id="zoneColorToggle" checked style="accent-color: #2563eb; width: 14px; height: 14px;">
+                    Colori zone grafici
+                </label>
+                
+                <!-- Opacità riempimento -->
+                <div class="zone-opacity-control">
+                    <label for="zoneOpacity" style="font-size: 12px; color: #1e40af; font-weight: bold;">Opacita riempimento</label>
+                    <span class="value-display" id="zoneOpacityValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">10%</span>
+                    <input type="range" id="zoneOpacity" min="0" max="100" step="5" value="10">
+                </div>
+                
+                <!-- Colori grafici -->
+                <div class="chart-colors-control">
+                    <label style="font-size: 12px; color: #1e40af; font-weight: bold;">Colori grafici:</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                            <input type="color" id="powerColorPicker" title="Colore Grafico 1 (Power)">
+                            <span style="font-size: 9px; color: #1e40af;">Power</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                            <input type="color" id="avg30sColorPicker" title="Colore Grafico 2 (30s Avg)">
+                            <span style="font-size: 9px; color: #1e40af;">30s</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                            <input type="color" id="avg60sColorPicker" title="Colore Grafico 3 (60s Avg)">
+                            <span style="font-size: 9px; color: #1e40af;">60s</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Opacità bande -->
+                <div class="zone-bands-opacity-control">
+                    <label for="zoneBandsOpacity" style="font-size: 12px; color: #1e40af; font-weight: bold;">Opacita bande</label>
+                    <span class="value-display" id="zoneBandsOpacityValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">15%</span>
+                    <input type="range" id="zoneBandsOpacity" min="0" max="100" step="1" value="15">
+                </div>
+            </div>
+        </div>
         <div class="zones-table-container">
             <table class="zones-table">
                 <thead>
@@ -630,40 +674,6 @@
                 Ripristina
             </button>
             <div id="zonesStatus" class="status-message"></div>
-        </div>
-
-        <div class="zone-controls">
-            <label class="zone-toggle">
-                <input type="checkbox" id="zoneColorToggle" checked>
-                Colori zone grafici
-            </label>
-            <div class="zone-opacity-control">
-                <label for="zoneOpacity">Opacita riempimento</label>
-                <span class="value-display" id="zoneOpacityValue">10%</span>
-                <input type="range" id="zoneOpacity" min="0" max="100" step="5" value="10">
-            </div>
-            <div class="zone-bands-opacity-control">
-                <label for="zoneBandsOpacity">Opacita bande</label>
-                <span class="value-display" id="zoneBandsOpacityValue">15%</span>
-                <input type="range" id="zoneBandsOpacity" min="0" max="100" step="1" value="15">
-            </div>
-            <div class="chart-colors-control">
-                <label>Colori grafici:</label>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <input type="color" id="powerColorPicker" title="Colore Grafico 1 (Power)">
-                        <span style="font-size: 9px; color: #374151;">Power</span>
-                    </div>
-                    <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <input type="color" id="avg30sColorPicker" title="Colore Grafico 2 (30s Avg)">
-                        <span style="font-size: 9px; color: #374151;">30s</span>
-                    </div>
-                    <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <input type="color" id="avg60sColorPicker" title="Colore Grafico 3 (60s Avg)">
-                        <span style="font-size: 9px; color: #374151;">60s</span>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
