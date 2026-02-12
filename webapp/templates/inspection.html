@@ -1087,6 +1087,42 @@
                             type: 'line',
                             lineStyle: { color: '#9ca3af', type: 'dashed' },
                             link: [{ xAxisIndex: 'all' }]
+                        },
+                        formatter: function(params) {
+                            // Custom formatter to show time without thousand separator and no decimals
+                            const timeValue = params[0].value[0];
+                            const mins = Math.floor(timeValue / 60);
+                            const secs = Math.round(timeValue % 60);
+                            const timeStr = mins > 0 ? mins + 'm' + secs + 's' : Math.round(timeValue) + 's';
+                            
+                            let result = '<div style="font-weight: bold; margin-bottom: 5px;">' + timeStr + '</div>';
+                            
+                            // Find the power value from any series (excluding FTP)
+                            let powerValue = null;
+                            for (const param of params) {
+                                if (param.value[1] !== null && param.value[1] !== undefined && param.seriesName !== 'FTP') {
+                                    powerValue = param.value[1];
+                                    break;
+                                }
+                            }
+                            
+                            if (powerValue !== null) {
+                                // Determine the zone based on power relative to FTP
+                                const powerPercent = (powerValue / ftp) * 100;
+                                let zoneColor = '#3b82f6'; // Default to main power color if no zone matches
+                                for (const zone of localZones) {
+                                    if (powerPercent >= zone.min && (zone.max === 999 || powerPercent < zone.max)) {
+                                        zoneColor = zone.color;
+                                        break;
+                                    }
+                                }
+                                
+                                result += '<div style="margin: 2px 0;">' +
+                                         '<span style="font-weight: bold; color: ' + zoneColor + ';">' + Math.round(powerValue) + 'W</span>' +
+                                         '</div>';
+                            }
+                            
+                            return result;
                         }
                     },
                     grid: [
@@ -1129,7 +1165,7 @@
                         { name: 'Power', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: powerCoords,
                            smooth: 0.5, lineStyle: { color: '#3b82f6', width: 2 },
                            areaStyle: { color: 'rgba(59, 130, 246, 0.1)' }, symbol: 'none',
-                           sampling: 'average', itemStyle: { color: '#3b82f6' }, z: 1 },
+                           sampling: 'none', itemStyle: { color: '#3b82f6' }, z: 1 },
                         // 30s avg colored by zones
                         // for each zone we add a series that shows only the segments within the zone
                         // (this paints the curve in zone colors)
