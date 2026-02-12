@@ -43,14 +43,19 @@
             margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             border-left: 4px solid;
+            transition: all 0.2s;
         }
         .effort-card {
             cursor: pointer;
-            transition: all 0.2s;
         }
-        .effort-card:hover {
+        .effort-card:hover, .sprint-card:hover {
             transform: translateX(-3px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .effort-card.highlighted, .sprint-card.highlighted {
+            transform: translateX(-5px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+            background: #fffbeb;
         }
         .card-header {
             font-weight: bold;
@@ -165,6 +170,7 @@
         
         // Build series for ECharts
         const series = [];
+        const seriesMapping = []; // Track what each series represents
         
         // Base elevation area (absolute altitude)
         series.push({
@@ -182,6 +188,7 @@
                 }
             }
         });
+        seriesMapping.push({ type: 'elevation' });
         
         // Efforts (absolute altitude)
         chartData.efforts.forEach((effort, idx) => {
@@ -191,7 +198,10 @@
                 data: effort.line_data.map(point => [point[0], point[1]]),
                 lineStyle: { color: effort.color, width: 4 },
                 symbol: 'none',
-                emphasis: { lineStyle: { width: 6 } },
+                emphasis: { 
+                    lineStyle: { width: 8, shadowBlur: 10, shadowColor: effort.color },
+                    disabled: false
+                },
                 tooltip: {
                     formatter: function(params) {
                         let html = `<div style="text-align:left;">`;
@@ -226,6 +236,7 @@
                     }
                 }
             });
+            seriesMapping.push({ type: 'effort', cardIndex: idx });
         });
         
         // Sprints (absolute altitude)
@@ -236,7 +247,10 @@
                 data: sprint.line_data.map(point => [point[0], point[1]]),
                 lineStyle: { color: '#000000', width: 4 },
                 symbol: 'none',
-                emphasis: { lineStyle: { width: 6 } },
+                emphasis: { 
+                    lineStyle: { width: 8, shadowBlur: 10, shadowColor: '#000000' },
+                    disabled: false
+                },
                 tooltip: {
                     formatter: function(params) {
                         let html = `<div style="text-align:left;">`;
@@ -258,6 +272,7 @@
                     }
                 }
             });
+            seriesMapping.push({ type: 'sprint', cardIndex: idx });
         });
         
         // Chart options
@@ -346,10 +361,36 @@
         
         // Render efforts list
         const effortsList = document.getElementById('efforts-list');
-        chartData.efforts.forEach(effort => {
+        chartData.efforts.forEach((effort, idx) => {
             const card = document.createElement('div');
             card.className = 'effort-card';
             card.style.borderLeftColor = effort.color;
+            
+            // Find the series index for this effort
+            const seriesIndex = seriesMapping.findIndex(m => m.type === 'effort' && m.cardIndex === idx);
+            
+            // Add hover interaction from card to chart
+            card.addEventListener('mouseenter', function() {
+                // Highlight corresponding series on chart
+                if (seriesIndex >= 0) {
+                    myChart.dispatchAction({
+                        type: 'highlight',
+                        seriesIndex: seriesIndex
+                    });
+                }
+                card.classList.add('highlighted');
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                if (seriesIndex >= 0) {
+                    myChart.dispatchAction({
+                        type: 'downplay',
+                        seriesIndex: seriesIndex
+                    });
+                }
+                card.classList.remove('highlighted');
+            });
+            
             card.innerHTML = `
                 <div class="card-header">
                     <span>E#${effort.id + 1}</span>
@@ -493,10 +534,35 @@
         
         // Render sprints list
         const sprintsList = document.getElementById('sprints-list');
-        chartData.sprints.forEach(sprint => {
+        chartData.sprints.forEach((sprint, idx) => {
             const card = document.createElement('div');
             card.className = 'sprint-card';
             card.style.borderLeftColor = '#000000';
+            
+            // Find the series index for this sprint
+            const seriesIndex = seriesMapping.findIndex(m => m.type === 'sprint' && m.cardIndex === idx);
+            
+            // Add hover interaction from card to chart
+            card.addEventListener('mouseenter', function() {
+                if (seriesIndex >= 0) {
+                    myChart.dispatchAction({
+                        type: 'highlight',
+                        seriesIndex: seriesIndex
+                    });
+                }
+                card.classList.add('highlighted');
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                if (seriesIndex >= 0) {
+                    myChart.dispatchAction({
+                        type: 'downplay',
+                        seriesIndex: seriesIndex
+                    });
+                }
+                card.classList.remove('highlighted');
+            });
+            
             card.innerHTML = `
                 <div class="card-header">
                     <span>S#${sprint.rank}</span>
