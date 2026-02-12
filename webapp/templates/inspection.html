@@ -478,6 +478,29 @@
             width: 140px;
         }
 
+        .chart-colors-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
+            color: #374151;
+        }
+
+        .chart-colors-control input[type="color"] {
+            width: 24px;
+            height: 24px;
+            border: 1px solid #9ca3af;
+            border-radius: 50%;
+            cursor: pointer;
+            background: none;
+            padding: 0;
+        }
+
+        .chart-colors-control input[type="color"]:hover {
+            border-color: #3b82f6;
+            transform: scale(1.1);
+        }
+
         .btn-primary {
             background: linear-gradient(135deg, #10b981, #059669);
             color: white;
@@ -610,7 +633,7 @@
         <div class="zone-controls">
             <label class="zone-toggle">
                 <input type="checkbox" id="zoneColorToggle" checked>
-                Colori zone grafici 2-3
+                Colori zone grafici
             </label>
             <div class="zone-opacity-control">
                 <label for="zoneOpacity">Opacita riempimento</label>
@@ -621,6 +644,23 @@
                 <label for="zoneBandsOpacity">Opacita bande</label>
                 <span class="value-display" id="zoneBandsOpacityValue">15%</span>
                 <input type="range" id="zoneBandsOpacity" min="0" max="100" step="1" value="15">
+            </div>
+            <div class="chart-colors-control">
+                <label>Colori grafici:</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                        <input type="color" id="powerColorPicker" title="Colore Grafico 1 (Power)">
+                        <span style="font-size: 9px; color: #374151;">Power</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                        <input type="color" id="avg30sColorPicker" title="Colore Grafico 2 (30s Avg)">
+                        <span style="font-size: 9px; color: #374151;">30s</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                        <input type="color" id="avg60sColorPicker" title="Colore Grafico 3 (60s Avg)">
+                        <span style="font-size: 9px; color: #374151;">60s</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -663,6 +703,9 @@
             let zoneColorEnabled = true;
             let zoneFillOpacity = 0.10;
             let zoneBandsOpacity = 0.15;
+            let powerColor = '#3b82f6';
+            let avg30sColor = '#f59e0b';
+            let avg60sColor = '#ef4444';
 
             if (sprintsData.length === 0) {
                 document.getElementById('sprintsContainer').style.display = 'none';
@@ -1162,10 +1205,9 @@
                         { type: 'inside', xAxisIndex: [0, 1, 2], start: 0, end: 100 }
                     ],
                     series: [
-                        { name: 'Power', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: powerCoords,
-                           smooth: 0.5, lineStyle: { color: '#3b82f6', width: 2 },
-                           areaStyle: { color: 'rgba(59, 130, 246, 0.1)' }, symbol: 'none',
-                           sampling: 'none', itemStyle: { color: '#3b82f6' }, z: 1 },
+                        // Power series - either single line or zone-colored segments
+                        // Will be added below conditionally
+                        
                         // 30s avg colored by zones
                         // for each zone we add a series that shows only the segments within the zone
                         // (this paints the curve in zone colors)
@@ -1176,6 +1218,21 @@
 
                     ]
                 };
+
+                // Add Power series conditionally
+                if (zoneColorEnabled) {
+                    // Add zone-colored segments for raw power
+                    localZones.forEach((zone) => {
+                        option.series.push(makeZoneSeries(powerCoords, 0, 0, zone));
+                    });
+                } else {
+                    option.series.push({
+                        name: 'Power', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: powerCoords,
+                        smooth: 0.5, lineStyle: { color: powerColor, width: 2 },
+                        areaStyle: { color: powerColor, opacity: zoneFillOpacity }, symbol: 'none',
+                        sampling: 'none', itemStyle: { color: powerColor }, z: 1
+                    });
+                }
 
                 if (zoneColorEnabled) {
                     // Insert per-zone series for 30s avg (gridIndex 1)
@@ -1220,8 +1277,8 @@
                         smooth: true,
                         showSymbol: false,
                         sampling: 'none',
-                        lineStyle: { color: '#f59e0b', width: 2 },
-                        areaStyle: { color: '#f59e0b', opacity: zoneFillOpacity },
+                        lineStyle: { color: avg30sColor, width: 2 },
+                        areaStyle: { color: avg30sColor, opacity: zoneFillOpacity },
                         z: 2
                     });
                     option.series.push({
@@ -1233,8 +1290,8 @@
                         smooth: true,
                         showSymbol: false,
                         sampling: 'none',
-                        lineStyle: { color: '#ef4444', width: 2 },
-                        areaStyle: { color: '#ef4444', opacity: zoneFillOpacity },
+                        lineStyle: { color: avg60sColor, width: 2 },
+                        areaStyle: { color: avg60sColor, opacity: zoneFillOpacity },
                         z: 2
                     });
                 }
@@ -1388,25 +1445,46 @@
                 zoneBandsOpacity = storedZoneBandsOpacity;
             }
 
+            const storedPowerColor = localStorage.getItem('inspection_power_color');
+            if (storedPowerColor) {
+                powerColor = storedPowerColor;
+            }
+
+            const storedAvg30sColor = localStorage.getItem('inspection_avg30s_color');
+            if (storedAvg30sColor) {
+                avg30sColor = storedAvg30sColor;
+            }
+
+            const storedAvg60sColor = localStorage.getItem('inspection_avg60s_color');
+            if (storedAvg60sColor) {
+                avg60sColor = storedAvg60sColor;
+            }
+
             zoneColorToggle.checked = zoneColorEnabled;
             zoneOpacityInput.value = Math.round(zoneFillOpacity * 100);
             zoneOpacityValue.textContent = zoneOpacityInput.value + '%';
             zoneBandsOpacityInput.value = Math.round(zoneBandsOpacity * 100);
             zoneBandsOpacityValue.textContent = zoneBandsOpacityInput.value + '%';
 
-            // Funzione per aggiornare la visibilità dei controlli
+            // Set color picker values
+            document.getElementById('powerColorPicker').value = powerColor;
+            document.getElementById('avg30sColorPicker').value = avg30sColor;
+            document.getElementById('avg60sColorPicker').value = avg60sColor;
             function updateOpacityControlsVisibility() {
                 const zoneOpacityControl = document.querySelector('.zone-opacity-control');
                 const zoneBandsOpacityControl = document.querySelector('.zone-bands-opacity-control');
+                const chartColorsControl = document.querySelector('.chart-colors-control');
                 
                 if (zoneColorEnabled) {
                     // Quando il toggle è ON, mostra solo opacità bande
                     zoneOpacityControl.style.display = 'none';
                     zoneBandsOpacityControl.style.display = 'flex';
+                    chartColorsControl.style.display = 'none';
                 } else {
-                    // Quando il toggle è OFF, mostra solo opacità riempimento
+                    // Quando il toggle è OFF, mostra solo opacità riempimento e colori grafici
                     zoneOpacityControl.style.display = 'flex';
                     zoneBandsOpacityControl.style.display = 'none';
+                    chartColorsControl.style.display = 'flex';
                 }
             }
 
@@ -1448,6 +1526,24 @@
                 zoneBandsOpacity = opacityValue / 100;
                 zoneBandsOpacityValue.textContent = opacityValue + '%';
                 localStorage.setItem('inspection_zone_bands_opacity', String(zoneBandsOpacity));
+                rebuildChart();
+            });
+
+            document.getElementById('powerColorPicker').addEventListener('change', function() {
+                powerColor = this.value;
+                localStorage.setItem('inspection_power_color', powerColor);
+                rebuildChart();
+            });
+
+            document.getElementById('avg30sColorPicker').addEventListener('change', function() {
+                avg30sColor = this.value;
+                localStorage.setItem('inspection_avg30s_color', avg30sColor);
+                rebuildChart();
+            });
+
+            document.getElementById('avg60sColorPicker').addEventListener('change', function() {
+                avg60sColor = this.value;
+                localStorage.setItem('inspection_avg60s_color', avg60sColor);
                 rebuildChart();
             });
 
