@@ -22,7 +22,7 @@ from io import StringIO, BytesIO
 _project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(_project_root))
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -82,6 +82,30 @@ class SplitRequest(BaseModel):
     """Request to split an effort at a specific time"""
     effort_idx: int
     split_time_sec: float
+
+
+class EffortModification(BaseModel):
+    """Single effort modification with start/end timestamps"""
+    start: float
+    end: float
+    label: str
+    color: Optional[str] = None
+
+
+class SprintModification(BaseModel):
+    """Single sprint modification with start/end timestamps"""
+    start: float
+    end: float
+    label: str
+    color: Optional[str] = None
+
+
+class LocalModificationsRequest(BaseModel):
+    """Request to apply local effort/sprint modifications from inspection view"""
+    efforts: list[EffortModification]
+    sprints: list[SprintModification]
+    deleted_effort_indices: list[int] = []
+    deleted_sprint_indices: list[int] = []
 
 
 # =============================================================================
@@ -715,6 +739,166 @@ async def redetect_sprints_json(session_id: str, params: Dict[str, Any]):
         min_duration_sec=int(params.get('min_duration_sec', 5)),
         merge_gap_sec=int(params.get('merge_gap_sec', 3))
     )
+
+
+@router.post("/{session_id}/apply-local-modifications")
+async def apply_local_modifications(session_id: str, data: LocalModificationsRequest):
+    """
+    Apply effort/sprint modifications from inspection.html.
+    Takes the modified efforts and sprints with new timestamps and updates the session.
+    
+    This is cleaner than localStorage sync - we just re-analyze using the new timestamps.
+    
+    Args:
+        session_id: Session identifier
+        data: {
+            "efforts": [{"start": float, "end": float, "label": str}, ...],
+            "sprints": [{"start": float, "end": float, "label": str}, ...],
+            "deleted_effort_indices": [int, ...],
+            "deleted_sprint_indices": [int, ...]
+        }
+    """
+    logger.info(f"apply_local_modifications called for session {session_id}")
+    logger.info(f"Received {len(data.efforts)} efforts and {len(data.sprints)} sprints")
+    logger.info(f"Deleted indices - efforts: {data.deleted_effort_indices}, sprints: {data.deleted_sprint_indices}")
+    
+    if session_id not in _shared_sessions:
+        logger.error(f"Session {session_id} not found")
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    try:
+        session = _shared_sessions[session_id]
+        df = session['df']
+        
+        logger.info(f"DataFrame shape: {df.shape}")
+        logger.info(f"DataFrame columns: {df.columns.tolist()}")
+        
+        # Find the time column
+        time_col = None
+        for col in ['time_sec', 'time', 'timestamp']:
+            if col in df.columns:
+                time_col = col
+                break
+        
+        if time_col is None:
+            raise ValueError(f"DataFrame missing time column. Available columns: {df.columns.tolist()}")
+        
+        time_axis = df[time_col].tolist()
+        time_array = np.array(time_axis)
+        max_idx = len(time_axis) - 1
+        
+        logger.info(f"Time axis range: {time_axis[0]} to {time_axis[-1]}")
+        
+        def get_closest_idx(timestamp: float) -> int:
+            """Find the closest index for a given timestamp."""
+            idx = int(np.searchsorted(time_array, timestamp, side='left'))
+            if idx <= 0:
+                return 0
+            if idx >= len(time_array):
+                return max_idx
+            prev_idx = idx - 1
+            if abs(time_array[idx] - timestamp) < abs(time_array[prev_idx] - timestamp):
+                return idx
+            return prev_idx
+        
+        # Convert efforts from timestamps to indices
+        new_efforts = []
+        deleted_effort_indices = set(data.deleted_effort_indices)
+        
+        logger.info(f"Processing {len(data.efforts)} efforts, {len(deleted_effort_indices)} deleted")
+        
+        for i, effort in enumerate(data.efforts):
+            if i in deleted_effort_indices:
+                logger.info(f"Skipping deleted effort {i}")
+                continue  # Skip deleted efforts
+                
+            start_time = float(effort.start)
+            end_time = float(effort.end)
+            
+            logger.info(f"Effort {i}: start_time={start_time}, end_time={end_time}")
+            
+            start_idx = get_closest_idx(start_time)
+            end_idx = get_closest_idx(end_time)
+            
+            logger.info(f"Effort {i}: start_idx={start_idx}, end_idx={end_idx}")
+            
+            # Ensure valid range
+            if end_idx <= start_idx:
+                end_idx = start_idx + 1
+            if end_idx > max_idx:
+                end_idx = max_idx
+            
+            # Calculate average power for this segment
+            if 'power' in df.columns:
+                power_data = df['power'].iloc[start_idx:end_idx].values
+                avg_power = float(np.mean(power_data)) if len(power_data) > 0 else 0.0
+            else:
+                avg_power = 0.0
+            
+            logger.info(f"Effort {i}: calculated avg_power={avg_power}")
+            new_efforts.append((start_idx, end_idx, avg_power))
+        
+        # Convert sprints from timestamps to indices
+        new_sprints = []
+        deleted_sprint_indices = set(data.deleted_sprint_indices)
+        
+        logger.info(f"Processing {len(data.sprints)} sprints, {len(deleted_sprint_indices)} deleted")
+        
+        for i, sprint in enumerate(data.sprints):
+            if i in deleted_sprint_indices:
+                logger.info(f"Skipping deleted sprint {i}")
+                continue  # Skip deleted sprints
+                
+            start_time = float(sprint.start)
+            end_time = float(sprint.end)
+            
+            logger.info(f"Sprint {i}: start_time={start_time}, end_time={end_time}")
+            
+            start_idx = get_closest_idx(start_time)
+            end_idx = get_closest_idx(end_time)
+            
+            logger.info(f"Sprint {i}: start_idx={start_idx}, end_idx={end_idx}")
+            
+            # Ensure valid range
+            if end_idx <= start_idx:
+                end_idx = start_idx + 1
+            if end_idx > max_idx:
+                end_idx = max_idx
+            
+            # Calculate average power for this sprint segment
+            if 'power' in df.columns:
+                power_data = df['power'].iloc[start_idx:end_idx].values
+                avg_power = float(np.mean(power_data)) if len(power_data) > 0 else 0.0
+            else:
+                avg_power = 0.0
+            
+            logger.info(f"Sprint {i}: calculated avg_power={avg_power}")
+            
+            sprint_dict = {
+                'start': start_idx,
+                'end': end_idx,
+                'label': sprint.label,
+                'avg': avg_power
+            }
+            new_sprints.append(sprint_dict)
+        
+        # Update session with new efforts and sprints
+        session['efforts'] = new_efforts
+        session['sprints'] = new_sprints
+        
+        logger.info(f"Applied local modifications for session {session_id}: {len(new_efforts)} efforts, {len(new_sprints)} sprints")
+        
+        return {
+            "success": True,
+            "message": "Local modifications applied successfully",
+            "total_efforts": len(new_efforts),
+            "total_sprints": len(new_sprints),
+            "session_id": session_id
+        }
+    
+    except Exception as e:
+        logger.error(f"Error applying local modifications: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error applying modifications: {str(e)}")
 
 
 # =============================================================================

@@ -120,7 +120,17 @@
     </script>
     
     <script>
-        const chartData = JSON.parse(document.getElementById('chart-data-json').innerText);
+        let chartData = JSON.parse(document.getElementById('chart-data-json').innerText);
+        
+        // Listen for effort update signals from inspection.html
+        const updateSignalKey = `effort_update_signal_{{ session_id }}`;
+        
+        window.addEventListener('storage', function(event) {
+            if (event.key === updateSignalKey) {
+                console.log('Effort data updated in another tab, reloading altimetria_echarts...');
+                location.reload();
+            }
+        });
     </script>
     
     {% raw %}

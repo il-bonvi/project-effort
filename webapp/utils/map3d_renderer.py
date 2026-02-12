@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 def generate_3d_map_html(efforts_data_json: str, elevation_data_json: str, geojson_str: str,
                          maptiler_key: str, center_lat: float, center_lon: float, zoom: int,
-                         distance_km: float) -> str:
+                         distance_km: float, session_id: str = '') -> str:
     """
     Generate the complete HTML document for the 3D map visualization.
     
@@ -24,6 +24,7 @@ def generate_3d_map_html(efforts_data_json: str, elevation_data_json: str, geojs
         center_lon: Map center longitude
         zoom: Initial zoom level
         distance_km: Total track distance in km
+        session_id: Session identifier for localStorage access
         
     Returns:
         str: Complete HTML document
@@ -44,7 +45,8 @@ def generate_3d_map_html(efforts_data_json: str, elevation_data_json: str, geojs
         maptiler_key=maptiler_key,
         center_lat=center_lat,
         center_lon=center_lon,
-        zoom=zoom
+        zoom=zoom,
+        session_id=session_id
     )
     
     return html

@@ -74,7 +74,8 @@ async def map3d_view(session_id: str):
             efforts=efforts,
             sprints=sprints,
             ftp=ftp,
-            weight=weight
+            weight=weight,
+            session_id=session_id
         )
 
         logger.info(f"3D Map visualization generated for session {session_id}")

@@ -342,7 +342,8 @@ async def altimetria_echarts_view(request: Request, session_id: str):
         return templates.TemplateResponse("altimetria_echarts.html", {
             "request": request,
             "filename": session['filename'],
-            "chart_data_json": chart_data_json
+            "chart_data_json": chart_data_json,
+            "session_id": session_id
         })
         
     except Exception as e:

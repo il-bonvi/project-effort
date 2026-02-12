@@ -434,7 +434,7 @@
             <span><strong>File:</strong> {{ session.filename }}</span>
             <span><strong>Efforts:</strong> {{ session.efforts|length }}</span>
             <span><strong>Sprints:</strong> {{ session.sprints|length }}</span>
-            <span><strong>FTP:</strong> {{ session.ftp }}W</span>
+            <span><strong>FTP:</strong> {{ session.ftp | int }}W</span>
             <span><strong>Weight:</strong> {{ session.weight }}kg</span>
             <span><strong>Session:</strong> {{ session_id }}</span>
         </div>
@@ -603,7 +603,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="ftpValue">FTP (W)</label>
-                                <input type="number" id="ftpValue" value="{{ session.ftp }}" min="50" max="500" step="5">
+                                <input type="number" id="ftpValue" value="{{ session.ftp | int }}" min="50" max="500" step="5">
                             </div>
                             <div class="form-group">
                                 <label for="weightValue">Weight (kg)</label>
@@ -618,33 +618,33 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="effortWindowSec">Window (s)</label>
-                                <input type="number" id="effortWindowSec" value="{{ session.effort_config.window_seconds | default(60) }}" min="10" max="300">
+                                <input type="number" id="effortWindowSec" value="{{ session.effort_config.window_seconds | default(60) | int }}" min="10" max="300">
                             </div>
                             <div class="form-group">
                                 <label for="effortMinFtpPct">Min FTP (%)</label>
-                                <input type="number" id="effortMinFtpPct" value="{{ session.effort_config.min_effort_intensity_ftp | default(100) }}" min="50" max="200">
+                                <input type="number" id="effortMinFtpPct" value="{{ session.effort_config.min_effort_intensity_ftp | default(100) | int }}" min="50" max="200">
                             </div>
                             <div class="form-group">
                                 <label for="effortMergePct">Merge Tolerance (%)</label>
-                                <input type="number" id="effortMergePct" value="{{ session.effort_config.merge_power_diff_percent | default(15) }}" min="5" max="50">
+                                <input type="number" id="effortMergePct" value="{{ session.effort_config.merge_power_diff_percent | default(15) | int }}" min="5" max="50">
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="trimWin">Trim Window (s)</label>
-                                <input type="number" id="trimWin" value="{{ session.effort_config.trim_window_seconds | default(10) }}" min="0" max="120">
+                                <input type="number" id="trimWin" value="{{ session.effort_config.trim_window_seconds | default(10) | int }}" min="0" max="120">
                             </div>
                             <div class="form-group">
                                 <label for="trimLow">Trim Low (%)</label>
-                                <input type="number" id="trimLow" value="{{ session.effort_config.trim_low_percent | default(85) }}" min="50" max="100">
+                                <input type="number" id="trimLow" value="{{ session.effort_config.trim_low_percent | default(85) | int }}" min="50" max="100">
                             </div>
                             <div class="form-group">
                                 <label for="extendWin">Extend Window (s)</label>
-                                <input type="number" id="extendWin" value="{{ session.effort_config.extend_window_seconds | default(15) }}" min="0" max="120">
+                                <input type="number" id="extendWin" value="{{ session.effort_config.extend_window_seconds | default(15) | int }}" min="0" max="120">
                             </div>
                             <div class="form-group">
                                 <label for="extendLow">Extend Low (%)</label>
-                                <input type="number" id="extendLow" value="{{ session.effort_config.extend_low_percent | default(80) }}" min="50" max="100">
+                                <input type="number" id="extendLow" value="{{ session.effort_config.extend_low_percent | default(80) | int }}" min="50" max="100">
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="redetectEfforts()">🔄 Re-Detect Efforts</button>
