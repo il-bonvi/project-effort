@@ -460,6 +460,24 @@
             width: 140px;
         }
 
+        .zone-bands-opacity-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
+            color: #374151;
+        }
+
+        .zone-bands-opacity-control .value-display {
+            min-width: 36px;
+            text-align: right;
+            font-size: 10px;
+        }
+
+        .zone-bands-opacity-control input[type="range"] {
+            width: 140px;
+        }
+
         .btn-primary {
             background: linear-gradient(135deg, #10b981, #059669);
             color: white;
@@ -596,13 +614,13 @@
             </label>
             <div class="zone-opacity-control">
                 <label for="zoneOpacity">Opacita riempimento</label>
-                <span class="value-display" id="zoneOpacityValue">18%</span>
-                <input type="range" id="zoneOpacity" min="0" max="100" step="5" value="18">
+                <span class="value-display" id="zoneOpacityValue">10%</span>
+                <input type="range" id="zoneOpacity" min="0" max="100" step="5" value="10">
             </div>
             <div class="zone-bands-opacity-control">
                 <label for="zoneBandsOpacity">Opacita bande</label>
-                <span class="value-display" id="zoneBandsOpacityValue">12%</span>
-                <input type="range" id="zoneBandsOpacity" min="0" max="100" step="1" value="12">
+                <span class="value-display" id="zoneBandsOpacityValue">15%</span>
+                <input type="range" id="zoneBandsOpacity" min="0" max="100" step="1" value="15">
             </div>
         </div>
     </div>
@@ -643,8 +661,8 @@
             let avg30sSeconds = 30;
             let avg60sSeconds = 60;
             let zoneColorEnabled = true;
-            let zoneFillOpacity = 0.18;
-            let zoneBandsOpacity = 0.12;
+            let zoneFillOpacity = 0.10;
+            let zoneBandsOpacity = 0.15;
 
             if (sprintsData.length === 0) {
                 document.getElementById('sprintsContainer').style.display = 'none';
@@ -850,13 +868,13 @@
             
             // Default zones (copied from global config - completely independent)
             const defaultZones = [
-                { min: 0, max: 55, color: '#1f77b4', name: 'Z1' },
-                { min: 55, max: 75, color: '#3eb33e', name: 'Z2' },
-                { min: 75, max: 90, color: '#ff7f0e', name: 'Z3' },
-                { min: 90, max: 105, color: '#da2fbd', name: 'Z4' },
-                { min: 105, max: 120, color: '#7315ca', name: 'Z5' },
-                { min: 120, max: 150, color: '#e11d48', name: 'Z6' },
-                { min: 150, max: 999, color: '#6b3c3c', name: 'Z7' }
+                { min: 0, max: 60, color: '#009e80', name: 'Z1' },
+                { min: 60, max: 80, color: '#009e00', name: 'Z2' },
+                { min: 80, max: 90, color: '#ffcb0e', name: 'Z3' },
+                { min: 90, max: 105, color: '#ff7f0e', name: 'Z4' },
+                { min: 105, max: 135, color: '#dd0447', name: 'Z5' },
+                { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
+                { min: 300, max: 999, color: '#504861', name: 'Z7' }
             ];
             
             // Load local zones from localStorage or use defaults
@@ -1056,6 +1074,9 @@
 
             function buildOption() {
                 const option = {
+                    animation: true,
+                    animationDuration: 300,
+                    animationEasing: 'cubicOut',
                     tooltip: {
                         trigger: 'axis',
                         backgroundColor: '#ffffff',
@@ -1267,7 +1288,7 @@
                 return option;
             }
 
-            function rebuildChart() {
+            function rebuildChart(skipAnimation = false) {
                 const currentOption = myChart.getOption();
                 let dataZoomState = null;
                 if (currentOption && currentOption.dataZoom && currentOption.dataZoom[0]) {
@@ -1280,6 +1301,12 @@
                     newOption.dataZoom[1].start = dataZoomState.start;
                     newOption.dataZoom[1].end = dataZoomState.end;
                 }
+                
+                // Disabilita temporaneamente l'animazione solo se richiesto (per gli slider)
+                if (skipAnimation) {
+                    newOption.animation = false;
+                }
+                
                 myChart.setOption(newOption, { notMerge: true });
             }
 
@@ -1294,7 +1321,7 @@
                 power30sCoords.push(...power30sNewCoords);
                 power60sCoords.length = 0;
                 power60sCoords.push(...power60sNewCoords);
-                rebuildChart();
+                rebuildChart(true); // Salta l'animazione per evitare glitch
             }
 
             myChart.setOption(buildOption());
@@ -1331,6 +1358,25 @@
             zoneBandsOpacityInput.value = Math.round(zoneBandsOpacity * 100);
             zoneBandsOpacityValue.textContent = zoneBandsOpacityInput.value + '%';
 
+            // Funzione per aggiornare la visibilità dei controlli
+            function updateOpacityControlsVisibility() {
+                const zoneOpacityControl = document.querySelector('.zone-opacity-control');
+                const zoneBandsOpacityControl = document.querySelector('.zone-bands-opacity-control');
+                
+                if (zoneColorEnabled) {
+                    // Quando il toggle è ON, mostra solo opacità bande
+                    zoneOpacityControl.style.display = 'none';
+                    zoneBandsOpacityControl.style.display = 'flex';
+                } else {
+                    // Quando il toggle è OFF, mostra solo opacità riempimento
+                    zoneOpacityControl.style.display = 'flex';
+                    zoneBandsOpacityControl.style.display = 'none';
+                }
+            }
+
+            // Inizializza la visibilità
+            updateOpacityControlsVisibility();
+
             let updateTimeout = null;
             avg30sInput.addEventListener('input', function() {
                 avg30sSeconds = parseInt(this.value);
@@ -1349,6 +1395,7 @@
             zoneColorToggle.addEventListener('change', function() {
                 zoneColorEnabled = this.checked;
                 localStorage.setItem('inspection_zone_color_enabled', String(zoneColorEnabled));
+                updateOpacityControlsVisibility();
                 rebuildChart();
             });
 

@@ -340,9 +340,9 @@
             top: 103px;
             right: 7px;
             z-index: 1001;
-            background: white;
-            color: #6b7280;
-            border: 2px solid #e5e7eb;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            color: white;
+            border: 2px solid #3b82f6;
             border-radius: 6px;
             padding: 5px 7px;
             font-size: 1rem;
@@ -351,15 +351,14 @@
             align-items: center;
             justify-content: center;
             transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 1px 3px rgba(59, 130, 246, 0.2);
             min-width: 30px;
             height: 30px;
         }
         .fullscreen-btn:hover {
-            background: #eff6ff;
-            border-color: #3b82f6;
-            color: #3b82f6;
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            border-color: #2563eb;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
         }
         .fullscreen-btn:active {
             transform: scale(0.95);
@@ -381,7 +380,16 @@
             border-radius: 0;
         }
         body.tab-fullscreen .fullscreen-btn {
-            display: none;
+            top: 10px;
+            right: 10px;
+            opacity: 0;
+            transform: translateX(20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        body.tab-fullscreen .fullscreen-btn:hover,
+        body.tab-fullscreen .fullscreen-btn.show {
+            opacity: 1;
+            transform: translateX(0);
         }
         
         /* Legacy support for map3d fullscreen */
@@ -945,15 +953,21 @@
             if (!isFullscreen) {
                 body.classList.add('tab-fullscreen');
                 icon.textContent = '✕';
-                button.style.background = '#fee2e2';
+                button.style.background = 'linear-gradient(135deg, #f87171, #ef4444)';
                 button.style.borderColor = '#ef4444';
-                button.style.color = '#dc2626';
+                button.style.color = 'white';
+                button.style.boxShadow = '0 1px 3px rgba(239, 68, 68, 0.2)';
             } else {
                 body.classList.remove('tab-fullscreen');
                 icon.textContent = '⛶';
-                button.style.background = 'white';
-                button.style.borderColor = '#e5e7eb';
-                button.style.color = '#6b7280';
+                button.style.background = 'linear-gradient(135deg, #60a5fa, #3b82f6)';
+                button.style.borderColor = '#3b82f6';
+                button.style.color = 'white';
+                button.style.boxShadow = '0 1px 3px rgba(59, 130, 246, 0.2)';
+                // Remove show class when exiting fullscreen
+                document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+                    btn.classList.remove('show');
+                });
             }
         }
 
@@ -967,9 +981,11 @@
                     document.querySelectorAll('.fullscreen-btn').forEach(btn => {
                         const icon = btn.querySelector('.fullscreen-icon');
                         icon.textContent = '⛶';
-                        btn.style.background = 'white';
-                        btn.style.borderColor = '#e5e7eb';
-                        btn.style.color = '#6b7280';
+                        btn.style.background = 'linear-gradient(135deg, #60a5fa, #3b82f6)';
+                        btn.style.borderColor = '#3b82f6';
+                        btn.style.color = 'white';
+                        btn.style.boxShadow = '0 1px 3px rgba(59, 130, 246, 0.2)';
+                        btn.classList.remove('show');
                     });
                 }
                 
@@ -992,6 +1008,26 @@
                     btn.style.background = 'white';
                     btn.style.borderColor = '#e5e7eb';
                     btn.style.color = '#6b7280';
+                    btn.classList.remove('show');
+                });
+            }
+        });
+
+        // Auto-hide fullscreen button: show when mouse is near top-right corner
+        document.addEventListener('mousemove', function(e) {
+            if (document.body.classList.contains('tab-fullscreen')) {
+                const distanceFromRight = window.innerWidth - e.clientX;
+                const distanceFromTop = e.clientY;
+                
+                // Show button if mouse is within 150px from top-right corner
+                const showButton = distanceFromRight < 150 && distanceFromTop < 150;
+                
+                document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+                    if (showButton) {
+                        btn.classList.add('show');
+                    } else {
+                        btn.classList.remove('show');
+                    }
                 });
             }
         });
