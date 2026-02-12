@@ -72,6 +72,8 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     sprints = session['sprints']
     ftp = session['ftp']
     weight = session['weight']
+    sprint_config_obj = session.get('sprint_config')
+    cadence_min_rpm = sprint_config_obj.cadence_min_rpm if sprint_config_obj and hasattr(sprint_config_obj, 'cadence_min_rpm') else 50
     
     power = df["power"].values
     time_sec = df["time_sec"].values
@@ -81,6 +83,25 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     hr = df["heartrate"].values
     grade = df["grade"].values
     cadence = df["cadence"].values
+    
+    # Get torque data from file or calculate from Power/Cadence
+    if "torque" in df.columns and np.any(df["torque"].values != 0):
+        # Use existing torque data from file
+        torque = df["torque"].values
+        torque_available = True
+    elif "cadence" in df.columns:
+        # Calculate torque from Power and Cadence
+        # Formula: Torque (Nm) = (Power (W) × 60) / (2π × Cadence (RPM))
+        # This is the torque at the crank axis
+        import math
+        torque = np.zeros_like(power)
+        valid_indices = (cadence > 0) & (power > 0)
+        torque[valid_indices] = (power[valid_indices] * 60) / (2 * math.pi * cadence[valid_indices])
+        torque_available = bool(np.any(torque > 0))
+    else:
+        # Torque not available - no file data and cadence missing
+        torque = np.zeros_like(power)
+        torque_available = False
     
     # Sample data for performance (max 1000 points for base elevation)
     step = max(1, len(dist_km) // 1000)
@@ -132,22 +153,22 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         avg_power = avg
         color = get_zone_color(avg_power, ftp)
         
-        duration = seg_time[-1] - seg_time[0] + 1
-        elevation_gain = seg_alt[-1] - seg_alt[0]
-        dist_tot = seg_dist[-1] - seg_dist[0]
-        avg_speed = dist_tot / (duration / 3600) / 1000 if duration > 0 else 0
-        vam = elevation_gain / (duration / 3600) if duration > 0 else 0
-        avg_grade = (elevation_gain / dist_tot * 100) if dist_tot > 0 else 0
+        duration = float(seg_time[-1] - seg_time[0] + 1)
+        elevation_gain = float(seg_alt[-1] - seg_alt[0])
+        dist_tot = float(seg_dist[-1] - seg_dist[0])
+        avg_speed = float(dist_tot / (duration / 3600) / 1000) if duration > 0 else 0.0
+        vam = float(elevation_gain / (duration / 3600)) if duration > 0 else 0.0
+        avg_grade = float((elevation_gain / dist_tot * 100) if dist_tot > 0 else 0)
         
         half = len(seg_power) // 2
-        avg_watts_first = seg_power[:half].mean() if half > 0 else 0
-        avg_watts_second = seg_power[half:].mean() if len(seg_power) > half else 0
-        watts_ratio = avg_watts_first / avg_watts_second if avg_watts_second > 0 else 0
+        avg_watts_first = float(seg_power[:half].mean()) if half > 0 else 0.0
+        avg_watts_second = float(seg_power[half:].mean()) if len(seg_power) > half else 0.0
+        watts_ratio = float(avg_watts_first / avg_watts_second) if avg_watts_second > 0 else 0.0
         
         valid_hr = seg_hr[seg_hr > 0]
-        avg_hr = valid_hr.mean() if len(valid_hr) > 0 else 0
-        max_hr = valid_hr.max() if len(valid_hr) > 0 else 0
-        max_grade = seg_grade.max() if len(seg_grade) > 0 else 0
+        avg_hr = float(valid_hr.mean()) if len(valid_hr) > 0 else 0.0
+        max_hr = float(valid_hr.max()) if len(valid_hr) > 0 else 0.0
+        max_grade = float(seg_grade.max()) if len(seg_grade) > 0 else 0.0
         
         best_5s_watt = 0
         best_5s_watt_kg = 0
@@ -157,19 +178,38 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             best_5s_watt = int(best_5s)
             best_5s_watt_kg = best_5s / weight
         
-        avg_power_per_kg = avg_power / weight if weight > 0 else 0
-        avg_cadence = seg_cadence[seg_cadence > 0].mean() if len(seg_cadence[seg_cadence > 0]) > 0 else 0
+        avg_power_per_kg = float(avg_power / weight) if weight > 0 else 0.0
+        # Cadence filtering: use > 0 for all values in range, but exclude obvious noise
+        valid_cadence = seg_cadence[seg_cadence > 0]
+        avg_cadence = float(valid_cadence.mean()) if len(valid_cadence) > 0 else 0.0
         
-        hours = time_sec[s] / 3600 if time_sec[s] > 0 else 0
-        kj = joules_cumulative[s] / 1000 if s < len(joules_cumulative) else 0
-        kj_over_cp = joules_over_cp_cumulative[s] / 1000 if s < len(joules_over_cp_cumulative) else 0
-        kj_kg = (kj / weight) if weight > 0 else 0
-        kj_kg_over_cp = (kj_over_cp / weight) if weight > 0 else 0
-        kj_h_kg = (kj_kg / hours) if hours > 0 else 0
-        kj_h_kg_over_cp = (kj_kg_over_cp / hours) if hours > 0 else 0
+        hours = float(time_sec[s] / 3600) if time_sec[s] > 0 else 0.0
+        kj = float(joules_cumulative[s] / 1000) if s < len(joules_cumulative) else 0.0
+        kj_over_cp = float(joules_over_cp_cumulative[s] / 1000) if s < len(joules_over_cp_cumulative) else 0.0
+        kj_kg = float((kj / weight) if weight > 0 else 0)
+        kj_kg_over_cp = float((kj_over_cp / weight) if weight > 0 else 0)
+        kj_h_kg = float((kj_kg / hours) if hours > 0 else 0)
+        kj_h_kg_over_cp = float((kj_kg_over_cp / hours) if hours > 0 else 0)
         
         gradient_factor = 2 + (avg_grade / 10)
         vam_teorico = (avg_power / weight) * (gradient_factor * 100) if weight > 0 else 0
+        
+        # Additional VAM calculations for climbs (avg_grade >= 4.5)
+        diff_vam = abs(vam_teorico - vam) if avg_grade >= 4.5 else 0
+        arrow = ''
+        if avg_grade >= 4.5:
+            if vam_teorico - vam > 0:
+                arrow = '⬆️'
+            elif vam_teorico - vam < 0:
+                arrow = '⬇️'
+        
+        wkg_teoric = 0
+        diff_wkg = 0
+        perc_err = 0
+        if avg_grade >= 4.5 and gradient_factor > 0:
+            wkg_teoric = vam / (gradient_factor * 100) if gradient_factor > 0 else 0
+            diff_wkg = avg_power_per_kg - wkg_teoric
+            perc_err = (diff_wkg / avg_power_per_kg * 100) if avg_power_per_kg != 0 else 0
         
         # Line data for this effort
         line_data = []
@@ -209,7 +249,12 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'kj_kg_over_cp': round(kj_kg_over_cp, 1),
             'kj_h_kg': round(kj_h_kg, 1),
             'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1),
-            'gradient_factor': round(gradient_factor, 2)
+            'gradient_factor': round(gradient_factor, 2),
+            'diff_vam': round(diff_vam, 0),
+            'vam_arrow': arrow,
+            'wkg_teoric': round(wkg_teoric, 2),
+            'diff_wkg': round(diff_wkg, 2),
+            'perc_err': round(perc_err, 1)
         }
         
         efforts_data.append(effort_info)
@@ -230,29 +275,73 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         seg_dist = distance[start:end]
         seg_hr = hr[start:end]
         seg_grade = grade[start:end]
-        seg_cadence = cadence[start:end]
+        seg_cadence_raw = cadence[start:end]
+        seg_cadence = np.where(seg_cadence_raw >= cadence_min_rpm, seg_cadence_raw, 0)
+        seg_torque = np.zeros_like(seg_power)
+        if torque_available:
+            valid_torque_idx = (seg_cadence > 0) & (seg_power > 0)
+            seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence[valid_torque_idx])
         
-        elevation_gain = seg_alt[-1] - seg_alt[0]
-        dist_tot = seg_dist[-1] - seg_dist[0]
-        avg_grade = (elevation_gain / dist_tot * 100) if dist_tot > 0 else 0
+        elevation_gain = float(seg_alt[-1] - seg_alt[0]) if len(seg_alt) > 1 else 0.0
+        dist_tot = float(seg_dist[-1] - seg_dist[0]) if len(seg_dist) > 1 else 0.0
+        avg_grade = float((elevation_gain / dist_tot * 100) if dist_tot > 0 else 0)
         
         valid_hr = seg_hr[seg_hr > 0]
-        min_hr = valid_hr.min() if len(valid_hr) > 0 else 0
-        max_hr = valid_hr.max() if len(valid_hr) > 0 else 0
-        min_watt = seg_power.min() if len(seg_power) > 0 else 0
-        max_watt = seg_power.max() if len(seg_power) > 0 else 0
-        max_grade = seg_grade.max() if len(seg_grade) > 0 else 0
+        min_hr = float(valid_hr.min()) if len(valid_hr) > 0 else 0.0
+        max_hr = float(valid_hr.max()) if len(valid_hr) > 0 else 0.0
+        min_watt = float(seg_power.min()) if len(seg_power) > 0 else 0.0
+        max_watt = float(seg_power.max()) if len(seg_power) > 0 else 0.0
+        max_grade = float(seg_grade.max()) if len(seg_grade) > 0 else 0.0
+        
+        # Torque calculations
+        valid_torque = seg_torque[seg_torque > 0]
+        avg_torque = float(valid_torque.mean()) if len(valid_torque) > 0 else 0.0
+        min_torque = float(valid_torque.min()) if len(valid_torque) > 0 else 0.0
+        max_torque = float(valid_torque.max()) if len(valid_torque) > 0 else 0.0
         
         v1 = v2 = 0
         if len(seg_dist_km) >= 2:
             v1 = (seg_dist_km[1] - seg_dist_km[0]) * 3600
             v2 = (seg_dist_km[-1] - seg_dist_km[-2]) * 3600
         
-        avg_power_per_kg = avg_power / weight if weight > 0 else 0
+        avg_power_per_kg = float(avg_power / weight) if weight > 0 else 0.0
+        # Apply cadence filter threshold for sprint metrics
         valid_cadence = seg_cadence[seg_cadence > 0]
-        avg_cadence = valid_cadence.mean() if len(valid_cadence) > 0 else 0
-        min_cadence = valid_cadence.min() if len(valid_cadence) > 0 else 0
-        max_cadence = valid_cadence.max() if len(valid_cadence) > 0 else 0
+        avg_cadence = float(valid_cadence.mean()) if len(valid_cadence) > 0 else 0.0
+        min_cadence = float(valid_cadence.min()) if len(valid_cadence) > 0 else 0.0
+        max_cadence = float(valid_cadence.max()) if len(valid_cadence) > 0 else 0.0
+        
+        # Find indices for max/min power to get cadence and torque at those points
+        max_power_idx = np.argmax(seg_power) if len(seg_power) > 0 else -1
+        min_power_idx = np.argmin(seg_power) if len(seg_power) > 0 else -1
+        
+        rpm_at_max = float(round(seg_cadence[max_power_idx])) if max_power_idx >= 0 and seg_cadence[max_power_idx] > 0 else 0.0
+        torque_at_max = float(round(seg_torque[max_power_idx])) if max_power_idx >= 0 and seg_torque[max_power_idx] > 0 else 0.0
+        rpm_at_min = float(round(seg_cadence[min_power_idx])) if min_power_idx >= 0 and seg_cadence[min_power_idx] > 0 else 0.0
+        torque_at_min = float(round(seg_torque[min_power_idx])) if min_power_idx >= 0 and seg_torque[min_power_idx] > 0 else 0.0
+        
+        # kJ calculations up to sprint start
+        joules_cumulative = np.zeros(len(power))
+        joules_over_cp_cumulative = np.zeros(len(power))
+        for i in range(1, len(power)):
+            dt = time_sec[i] - time_sec[i-1]
+            if dt > 0 and dt < 30:
+                joules_cumulative[i] = joules_cumulative[i-1] + power[i] * dt
+                if power[i] >= ftp:
+                    joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1] + power[i] * dt
+                else:
+                    joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
+            else:
+                joules_cumulative[i] = joules_cumulative[i-1]
+                joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
+        
+        hours = time_sec[start] / 3600 if start < len(time_sec) else 0
+        kj = joules_cumulative[start] / 1000 if start < len(joules_cumulative) else 0
+        kj_over_cp = joules_over_cp_cumulative[start] / 1000 if start < len(joules_over_cp_cumulative) else 0
+        kj_kg = (kj / weight) if weight > 0 else 0
+        kj_kg_over_cp = (kj_over_cp / weight) if weight > 0 else 0
+        kj_h_kg = (kj_kg / hours) if hours > 0 else 0
+        kj_h_kg_over_cp = (kj_kg_over_cp / hours) if hours > 0 else 0
         
         # Line data for this sprint
         line_data = []
@@ -267,6 +356,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'label_y': round(seg_alt.max(), 1),
             'avg_power': round(avg_power, 0),
             'duration': int(duration),
+            'start_time': format_time_hhmmss(time_sec[start]) if start < len(time_sec) else '',
             'avg_power_per_kg': round(avg_power_per_kg, 2),
             'min_watt': round(min_watt, 0),
             'max_watt': round(max_watt, 0),
@@ -275,12 +365,25 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'avg_cadence': round(avg_cadence, 0) if avg_cadence > 0 else 0,
             'min_cadence': round(min_cadence, 0) if min_cadence > 0 else 0,
             'max_cadence': round(max_cadence, 0) if max_cadence > 0 else 0,
+            'avg_torque': round(avg_torque, 0) if avg_torque > 0 else 0,
+            'min_torque': round(min_torque, 0) if min_torque > 0 else 0,
+            'max_torque': round(max_torque, 0) if max_torque > 0 else 0,
+            'rpm_at_max': rpm_at_max,
+            'torque_at_max': torque_at_max,
+            'rpm_at_min': rpm_at_min,
+            'torque_at_min': torque_at_min,
             'v1': round(v1, 1),
             'v2': round(v2, 1),
             'avg_grade': round(avg_grade, 1),
             'max_grade': round(max_grade, 1),
             'elevation_gain': round(elevation_gain, 1),
-            'distance_tot': round(dist_tot / 1000, 2)
+            'distance_tot': round(dist_tot / 1000, 2),
+            'kj': round(kj, 0),
+            'kj_over_cp': round(kj_over_cp, 0),
+            'kj_kg': round(kj_kg, 1),
+            'kj_kg_over_cp': round(kj_kg_over_cp, 1),
+            'kj_h_kg': round(kj_h_kg, 1),
+            'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1)
         }
         
         sprints_data.append(sprint_info)
@@ -293,18 +396,19 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         'elevation_data': elevation_data,
         'efforts': efforts_data,
         'sprints': sprints_data,
-        'ftp': ftp,
-        'weight': weight,
+        'ftp': float(ftp),
+        'weight': float(weight),
+        'torque_available': bool(torque_available),
         'config': {
-            'window_sec': effort_config.window_seconds,
-            'merge_pct': effort_config.merge_power_diff_percent,
-            'min_ftp_pct': effort_config.min_effort_intensity_ftp,
-            'trim_win': effort_config.trim_window_seconds,
-            'trim_low': effort_config.trim_low_percent,
-            'extend_win': effort_config.extend_window_seconds,
-            'extend_low': effort_config.extend_low_percent,
-            'sprint_window_sec': sprint_config.window_seconds,
-            'min_sprint_power': sprint_config.min_power
+            'window_sec': float(effort_config.window_seconds),
+            'merge_pct': float(effort_config.merge_power_diff_percent),
+            'min_ftp_pct': float(effort_config.min_effort_intensity_ftp),
+            'trim_win': float(effort_config.trim_window_seconds),
+            'trim_low': float(effort_config.trim_low_percent),
+            'extend_win': float(effort_config.extend_window_seconds),
+            'extend_low': float(effort_config.extend_low_percent),
+            'sprint_window_sec': float(sprint_config.window_seconds),
+            'min_sprint_power': float(sprint_config.min_power)
         }
     }
 

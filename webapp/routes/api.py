@@ -668,7 +668,8 @@ async def redetect_sprints_impl(
     session_id: str,
     min_power: int = 500,
     min_duration_sec: int = 5,
-    merge_gap_sec: int = 3
+    merge_gap_sec: int = 3,
+    cadence_min_rpm: int = 50
 ):
     """
     Re-detect sprints with new parameters.
@@ -694,6 +695,7 @@ async def redetect_sprints_impl(
         session['sprint_config'].min_power = min_power
         session['sprint_config'].window_seconds = min_duration_sec
         session['sprint_config'].merge_gap_sec = merge_gap_sec
+        session['sprint_config'].cadence_min_rpm = cadence_min_rpm
 
         return {
             "success": True,
@@ -702,7 +704,8 @@ async def redetect_sprints_impl(
             "parameters": {
                 "min_power": min_power,
                 "min_duration_sec": min_duration_sec,
-                "merge_gap_sec": merge_gap_sec
+                "merge_gap_sec": merge_gap_sec,
+                "cadence_min_rpm": cadence_min_rpm
             }
         }
 
@@ -737,7 +740,8 @@ async def redetect_sprints_json(session_id: str, params: Dict[str, Any]):
         session_id=session_id,
         min_power=int(params.get('min_power', 500)),
         min_duration_sec=int(params.get('min_duration_sec', 5)),
-        merge_gap_sec=int(params.get('merge_gap_sec', 3))
+        merge_gap_sec=int(params.get('merge_gap_sec', 3)),
+        cadence_min_rpm=int(params.get('cadence_min_rpm', 50))
     )
 
 

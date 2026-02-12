@@ -665,6 +665,10 @@
                                 <label for="sprintMergeGap">Merge Gap (s)</label>
                                 <input type="number" id="sprintMergeGap" value="{{ session.sprint_config.merge_gap_sec | default(3) }}" min="1" max="10">
                             </div>
+                            <div class="form-group">
+                                <label for="sprintCadenceMin">Cadence Min (rpm)</label>
+                                <input type="number" id="sprintCadenceMin" value="{{ session.sprint_config.cadence_min_rpm | default(50) }}" min="0" max="200" step="1">
+                            </div>
                         </div>
                         <button class="btn btn-primary" onclick="redetectSprints()">🔄 Re-Detect Sprints</button>
                     </div>
@@ -748,7 +752,8 @@
             const params = {
                 min_power: parseInt(document.getElementById('sprintMinPower').value),
                 min_duration_sec: parseInt(document.getElementById('sprintMinDuration').value),
-                merge_gap_sec: parseInt(document.getElementById('sprintMergeGap').value)
+                merge_gap_sec: parseInt(document.getElementById('sprintMergeGap').value),
+                cadence_min_rpm: parseInt(document.getElementById('sprintCadenceMin').value)
             };
             
             try {
@@ -785,7 +790,7 @@
                 
                 const result = await response.json();
                 if (result.status === 'success') {
-                    alert(`✅ ${result.message}\n\nEfforts have been re-detected with the new FTP.`);
+                    alert(`✅ ${result.message}\n\nEfforts have been re-detected with the new parameters.`);
                     location.reload();
                 } else {
                     alert(`❌ Error: ${result.message}`);
