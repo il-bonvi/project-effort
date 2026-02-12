@@ -192,15 +192,56 @@
         
         // Efforts (absolute altitude)
         chartData.efforts.forEach((effort, idx) => {
+            // Calculate a good vertical offset based on index to avoid overlaps
+            const midPoint = effort.line_data[Math.floor(effort.line_data.length / 2)];
+            const yOffset = 50 + (idx % 3) * 60; // Stagger vertically
+            
             series.push({
                 name: `E#${effort.id + 1} ${effort.avg_power}W`,
                 type: 'line',
                 data: effort.line_data.map(point => [point[0], point[1]]),
                 lineStyle: { color: effort.color, width: 4 },
-                symbol: 'none',
+                symbol: 'circle',
+                symbolSize: 8,
+                showSymbol: false,
                 emphasis: { 
                     lineStyle: { width: 8, shadowBlur: 10, shadowColor: effort.color },
                     disabled: false
+                },
+                markPoint: {
+                    data: [
+                        { 
+                            coord: midPoint,
+                            name: `E#${effort.id + 1}`,
+                            symbol: 'roundRect',
+                            symbolSize: [70, 35],
+                            symbolOffset: [0, -yOffset],
+                            label: {
+                                show: true,
+                                formatter: `{title|E#${effort.id + 1}}\n{info|${effort.duration}s  ${effort.avg_power}W}`,
+                                rich: {
+                                    title: {
+                                        fontSize: 11,
+                                        fontWeight: 'bold',
+                                        color: '#fff'
+                                    },
+                                    info: {
+                                        fontSize: 9,
+                                        color: '#fff',
+                                        opacity: 0.9
+                                    }
+                                }
+                            },
+                            itemStyle: {
+                                color: effort.color,
+                                borderColor: '#fff',
+                                borderWidth: 2,
+                                shadowBlur: 4,
+                                shadowColor: 'rgba(0,0,0,0.3)',
+                                shadowOffsetY: 2
+                            }
+                        }
+                    ]
                 },
                 tooltip: {
                     formatter: function(params) {
@@ -241,15 +282,80 @@
         
         // Sprints (absolute altitude)
         chartData.sprints.forEach((sprint, idx) => {
+            const midPoint = sprint.line_data[Math.floor(sprint.line_data.length / 2)];
+            const yOffset = 50 + (idx % 3) * 60;
+            
+            // Check if sprint is short (less than 30 seconds or 0.5km)
+            const isShortSprint = sprint.duration < 30 || sprint.distance_tot < 0.5;
+            
+            // Build markPoint data array
+            const markPointData = [
+                { 
+                    coord: midPoint,
+                    name: `S#${sprint.rank}`,
+                    symbol: 'roundRect',
+                    symbolSize: [70, 35],
+                    symbolOffset: [0, -yOffset],
+                    label: {
+                        show: true,
+                        formatter: `{title|S#${sprint.rank}}\n{info|${sprint.duration}s  ${sprint.avg_power}W}`,
+                        rich: {
+                            title: {
+                                fontSize: 11,
+                                fontWeight: 'bold',
+                                color: '#fff'
+                            },
+                            info: {
+                                fontSize: 9,
+                                color: '#fff',
+                                opacity: 0.9
+                            }
+                        }
+                    },
+                    itemStyle: {
+                        color: '#000000',
+                        borderColor: '#fff',
+                        borderWidth: 2,
+                        shadowBlur: 4,
+                        shadowColor: 'rgba(0,0,0,0.3)',
+                        shadowOffsetY: 2
+                    }
+                }
+            ];
+            
+            // Add start/end markers only for short sprints
+            if (isShortSprint) {
+                markPointData.push(
+                    {
+                        coord: [sprint.line_data[0][0], sprint.line_data[0][1]],
+                        symbol: 'circle',
+                        symbolSize: 2,
+                        itemStyle: { color: '#000000', borderColor: 'transparent', borderWidth: 0 }
+                    },
+                    {
+                        coord: [sprint.line_data[sprint.line_data.length - 1][0], sprint.line_data[sprint.line_data.length - 1][1]],
+                        symbol: 'circle',
+                        symbolSize: 2,
+                        itemStyle: { color: '#000000', borderColor: 'transparent', borderWidth: 0 }
+                    }
+                );
+            }
+            
             series.push({
                 name: `S#${sprint.rank} ${sprint.avg_power}W`,
                 type: 'line',
                 data: sprint.line_data.map(point => [point[0], point[1]]),
                 lineStyle: { color: '#000000', width: 4 },
-                symbol: 'none',
+                symbol: 'circle',
+                symbolSize: 6,
+                showSymbol: false,
                 emphasis: { 
                     lineStyle: { width: 8, shadowBlur: 10, shadowColor: '#000000' },
+                    symbolSize: 8,
                     disabled: false
+                },
+                markPoint: {
+                    data: markPointData
                 },
                 tooltip: {
                     formatter: function(params) {
