@@ -599,7 +599,7 @@
                     <h2 style="margin-bottom: 25px; color: #374151;">⚙️ Detection Settings & Re-Analysis</h2>
                     
                     <div class="controls-section">
-                        <div class="controls-title">�‍♂️ Athlete Parameters</div>
+                        <div class="controls-title">🚴‍♂️ Athlete Parameters</div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="ftpValue">FTP (W)</label>
@@ -778,7 +778,7 @@
         async function updateFtpWeight() {
             const params = {
                 ftp: parseInt(document.getElementById('ftpValue').value),
-                weight: parseInt(document.getElementById('weightValue').value)
+                weight: parseFloat(document.getElementById('weightValue').value)
             };
             
             try {
@@ -1010,9 +1010,10 @@
                 document.querySelectorAll('.fullscreen-btn').forEach(btn => {
                     const icon = btn.querySelector('.fullscreen-icon');
                     icon.textContent = '⛶';
-                    btn.style.background = 'white';
-                    btn.style.borderColor = '#e5e7eb';
-                    btn.style.color = '#6b7280';
+                    btn.style.background = 'linear-gradient(135deg, #60a5fa, #3b82f6)';
+                    btn.style.borderColor = '#3b82f6';
+                    btn.style.color = 'white';
+                    btn.style.boxShadow = '0 1px 3px rgba(59, 130, 246, 0.2)';
                     btn.classList.remove('show');
                 });
             }

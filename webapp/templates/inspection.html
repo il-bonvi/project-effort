@@ -1093,7 +1093,10 @@
             document.getElementById('addZoneBtn').addEventListener('click', function() {
                 // Add a new zone using min/max scheme: extend last zone max and add new one
                 const last = localZones[localZones.length - 1];
-                const newMin = last.max === 999 ? last.max : Math.min(last.max + 1, 999);
+                if (last.max === 999) {
+                    return; // Cannot add zone beyond the unlimited sentinel
+                }
+                const newMin = Math.min(last.max + 1, 999);
                 localZones.push({ min: newMin, max: Math.min(newMin + 10, 999), color: '#6366f1', name: 'Nuova Zona' });
                 saveLocalZones();
                 initializeZonesUI();

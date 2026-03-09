@@ -279,6 +279,8 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         seg_cadence = np.where(seg_cadence_raw >= cadence_min_rpm, seg_cadence_raw, 0)
         seg_torque = np.zeros_like(seg_power)
         if torque_available:
+            seg_torque = torque[start:end]
+        else:
             valid_torque_idx = (seg_cadence > 0) & (seg_power > 0)
             seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence[valid_torque_idx])
         
@@ -320,21 +322,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         rpm_at_min = float(round(seg_cadence[min_power_idx])) if min_power_idx >= 0 and seg_cadence[min_power_idx] > 0 else 0.0
         torque_at_min = float(round(seg_torque[min_power_idx])) if min_power_idx >= 0 and seg_torque[min_power_idx] > 0 else 0.0
         
-        # kJ calculations up to sprint start
-        joules_cumulative = np.zeros(len(power))
-        joules_over_cp_cumulative = np.zeros(len(power))
-        for i in range(1, len(power)):
-            dt = time_sec[i] - time_sec[i-1]
-            if dt > 0 and dt < 30:
-                joules_cumulative[i] = joules_cumulative[i-1] + power[i] * dt
-                if power[i] >= ftp:
-                    joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1] + power[i] * dt
-                else:
-                    joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
-            else:
-                joules_cumulative[i] = joules_cumulative[i-1]
-                joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
-        
+        # kJ calculations up to sprint start (reuse pre-computed arrays from effort section)
         hours = time_sec[start] / 3600 if start < len(time_sec) else 0
         kj = joules_cumulative[start] / 1000 if start < len(joules_cumulative) else 0
         kj_over_cp = joules_over_cp_cumulative[start] / 1000 if start < len(joules_over_cp_cumulative) else 0
