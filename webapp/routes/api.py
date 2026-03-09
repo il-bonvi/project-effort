@@ -187,7 +187,7 @@ async def get_session_status(session_id: str):
 
 class UpdateFtpWeightRequest(BaseModel):
     ftp: int
-    weight: int
+    weight: float
 
 @router.post("/{session_id}/update-ftp-weight")
 async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
