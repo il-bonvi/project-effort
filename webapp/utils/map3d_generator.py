@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]], 
-                         sprints: List[Dict[str, Any]], ftp: float, weight: float) -> str:
+                         sprints: List[Dict[str, Any]], ftp: float, weight: float, session_id: str = '') -> str:
     """
     Genera HTML interattivo per visualizzare traccia 3D con MapTiler GL JS.
     
@@ -109,6 +109,9 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         alt_total = alt_values_full.tolist()
         dist_total = dist_km_values_full.tolist()
         
+        # Calculate total distance in km
+        distance_km = float(np.max(dist_km_values_full)) if len(dist_km_values_full) > 0 else 0.0
+        
         # ===== STEP 6: Efforts Data Calculation (Using Core Module) =====
         # Prepare data for core processing - pass both full and filtered arrays
         efforts_data_json = prepare_efforts_data(
@@ -134,7 +137,8 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
             center_lat=center_lat,
             center_lon=center_lon,
             zoom=zoom,
-            distance_km=distance_km
+            distance_km=distance_km,
+            session_id=session_id
         )
         
         logger.info("Mappa 3D generata con successo")

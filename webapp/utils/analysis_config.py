@@ -40,6 +40,7 @@ class SprintConfig:
     window_seconds: int = 5
     min_power: float = 500
     merge_gap_sec: float = 1.0
+    cadence_min_rpm: int = 50
 
     def __post_init__(self):
         """Validazione parametri"""
@@ -49,6 +50,8 @@ class SprintConfig:
             raise ValueError("min_power deve essere > 0")
         if self.merge_gap_sec < 0:
             raise ValueError("merge_gap_sec non può essere negativo")
+        if self.cadence_min_rpm < 0 or self.cadence_min_rpm > 200:
+            raise ValueError("cadence_min_rpm deve essere 0-200 rpm")
 
 
 @dataclass
@@ -56,6 +59,7 @@ class AthleteProfile:
     """Profilo atleta con validazione"""
     ftp: float  # Functional Threshold Power [W]
     weight: float  # Peso corporeo [kg]
+    crank_length: float = 0  # Lunghezza manovella [m] - 0 = disabilitato
 
     def __post_init__(self):
         """Validazione profilo atleta"""
@@ -63,6 +67,8 @@ class AthleteProfile:
             raise ValueError(f"FTP non valida: {self.ftp}. Deve essere tra 1 e 500 W")
         if self.weight <= 0 or self.weight > 200:
             raise ValueError(f"Peso non valido: {self.weight}. Deve essere tra 1 e 200 kg")
+        if self.crank_length < 0 or self.crank_length > 0.2:
+            raise ValueError(f"Lunghezza manovella non valida: {self.crank_length}. Deve essere tra 0 e 0.2 m")
 
     @property
     def w_per_kg(self) -> float:
@@ -96,7 +102,8 @@ class AnalysisConfig:
         """Factory method per creare config da dizionario"""
         athlete = AthleteProfile(
             ftp=config_dict.get('ftp', 280),
-            weight=config_dict.get('weight', 70)
+            weight=config_dict.get('weight', 70),
+            crank_length=config_dict.get('crank_length', 0) / 1000 if config_dict.get('crank_length', 0) > 0 else 0  # Convert mm to meters
         )
         effort_config = EffortConfig(
             window_seconds=config_dict.get('window_seconds', 60),
@@ -110,7 +117,8 @@ class AnalysisConfig:
         sprint_config = SprintConfig(
             window_seconds=config_dict.get('sprint_window_sec', 5),
             min_power=config_dict.get('min_sprint_power', 500),
-            merge_gap_sec=config_dict.get('sprint_merge_gap', 1.0)
+            merge_gap_sec=config_dict.get('sprint_merge_gap', 1.0),
+            cadence_min_rpm=config_dict.get('cadence_min_rpm', 50)
         )
         return AnalysisConfig(
             athlete=athlete,

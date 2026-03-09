@@ -39,13 +39,23 @@
 
     <script>
         // Variables for map3d.js
+        let efforts_data_json = {{ efforts_data_json | safe }};
         const geojson_str = {{ geojson_str | safe }};
         const elevation_data_json = {{ elevation_data_json | safe }};
-        const efforts_data_json = {{ efforts_data_json | safe }};
         const maptiler_key = '{{ maptiler_key }}';
         const center_lat = {{ center_lat }};
         const center_lon = {{ center_lon }};
         const zoom = {{ zoom }};
+
+        // Listen for effort update signals from inspection.html
+        const updateSignalKey = `effort_update_signal_{{ session_id }}`;
+        
+        window.addEventListener('storage', function(event) {
+            if (event.key === updateSignalKey) {
+                console.log('Effort data updated in another tab, reloading map3d...');
+                location.reload();
+            }
+        });
     </script>
     <script src='/static/js/map3d.js'></script>
 </body>

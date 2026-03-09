@@ -11,6 +11,12 @@
             padding: 0;
             box-sizing: border-box;
         }
+        html {
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            position: fixed;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: #ffffff;
@@ -23,6 +29,12 @@
             flex-direction: column;
             overflow: hidden;
             font-size: 16px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
         }
         .header {
             background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -79,6 +91,7 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             overflow-x: auto;
             flex-shrink: 0;
+            position: relative;
         }
         .tab {
             padding: 10px 18px;
@@ -106,14 +119,28 @@
             background: white;
             padding: 0;
             position: relative;
-            min-height: 400px;
-            flex: 1;
+            flex: 1 1 auto;
             min-height: 0;
-            overflow: auto;
+            max-height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-gutter: stable;
+        }
+        /* When an iframe tab is active, hide the scroll on tab-content */
+        .tab-pane.has-iframe {
+            height: 100%;
+            overflow: hidden;
+        }
+        .tab-pane.has-iframe iframe {
+            display: block;
         }
         .tab-pane {
             display: none;
             width: 100%;
+        }
+        .tab-pane.full-height {
+            height: 100%;
         }
         .tab-pane.active {
             display: block;
@@ -129,7 +156,7 @@
             min-height: 0 !important;
         }
         .overview-content {
-            padding: 10px 0;
+            padding: 10px 0 50px 0;
         }
         .stats-grid {
             display: grid;
@@ -304,7 +331,68 @@
         #load-map3d-btn:active {
             transform: translateY(0);
         }
-        /* Fullscreen mode for 3D map */
+        /* Fullscreen button for tabs - minimal icon only, in tabs bar */
+        .tab-content {
+            position: relative;
+        }
+        .fullscreen-btn {
+            position: fixed;
+            top: 103px;
+            right: 7px;
+            z-index: 1001;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            color: white;
+            border: 2px solid #3b82f6;
+            border-radius: 6px;
+            padding: 5px 7px;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(59, 130, 246, 0.2);
+            min-width: 30px;
+            height: 30px;
+        }
+        .fullscreen-btn:hover {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            border-color: #2563eb;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+        .fullscreen-btn:active {
+            transform: scale(0.95);
+        }
+        .fullscreen-btn .fullscreen-text {
+            display: none;
+        }
+        
+        /* Fullscreen mode for any tab */
+        body.tab-fullscreen .header,
+        body.tab-fullscreen .tabs,
+        body.tab-fullscreen .back-btn {
+            display: none !important;
+        }
+        body.tab-fullscreen .tab-container {
+            height: 100vh !important;
+        }
+        body.tab-fullscreen .tab-content {
+            border-radius: 0;
+        }
+        body.tab-fullscreen .fullscreen-btn {
+            top: 10px;
+            right: 10px;
+            opacity: 0;
+            transform: translateX(20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        body.tab-fullscreen .fullscreen-btn:hover,
+        body.tab-fullscreen .fullscreen-btn.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        /* Legacy support for map3d fullscreen */
         body.map3d-fullscreen .header,
         body.map3d-fullscreen .tabs,
         body.map3d-fullscreen .back-btn {
@@ -346,7 +434,7 @@
             <span><strong>File:</strong> {{ session.filename }}</span>
             <span><strong>Efforts:</strong> {{ session.efforts|length }}</span>
             <span><strong>Sprints:</strong> {{ session.sprints|length }}</span>
-            <span><strong>FTP:</strong> {{ session.ftp }}W</span>
+            <span><strong>FTP:</strong> {{ session.ftp | int }}W</span>
             <span><strong>Weight:</strong> {{ session.weight }}kg</span>
             <span><strong>Session:</strong> {{ session_id }}</span>
         </div>
@@ -367,6 +455,9 @@
         <div class="tab-content">
             <!-- OVERVIEW TAB -->
             <div class="tab-pane active" id="overview">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('overview')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div class="overview-content">
                     <h2 style="margin-bottom: 25px; color: #374151; padding: 20px 20px 0;">📈 Ride Summary & Statistics</h2>
                     
@@ -422,12 +513,18 @@
             </div>
             
             <!-- INSPECTION TAB -->
-            <div class="tab-pane" id="inspection" style="min-height: 1400px;">
-                <iframe src="/inspection/{{ session_id }}" style="width: 100%; height: 1400px; border: none; background: white;"></iframe>
+            <div class="tab-pane full-height has-iframe" id="inspection">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('inspection')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
+                <iframe src="/inspection/{{ session_id }}" style="width: 100%; height: 100%; border: none; background: white;"></iframe>
             </div>
             
             <!-- ALTIMETRIA TAB -->
-            <div class="tab-pane" id="altimetria" style="height: 80vh; min-height: 600px; position: relative;">
+            <div class="tab-pane full-height" id="altimetria" style="position: relative;">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
                     <button onclick="window.open('/altimetria/{{ session_id }}', '_blank', 'width=1400,height=900')" 
                             style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -439,19 +536,25 @@
             </div>
             
             <!-- ALTIMETRIA ECHARTS TAB -->
-            <div class="tab-pane" id="altimetria-echarts" style="height: 80vh; min-height: 600px; position: relative;">
-                <div style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
+            <div class="tab-pane full-height" id="altimetria-echarts" style="position: relative;">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria-echarts')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
+                <div style="height: 40px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding: 0 10px;">
                     <button onclick="window.open('/altimetria-echarts/{{ session_id }}', '_blank', 'width=1400,height=900')" 
                             style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         🔍 Apri in Nuova Finestra
                     </button>
                     <span style="color: #6b7280; font-size: 0.85rem;">Versione ECharts con pannello metriche laterale</span>
                 </div>
-                <iframe src="/altimetria-echarts/{{ session_id }}" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: white;"></iframe>
+                <iframe src="/altimetria-echarts/{{ session_id }}" style="position: absolute; top: 40px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 40px); border: none; background: white;"></iframe>
             </div>
             
             <!-- 3D MAP TAB -->
-            <div class="tab-pane" id="map3d" style="height: 80vh; min-height: 600px; position: relative;">
+            <div class="tab-pane full-height" id="map3d" style="position: relative;">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('map3d')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div id="map3d-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; min-height: 600px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
                     <div style="text-align: center; color: white; max-width: 600px; padding: 40px;">
                         <div style="font-size: 4rem; margin-bottom: 20px;">🗺️</div>
@@ -473,7 +576,7 @@
                     </div>
                 </div>
                 <div id="map3d-container" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; margin: 0; padding: 0;">
-                    <div id="map3d-toolbar" style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
+                    <div id="map3d-toolbar" style="height: 40px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding: 0 10px;">
                         <button id="fullscreen-btn" onclick="toggleMap3DFullscreen()">
                             🖥️ Schermo Intero
                         </button>
@@ -483,29 +586,65 @@
                         </button>
                         <span style="color: #6b7280; font-size: 0.85rem;">Vista 3D con terrain e altimetria interattiva</span>
                     </div>
-                    <iframe id="map3d-iframe" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: #0f172a; margin: 0; padding: 0; display: block;"></iframe>
+                    <iframe id="map3d-iframe" style="position: absolute; top: 40px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 40px); border: none; background: #0f172a; margin: 0; padding: 0; display: block;"></iframe>
                 </div>
             </div>
             
             <!-- SETTINGS TAB -->
             <div class="tab-pane" id="settings">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('settings')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div class="settings-content" style="padding: 20px;">
                     <h2 style="margin-bottom: 25px; color: #374151;">⚙️ Detection Settings & Re-Analysis</h2>
+                    
+                    <div class="controls-section">
+                        <div class="controls-title">🚴‍♂️ Athlete Parameters</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="ftpValue">FTP (W)</label>
+                                <input type="number" id="ftpValue" value="{{ session.ftp | int }}" min="50" max="500" step="5">
+                            </div>
+                            <div class="form-group">
+                                <label for="weightValue">Weight (kg)</label>
+                                <input type="number" id="weightValue" value="{{ session.weight }}" min="40" max="150" step="0.5">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="updateFtpWeight()">💾 Update FTP & Weight</button>
+                    </div>
                     
                     <div class="controls-section">
                         <div class="controls-title">🎯 Effort Detection Parameters</div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="effortWindowSec">Window (s)</label>
-                                <input type="number" id="effortWindowSec" value="60" min="10" max="300">
+                                <input type="number" id="effortWindowSec" value="{{ session.effort_config.window_seconds | default(60) | int }}" min="10" max="300">
                             </div>
                             <div class="form-group">
                                 <label for="effortMinFtpPct">Min FTP (%)</label>
-                                <input type="number" id="effortMinFtpPct" value="100" min="50" max="200">
+                                <input type="number" id="effortMinFtpPct" value="{{ session.effort_config.min_effort_intensity_ftp | default(100) | int }}" min="50" max="200">
                             </div>
                             <div class="form-group">
                                 <label for="effortMergePct">Merge Tolerance (%)</label>
-                                <input type="number" id="effortMergePct" value="15" min="5" max="50">
+                                <input type="number" id="effortMergePct" value="{{ session.effort_config.merge_power_diff_percent | default(15) | int }}" min="5" max="50">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="trimWin">Trim Window (s)</label>
+                                <input type="number" id="trimWin" value="{{ session.effort_config.trim_window_seconds | default(10) | int }}" min="0" max="120">
+                            </div>
+                            <div class="form-group">
+                                <label for="trimLow">Trim Low (%)</label>
+                                <input type="number" id="trimLow" value="{{ session.effort_config.trim_low_percent | default(85) | int }}" min="50" max="100">
+                            </div>
+                            <div class="form-group">
+                                <label for="extendWin">Extend Window (s)</label>
+                                <input type="number" id="extendWin" value="{{ session.effort_config.extend_window_seconds | default(15) | int }}" min="0" max="120">
+                            </div>
+                            <div class="form-group">
+                                <label for="extendLow">Extend Low (%)</label>
+                                <input type="number" id="extendLow" value="{{ session.effort_config.extend_low_percent | default(80) | int }}" min="50" max="100">
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="redetectEfforts()">🔄 Re-Detect Efforts</button>
@@ -516,15 +655,19 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="sprintMinPower">Min Power (W)</label>
-                                <input type="number" id="sprintMinPower" value="500" min="200" max="1500">
+                                <input type="number" id="sprintMinPower" value="{{ session.sprint_config.min_power | default(500) }}" min="200" max="1500">
                             </div>
                             <div class="form-group">
                                 <label for="sprintMinDuration">Min Duration (s)</label>
-                                <input type="number" id="sprintMinDuration" value="5" min="3" max="30">
+                                <input type="number" id="sprintMinDuration" value="{{ session.sprint_config.window_seconds | default(5) }}" min="3" max="30">
                             </div>
                             <div class="form-group">
                                 <label for="sprintMergeGap">Merge Gap (s)</label>
-                                <input type="number" id="sprintMergeGap" value="3" min="1" max="10">
+                                <input type="number" id="sprintMergeGap" value="{{ session.sprint_config.merge_gap_sec | default(3) }}" min="1" max="10">
+                            </div>
+                            <div class="form-group">
+                                <label for="sprintCadenceMin">Cadence Min (rpm)</label>
+                                <input type="number" id="sprintCadenceMin" value="{{ session.sprint_config.cadence_min_rpm | default(50) }}" min="0" max="200" step="1">
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="redetectSprints()">🔄 Re-Detect Sprints</button>
@@ -534,6 +677,9 @@
             
             <!-- EXPORT TAB -->
             <div class="tab-pane" id="export">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('export')" title="Toggle Fullscreen">
+                    <span class="fullscreen-icon">⛶</span>
+                </button>
                 <div class="export-content" style="padding: 20px;">
                     <h2 style="margin-bottom: 25px; color: #374151;">📥 Import & 📤 Export</h2>
                     
@@ -576,7 +722,11 @@
             const params = {
                 window_sec: document.getElementById('effortWindowSec').value,
                 min_ftp_pct: document.getElementById('effortMinFtpPct').value,
-                merge_pct: document.getElementById('effortMergePct').value
+                merge_pct: document.getElementById('effortMergePct').value,
+                trim_win: document.getElementById('trimWin').value,
+                trim_low: document.getElementById('trimLow').value,
+                extend_win: document.getElementById('extendWin').value,
+                extend_low: document.getElementById('extendLow').value
             };
             
             try {
@@ -602,7 +752,8 @@
             const params = {
                 min_power: parseInt(document.getElementById('sprintMinPower').value),
                 min_duration_sec: parseInt(document.getElementById('sprintMinDuration').value),
-                merge_gap_sec: parseInt(document.getElementById('sprintMergeGap').value)
+                merge_gap_sec: parseInt(document.getElementById('sprintMergeGap').value),
+                cadence_min_rpm: parseInt(document.getElementById('sprintCadenceMin').value)
             };
             
             try {
@@ -615,6 +766,31 @@
                 const result = await response.json();
                 if (result.success) {
                     alert(`✅ Re-detected ${result.total_sprints} sprints!`);
+                    location.reload();
+                } else {
+                    alert(`❌ Error: ${result.message}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+        
+        async function updateFtpWeight() {
+            const params = {
+                ftp: parseInt(document.getElementById('ftpValue').value),
+                weight: parseFloat(document.getElementById('weightValue').value)
+            };
+            
+            try {
+                const response = await fetch(`/api/${sessionId}/update-ftp-weight`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(params)
+                });
+                
+                const result = await response.json();
+                if (result.status === 'success') {
+                    alert(`✅ ${result.message}\n\nEfforts have been re-detected with the new parameters.`);
                     location.reload();
                 } else {
                     alert(`❌ Error: ${result.message}`);
@@ -772,14 +948,94 @@
             }
         }
 
+        // Generic fullscreen toggle for any tab
+        function toggleFullscreen(tabId) {
+            const body = document.body;
+            const isFullscreen = body.classList.contains('tab-fullscreen');
+            const button = document.querySelector(`#${tabId} .fullscreen-btn`);
+            const icon = button.querySelector('.fullscreen-icon');
+            
+            if (!isFullscreen) {
+                body.classList.add('tab-fullscreen');
+                icon.textContent = '✕';
+                button.style.background = 'linear-gradient(135deg, #f87171, #ef4444)';
+                button.style.borderColor = '#ef4444';
+                button.style.color = 'white';
+                button.style.boxShadow = '0 1px 3px rgba(239, 68, 68, 0.2)';
+            } else {
+                body.classList.remove('tab-fullscreen');
+                icon.textContent = '⛶';
+                button.style.background = 'linear-gradient(135deg, #60a5fa, #3b82f6)';
+                button.style.borderColor = '#3b82f6';
+                button.style.color = 'white';
+                button.style.boxShadow = '0 1px 3px rgba(59, 130, 246, 0.2)';
+                // Remove show class when exiting fullscreen
+                document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+                    btn.classList.remove('show');
+                });
+            }
+        }
+
+        // Exit fullscreen when switching tabs
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', function() {
+                // Exit fullscreen mode when switching tabs
+                if (document.body.classList.contains('tab-fullscreen')) {
+                    document.body.classList.remove('tab-fullscreen');
+                    // Reset all fullscreen buttons
+                    document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+                        const icon = btn.querySelector('.fullscreen-icon');
+                        icon.textContent = '⛶';
+                        btn.style.background = 'linear-gradient(135deg, #60a5fa, #3b82f6)';
+                        btn.style.borderColor = '#3b82f6';
+                        btn.style.color = 'white';
+                        btn.style.boxShadow = '0 1px 3px rgba(59, 130, 246, 0.2)';
+                        btn.classList.remove('show');
+                    });
+                }
+                
                 const tabName = this.getAttribute('data-tab');
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
                 this.classList.add('active');
                 document.getElementById(tabName).classList.add('active');
             });
+        });
+
+        // ESC key to exit fullscreen
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.body.classList.contains('tab-fullscreen')) {
+                document.body.classList.remove('tab-fullscreen');
+                // Reset all fullscreen buttons
+                document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+                    const icon = btn.querySelector('.fullscreen-icon');
+                    icon.textContent = '⛶';
+                    btn.style.background = 'linear-gradient(135deg, #60a5fa, #3b82f6)';
+                    btn.style.borderColor = '#3b82f6';
+                    btn.style.color = 'white';
+                    btn.style.boxShadow = '0 1px 3px rgba(59, 130, 246, 0.2)';
+                    btn.classList.remove('show');
+                });
+            }
+        });
+
+        // Auto-hide fullscreen button: show when mouse is near top-right corner
+        document.addEventListener('mousemove', function(e) {
+            if (document.body.classList.contains('tab-fullscreen')) {
+                const distanceFromRight = window.innerWidth - e.clientX;
+                const distanceFromTop = e.clientY;
+                
+                // Show button if mouse is within 150px from top-right corner
+                const showButton = distanceFromRight < 150 && distanceFromTop < 150;
+                
+                document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+                    if (showButton) {
+                        btn.classList.add('show');
+                    } else {
+                        btn.classList.remove('show');
+                    }
+                });
+            }
         });
     </script>
 </body>
