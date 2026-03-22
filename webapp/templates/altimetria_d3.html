@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Altimetria D3 - {{ filename }}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+    height: 100vh; width: 100vw; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: white;
+}
+#container { display: flex; height: 100vh; width: 100vw; }
+
+/* ── Chart area ── */
+#chart { flex: 1; height: 100%; overflow: hidden; position: relative; }
+#chart-svg { width: 100%; height: 100%; display: block; }
+
+/* SVG elements */
+.elev-area { fill: url(#areaGrad); }
+.elev-line { fill: none; stroke: #d1d5db; stroke-width: 1; }
+
+.effort-seg {
+    fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round;
+    cursor: pointer; transition: stroke-width 0.15s, filter 0.15s;
+}
+.effort-seg.dimmed { opacity: 0.2; }
+.effort-seg.highlighted { stroke-width: 8; filter: drop-shadow(0 0 5px var(--seg-color)); }
+
+.sprint-seg {
+    fill: none; stroke: #000000; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round;
+    cursor: pointer; transition: stroke-width 0.15s;
+}
+.sprint-seg.dimmed { opacity: 0.15; }
+.sprint-seg.highlighted { stroke-width: 8; filter: drop-shadow(0 0 5px rgba(0,0,0,0.6)); }
+
+/* short sprint markers */
+.sprint-marker { fill: #000; }
+
+/* grid + axes */
+.grid-line { stroke: #f0f0f0; stroke-width: 0.8; }
+.axis-label-text { font-size: 11px; fill: #6b7280; }
+text.axis-name { font-size: 11px; fill: #9ca3af; }
+
+/* ── Annotations ── */
+.ann-leader { stroke: #b0b0b0; stroke-width: 0.8; stroke-dasharray: 3,2; fill: none; pointer-events: none; }
+
+.ann-pill { cursor: pointer; }
+.ann-pill rect { transition: stroke-width 0.12s; }
+.ann-pill.active rect { stroke-width: 2; }
+
+.ann-cluster { cursor: pointer; }
+
+/* expanded popup card — HTML overlay */
+#popup-card {
+    position: absolute; display: none; z-index: 200;
+    background: #fff; border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+    border-left: 4px solid #000;
+    padding: 10px 13px; min-width: 230px; max-width: 270px;
+    font-size: 12px; line-height: 1.6; pointer-events: none;
+}
+#popup-card .pc-header {
+    font-size: 13px; font-weight: 700; margin-bottom: 6px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+#popup-card .pc-section { border-top: 1px solid #e5e7eb; padding-top: 6px; margin-top: 6px; }
+#popup-card .pc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 3px; }
+#popup-card .pc-metric { display: flex; justify-content: space-between; font-size: 11px; }
+#popup-card .pc-label { color: #6b7280; }
+#popup-card .pc-value { font-weight: 600; color: #111827; }
+
+/* ── Tooltip (hover) ── */
+#tooltip {
+    position: absolute; pointer-events: none; display: none; z-index: 300;
+    background: rgba(50,50,50,0.95); color: #fff;
+    border-radius: 6px; padding: 9px 12px;
+    font-size: 11.5px; line-height: 1.65; max-width: 280px;
+    border: 1px solid #777; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+/* crosshair */
+.crosshair { stroke: #9ca3af; stroke-width: 0.8; stroke-dasharray: 3,2; pointer-events: none; }
+
+/* ── Sidebar ── */
+#sidebar {
+    width: 350px; height: 100%; overflow-y: auto;
+    background: #f8f9fa; border-left: 2px solid #e5e7eb; padding: 15px;
+    flex-shrink: 0;
+}
+.config-info {
+    background: white; padding: 10px; border-radius: 6px;
+    font-size: 0.8rem; color: #6b7280; margin-bottom: 15px; line-height: 1.6;
+}
+.section { margin-bottom: 25px; }
+#sidebar h2 {
+    font-size: 1.2rem; margin-bottom: 12px; color: #374151;
+    padding-bottom: 8px; border-bottom: 2px solid #3b82f6;
+}
+.effort-card, .sprint-card {
+    background: white; border-radius: 8px; padding: 12px;
+    margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-left: 4px solid; transition: all 0.2s; cursor: pointer;
+}
+.effort-card:hover, .sprint-card:hover {
+    transform: translateX(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+.effort-card.highlighted, .sprint-card.highlighted {
+    transform: translateX(-5px) scale(1.02);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.25); background: #fffbeb;
+}
+.card-header {
+    font-weight: bold; font-size: 1.1rem; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.card-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px; margin-bottom: 6px; font-size: 0.85rem;
+}
+.card-metric { display: flex; justify-content: space-between; }
+.metric-label { color: #6b7280; }
+.metric-value { font-weight: 600; color: #111827; }
+.card-divider { border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="container">
+    <div id="chart">
+        <svg id="chart-svg"></svg>
+        <div id="popup-card"></div>
+        <div id="tooltip"></div>
+    </div>
+    <div id="sidebar">
+        <div class="config-info" id="config-section"></div>
+        <div class="section">
+            <h2>⚡ Efforts</h2>
+            <div id="efforts-list"></div>
+        </div>
+        <div class="section">
+            <h2>💨 Sprints</h2>
+            <div id="sprints-list"></div>
+        </div>
+    </div>
+</div>
+
+<!-- DATA INJECTION POINT — identical to ECharts version -->
+<script type="application/json" id="chart-data-json">
+{{ chart_data_json | safe }}
+</script>
+
+<script>
+// ── storage listener (same as ECharts version) ──────────────────────────────
+const updateSignalKey = `effort_update_signal_{{ session_id }}`;
+window.addEventListener('storage', function(event) {
+    if (event.key === updateSignalKey) { location.reload(); }
+});
+</script>
+
+{% raw %}
+<script>
+// ════════════════════════════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════════════════════════════
+const chartData = JSON.parse(document.getElementById('chart-data-json').innerText);
+
+// ════════════════════════════════════════════════════════════════
+// Y-AXIS LOGIC — identical to ECharts version (intervals.icu approach)
+// ════════════════════════════════════════════════════════════════
+const elevations = chartData.elevation_data.map(d => d.alt);
+const minAlt = Math.min(...elevations);
+const maxAlt = Math.max(...elevations);
+const maxDist = Math.max(...chartData.elevation_data.map(d => d.dist));
+
+const elevationGain = maxAlt - minAlt;
+const paddingTop    = 400;
+const paddingBottom = minAlt >= 100 ? 100 : Math.max(0, minAlt * 0.5);
+const rangeY_base   = Math.max(elevationGain * 1.5, elevationGain + 300);
+const yMaxCap       = Math.ceil((maxAlt + 200) / 100) * 100;
+const rangeY_final  = Math.min(rangeY_base + paddingBottom + paddingTop, yMaxCap);
+const roundTo       = 50;
+const yMin          = Math.floor((minAlt - paddingBottom) / roundTo) * roundTo;
+const yMax          = Math.ceil((yMin + rangeY_final) / roundTo) * roundTo;
+
+// ════════════════════════════════════════════════════════════════
+// SVG SETUP
+// ════════════════════════════════════════════════════════════════
+const svg = d3.select('#chart-svg');
+const chartEl = document.getElementById('chart');
+
+const MARGIN = { top: 15, right: 20, bottom: 55, left: 60 };
+// label space above chart (annotations can float up here)
+const ANN_SPACE = 80;
+
+let W, H, innerW, innerH;
+function updateDims() {
+    W = chartEl.clientWidth;
+    H = chartEl.clientHeight;
+    innerW = W - MARGIN.left - MARGIN.right;
+    innerH = H - MARGIN.top - MARGIN.bottom - ANN_SPACE;
+}
+updateDims();
+
+svg.attr('width', W).attr('height', H);
+
+// Defs
+const defs = svg.append('defs');
+
+// Elevation gradient — same colors as ECharts (#f3f4f6 area, #d1d5db line)
+const grad = defs.append('linearGradient').attr('id','areaGrad').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+grad.append('stop').attr('offset','0%').attr('stop-color','#d1d5db').attr('stop-opacity',0.55);
+grad.append('stop').attr('offset','100%').attr('stop-color','#f3f4f6').attr('stop-opacity',0.20);
+
+// Clip for chart content
+defs.append('clipPath').attr('id','chartClip')
+    .append('rect').attr('x',0).attr('y',-ANN_SPACE).attr('width', innerW).attr('height', innerH + ANN_SPACE + 5);
+
+// Root group shifted down to leave annotation space
+const ROOT_Y = MARGIN.top + ANN_SPACE;
+const g = svg.append('g').attr('transform', `translate(${MARGIN.left},${ROOT_Y})`);
+
+// ── Scales ────────────────────────────────────────────────────
+let xScale = d3.scaleLinear().domain([0, maxDist]).range([0, innerW]);
+let yScale = d3.scaleLinear().domain([yMin, yMax]).range([innerH, 0]);
+
+// Zoom-rescaled x (updated on zoom/pan)
+let xScaleZ = xScale.copy();
+
+// ── Layer groups ──────────────────────────────────────────────
+const gridG    = g.append('g').attr('class','grid-layer');
+const xAxisG   = g.append('g').attr('class','x-axis').attr('transform',`translate(0,${innerH})`);
+const yAxisG   = g.append('g').attr('class','y-axis');
+const clipG    = g.append('g').attr('clip-path','url(#chartClip)');
+const elevG    = clipG.append('g').attr('class','elev-layer');
+const segsG    = clipG.append('g').attr('class','segs-layer');
+// Annotations NOT clipped — can go into ann space
+const annG     = g.append('g').attr('class','ann-layer');
+// Crosshair
+const crossG   = g.append('g').attr('class','cross-layer').style('pointer-events','none');
+const crossV   = crossG.append('line').attr('class','crosshair').attr('y1',0).attr('y2',innerH).style('display','none');
+const crossH   = crossG.append('line').attr('class','crosshair').attr('x1',0).attr('x2',innerW).style('display','none');
+// Invisible overlay for mouse tracking
+const overlay  = g.append('rect').attr('width',innerW).attr('height',innerH).attr('fill','none').style('pointer-events','all');
+
+// Axis labels
+g.append('text').attr('class','axis-name')
+    .attr('text-anchor','middle').attr('x', innerW/2).attr('y', innerH + 42)
+    .text('Distance (km)');
+g.append('text').attr('class','axis-name')
+    .attr('text-anchor','middle')
+    .attr('transform',`rotate(-90)`)
+    .attr('x', -innerH/2).attr('y', -48)
+    .text('Altitude (m)');
+
+// ════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════
+let activeId       = null;   // currently pinned annotation
+let currentZoom    = d3.zoomIdentity;
+const tooltip      = document.getElementById('tooltip');
+const popupCard    = document.getElementById('popup-card');
+
+// ════════════════════════════════════════════════════════════════
+// RENDER FUNCTIONS
+// ════════════════════════════════════════════════════════════════
+function getXZ() { return currentZoom.rescaleX(xScale); }
+
+function renderAxes(xz) {
+    const nTicks = Math.max(5, Math.round(innerW / 80));
+    xAxisG.call(
+        d3.axisBottom(xz).ticks(nTicks)
+            .tickFormat(d => d.toFixed(1))
+    );
+    xAxisG.selectAll('text').attr('class','axis-label-text');
+    xAxisG.selectAll('path,line').attr('stroke','#e5e7eb');
+
+    yAxisG.call(
+        d3.axisLeft(yScale).ticks(6).tickFormat(d => d + 'm')
+    );
+    yAxisG.selectAll('text').attr('class','axis-label-text');
+    yAxisG.selectAll('path,line').attr('stroke','#e5e7eb');
+
+    // Grid
+    gridG.selectAll('.grid-line').remove();
+    yScale.ticks(6).forEach(t => {
+        gridG.append('line').attr('class','grid-line')
+            .attr('x1',0).attr('x2',innerW)
+            .attr('y1',yScale(t)).attr('y2',yScale(t));
+    });
+}
+
+function renderElevation(xz) {
+    const area = d3.area()
+        .x(d => xz(d.dist)).y0(innerH).y1(d => yScale(d.alt))
+        .curve(d3.curveCatmullRom.alpha(0.5));
+    const line = d3.line()
+        .x(d => xz(d.dist)).y(d => yScale(d.alt))
+        .curve(d3.curveCatmullRom.alpha(0.5));
+
+    elevG.selectAll('*').remove();
+    elevG.append('path').datum(chartData.elevation_data).attr('class','elev-area').attr('d', area);
+    elevG.append('path').datum(chartData.elevation_data).attr('class','elev-line').attr('d', line);
+}
+
+function renderSegments(xz) {
+    segsG.selectAll('*').remove();
+
+    // ── Efforts ──────────────────────────────────────────────
+    chartData.efforts.forEach(effort => {
+        const lineGen = d3.line()
+            .x(d => xz(d[0])).y(d => yScale(d[1]))
+            .curve(d3.curveCatmullRom.alpha(0.5));
+
+        segsG.append('path')
+            .datum(effort.line_data)
+            .attr('class','effort-seg')
+            .attr('data-id', `e-${effort.id}`)
+            .attr('d', lineGen)
+            .attr('stroke', effort.color)
+            .style('--seg-color', effort.color)
+            .on('mouseenter', function(ev) {
+                showTooltip(ev, buildEffortTooltip(effort));
+                highlightId(`e-${effort.id}`);
+            })
+            .on('mousemove', moveTooltip)
+            .on('mouseleave', function() {
+                hideTooltip();
+                if (!activeId) clearHighlight();
+            })
+            .on('click', function(ev) {
+                ev.stopPropagation();
+                togglePin(`e-${effort.id}`, effort, 'effort');
+            });
+    });
+
+    // ── Sprints ───────────────────────────────────────────────
+    chartData.sprints.forEach((sprint, idx) => {
+        const lineGen = d3.line()
+            .x(d => xz(d[0])).y(d => yScale(d[1]))
+            .curve(d3.curveCatmullRom.alpha(0.5));
+
+        segsG.append('path')
+            .datum(sprint.line_data)
+            .attr('class','sprint-seg')
+            .attr('data-id', `s-${idx}`)
+            .attr('d', lineGen)
+            .on('mouseenter', function(ev) {
+                showTooltip(ev, buildSprintTooltip(sprint));
+                highlightId(`s-${idx}`);
+            })
+            .on('mousemove', moveTooltip)
+            .on('mouseleave', function() {
+                hideTooltip();
+                if (!activeId) clearHighlight();
+            })
+            .on('click', function(ev) {
+                ev.stopPropagation();
+                togglePin(`s-${idx}`, sprint, 'sprint');
+            });
+
+        // Short sprint: start/end dots
+        const isShort = sprint.duration < 30 || sprint.distance_tot < 0.5;
+        if (isShort) {
+            const first = sprint.line_data[0];
+            const last  = sprint.line_data[sprint.line_data.length - 1];
+            [first, last].forEach(pt => {
+                segsG.append('circle')
+                    .attr('class','sprint-marker')
+                    .attr('cx', xz(pt[0])).attr('cy', yScale(pt[1]))
+                    .attr('r', 3);
+            });
+        }
+    });
+}
+
+// ════════════════════════════════════════════════════════════════
+// ANNOTATION COLLISION DETECTION
+// ════════════════════════════════════════════════════════════════
+const PILL_W       = 70;  // same visual footprint as ECharts markPoint 70px
+const PILL_H       = 30;  // same as ECharts markPoint 35px  (a bit less for crispness)
+const PILL_PAD     = 5;   // min gap between pills
+const CLUSTER_THR  = 50;  // px: collapse to cluster if closer than this
+const ANN_MIN_Y    = -(ANN_SPACE - 8); // topmost allowed Y (in g coords)
+
+function buildAnnotationItems(xz) {
+    const items = [];
+
+    chartData.efforts.forEach(effort => {
+        const mid = effort.line_data[Math.floor(effort.line_data.length / 2)];
+        const ax = xz(mid[0]);
+        const ay = yScale(mid[1]);
+        if (ax < -PILL_W || ax > innerW + PILL_W) return;
+        items.push({
+            id: `e-${effort.id}`, type: 'effort', obj: effort,
+            anchorX: ax, anchorY: ay,
+            label: `E#${effort.id + 1}`,
+            sub:   `${effort.duration}s  ${effort.avg_power}W`,
+            color: effort.color,
+        });
+    });
+
+    chartData.sprints.forEach((sprint, idx) => {
+        const mid = sprint.line_data[Math.floor(sprint.line_data.length / 2)];
+        const ax = xz(mid[0]);
+        const ay = yScale(mid[1]);
+        if (ax < -PILL_W || ax > innerW + PILL_W) return;
+        items.push({
+            id: `s-${idx}`, type: 'sprint', obj: sprint,
+            anchorX: ax, anchorY: ay,
+            label: `S#${sprint.rank}`,
+            sub:   `${sprint.duration}s  ${sprint.avg_power}W`,
+            color: '#000000',
+        });
+    });
+
+    return items;
+}
+
+function resolveCollisions(items) {
+    // Sort by anchorX
+    items.sort((a, b) => a.anchorX - b.anchorX);
+
+    const placed   = [];
+    const clusters = {}; // clusterKey → [items]
+
+    for (const item of items) {
+        // Natural Y: 45px above anchor
+        item.finalX = item.anchorX - PILL_W / 2;
+        item.finalY = item.anchorY - 45;
+
+        // Check X-proximity → cluster
+        const nearby = placed.filter(p =>
+            !p.inCluster &&
+            Math.abs((p.anchorX) - item.anchorX) < CLUSTER_THR
+        );
+
+        if (nearby.length > 0) {
+            const ck = nearby[0].clusterKey || nearby[0].id;
+            item.inCluster  = true;
+            item.clusterKey = ck;
+            nearby.forEach(p => { p.inCluster = true; p.clusterKey = ck; });
+            if (!clusters[ck]) clusters[ck] = [...nearby];
+            clusters[ck].push(item);
+            placed.push(item);
+            continue;
+        }
+
+        // Greedy Y-push upward
+        for (let tries = 0; tries < 40; tries++) {
+            const collides = placed.filter(p => !p.inCluster && rectsOverlap(
+                item.finalX, item.finalY, PILL_W, PILL_H,
+                p.finalX,   p.finalY,   PILL_W, PILL_H, PILL_PAD
+            ));
+            if (collides.length === 0) break;
+            item.finalY -= (PILL_H + PILL_PAD);
+        }
+        item.finalY = Math.max(ANN_MIN_Y, item.finalY);
+        placed.push(item);
+    }
+
+    return {
+        singles: placed.filter(p => !p.inCluster),
+        clusters: Object.values(clusters)
+    };
+}
+
+function rectsOverlap(x1,y1,w1,h1, x2,y2,w2,h2, pad) {
+    return !(x1+w1+pad < x2 || x2+w2+pad < x1 || y1+h1+pad < y2 || y2+h2+pad < y1);
+}
+
+function renderAnnotations(xz) {
+    annG.selectAll('*').remove();
+
+    const items = buildAnnotationItems(xz);
+    const { singles, clusters } = resolveCollisions(items);
+
+    // Draw individual pills
+    singles.forEach(item => drawPill(item));
+
+    // Draw clusters
+    clusters.forEach(group => {
+        if (!group || group.length === 0) return;
+        const cx = d3.mean(group, d => d.anchorX);
+        const cy = Math.max(ANN_MIN_Y, Math.min(...group.map(d => d.anchorY)) - 55);
+        const cw = 26 + group.length * 18;
+
+        const cg = annG.append('g').attr('class','ann-cluster').style('cursor','pointer');
+
+        // Leader lines
+        group.forEach(m => {
+            cg.append('line').attr('class','ann-leader')
+                .attr('x1', cx).attr('y1', cy + PILL_H)
+                .attr('x2', m.anchorX).attr('y2', m.anchorY);
+        });
+
+        // Cluster pill
+        cg.append('rect')
+            .attr('x', cx - cw/2).attr('y', cy)
+            .attr('width', cw).attr('height', PILL_H)
+            .attr('rx', 5)
+            .attr('fill', '#374151')
+            .attr('stroke','rgba(255,255,255,0.25)').attr('stroke-width', 1);
+
+        cg.append('text')
+            .attr('x', cx).attr('y', cy + PILL_H / 2)
+            .attr('text-anchor','middle').attr('dominant-baseline','central')
+            .attr('fill','#fff').attr('font-size', 11).attr('font-weight', 700)
+            .text(`${group.length}× ${group[0].type === 'effort' ? 'E' : 'S'}`);
+
+        // Click → expand cluster (uncluster and re-render)
+        cg.on('click', function() {
+            group.forEach(i => { i.inCluster = false; });
+            singles.push(...group);
+            annG.selectAll('*').remove();
+            singles.forEach(item => drawPill(item));
+        });
+    });
+}
+
+function drawPill(item) {
+    const isActive = activeId === item.id;
+    const pg = annG.append('g')
+        .attr('class', `ann-pill${isActive ? ' active' : ''}`)
+        .attr('data-id', item.id)
+        .style('cursor','pointer')
+        .on('click', function(ev) {
+            ev.stopPropagation();
+            togglePin(item.id, item.obj, item.type);
+        })
+        .on('mouseenter', () => highlightId(item.id))
+        .on('mouseleave', () => { if (!activeId) clearHighlight(); });
+
+    // Leader line from anchor to pill bottom-center
+    pg.append('line').attr('class','ann-leader')
+        .attr('x1', item.anchorX).attr('y1', item.anchorY)
+        .attr('x2', item.finalX + PILL_W / 2).attr('y2', item.finalY + PILL_H);
+
+    // Pill rect — same color as segment (effort.color or #000000 for sprint)
+    pg.append('rect')
+        .attr('x', item.finalX).attr('y', item.finalY)
+        .attr('width', PILL_W).attr('height', PILL_H)
+        .attr('rx', 5)
+        .attr('fill', item.color)
+        .attr('stroke', '#fff').attr('stroke-width', isActive ? 2 : 0.8)
+        .attr('stroke-opacity', 0.7)
+        .attr('fill-opacity', isActive ? 1 : 0.85);
+
+    // Label line (e.g. "E#1")
+    pg.append('text')
+        .attr('x', item.finalX + PILL_W / 2)
+        .attr('y', item.finalY + 10)
+        .attr('text-anchor','middle').attr('dominant-baseline','central')
+        .attr('fill','#fff').attr('font-size', 11).attr('font-weight', 700)
+        .text(item.label);
+
+    // Sub line (e.g. "180s  285W")
+    pg.append('text')
+        .attr('x', item.finalX + PILL_W / 2)
+        .attr('y', item.finalY + 22)
+        .attr('text-anchor','middle').attr('dominant-baseline','central')
+        .attr('fill','rgba(255,255,255,0.88)').attr('font-size', 9)
+        .text(item.sub);
+}
+
+// ════════════════════════════════════════════════════════════════
+// PIN / POPUP CARD — shows full metrics on click (same data as sidebar)
+// ════════════════════════════════════════════════════════════════
+function togglePin(id, obj, type) {
+    if (activeId === id) {
+        activeId = null;
+        popupCard.style.display = 'none';
+        clearHighlight();
+        renderAnnotations(getXZ());
+    } else {
+        activeId = id;
+        highlightId(id);
+        showPopupCard(obj, type);
+        renderAnnotations(getXZ());
+    }
+}
+
+function showPopupCard(obj, type) {
+    popupCard.style.borderLeftColor = type === 'effort' ? obj.color : '#000';
+    popupCard.innerHTML = type === 'effort' ? buildEffortCard(obj) : buildSprintCard(obj);
+    popupCard.style.display = 'block';
+
+    // Position: try to place near chart center top
+    positionPopup();
+}
+
+function positionPopup() {
+    const pw = popupCard.offsetWidth || 250;
+    const ph = popupCard.offsetHeight || 300;
+    let px = MARGIN.left + innerW / 2 - pw / 2;
+    let py = MARGIN.top + 10;
+    px = Math.max(4, Math.min(px, W - MARGIN.right - 350 - pw - 8));
+    popupCard.style.left = px + 'px';
+    popupCard.style.top  = py + 'px';
+}
+
+// ── Effort card HTML — exact replica of ECharts sidebar card ────
+function buildEffortCard(e) {
+    const signErr = e.perc_err > 0 ? '+' : '';
+    const signDwkg = e.diff_wkg > 0 ? '+' : '';
+    let html = `
+    <div class="pc-header">
+        <span>E#${e.id + 1}</span>
+        <span style="color:${e.color}">${e.avg_power}W (${e.ftp_pct}%)</span>
+    </div>
+    <div class="pc-row">
+        <div class="pc-metric"><span class="pc-label">🕒 Start</span><span class="pc-value">${e.start_time}</span></div>
+        <div class="pc-metric"><span class="pc-label">⏱️ Duration</span><span class="pc-value">${e.duration}s</span></div>
+    </div>
+    <div class="pc-row">
+        <div class="pc-metric"><span class="pc-label">📏 Distance</span><span class="pc-value">${e.distance_tot} km</span></div>
+        <div class="pc-metric"><span class="pc-label">🏔️ Elevation</span><span class="pc-value">${e.elevation_gain} m</span></div>
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">⚡ Avg Power</span><span class="pc-value">${e.avg_power}W</span></div>
+            <div class="pc-metric"><span class="pc-label">⚖️ W/kg</span><span class="pc-value">${e.avg_power_per_kg}</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">5" Peak</span><span class="pc-value">${e.best_5s_watt}W</span></div>
+            <div class="pc-metric"><span class="pc-label">5" W/kg</span><span class="pc-value">${e.best_5s_watt_kg}</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🌀 Cadence</span><span class="pc-value">${e.avg_cadence} rpm</span></div>
+            <div class="pc-metric"><span class="pc-label">🔀 1st/2nd</span><span class="pc-value">${e.avg_watts_first}/${e.avg_watts_second}</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">Ratio</span><span class="pc-value">${e.watts_ratio}</span></div>
+        </div>
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">❤️ HR Avg</span><span class="pc-value">${e.avg_hr > 0 ? e.avg_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">❤️ HR Max</span><span class="pc-value">${e.max_hr > 0 ? e.max_hr+' bpm' : '-'}</span></div>
+        </div>
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🚴 Speed</span><span class="pc-value">${e.avg_speed} km/h</span></div>
+            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${e.avg_grade}%</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">Grade Max</span><span class="pc-value">${e.max_grade}%</span></div>
+        </div>
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h${e.avg_grade >= 4.5 ? ' '+e.vam_arrow+' '+e.diff_vam+' m/h' : ''}</span></div>
+            <div class="pc-metric"><span class="pc-label">VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>
+        </div>`;
+    if (e.avg_grade >= 4.5) {
+        html += `
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">W/kg Teor.</span><span class="pc-value">${e.wkg_teoric}</span></div>
+            <div class="pc-metric"><span class="pc-label">Diff W/kg</span><span class="pc-value">${signDwkg}${e.diff_wkg}</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">Err %</span><span class="pc-value">${signErr}${e.perc_err}%</span></div>
+        </div>`;
+    }
+    html += `</div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${e.kj} kJ</span></div>
+            <div class="pc-metric"><span class="pc-label">kJ &gt; CP</span><span class="pc-value">${e.kj_over_cp} kJ</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">💪 kJ/kg</span><span class="pc-value">${e.kj_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">kJ/kg &gt; CP</span><span class="pc-value">${e.kj_kg_over_cp}</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🔥 kJ/h/kg</span><span class="pc-value">${e.kj_h_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">kJ/h/kg &gt; CP</span><span class="pc-value">${e.kj_h_kg_over_cp}</span></div>
+        </div>
+    </div>`;
+    return html;
+}
+
+// ── Sprint card HTML — exact replica ────────────────────────────
+function buildSprintCard(s) {
+    const torqAvail = chartData.torque_available;
+    let html = `
+    <div class="pc-header">
+        <span>S#${s.rank}</span>
+        <span style="color:#000">${s.avg_power}W</span>
+    </div>
+    <div class="pc-row">
+        <div class="pc-metric"><span class="pc-label">⏱️ Duration</span><span class="pc-value">${s.duration}s</span></div>
+        <div class="pc-metric"><span class="pc-label">📏 Distance</span><span class="pc-value">${s.distance_tot} km</span></div>
+    </div>
+    <div class="pc-row">
+        <div class="pc-metric"><span class="pc-label">🏔️ Elevation</span><span class="pc-value">${s.elevation_gain} m</span></div>
+        <div class="pc-metric"><span class="pc-label">🕒 Start</span><span class="pc-value">${s.start_time}</span></div>
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">⚡ Avg Power</span><span class="pc-value">${s.avg_power}W</span></div>
+            <div class="pc-metric"><span class="pc-label">⚖️ W/kg</span><span class="pc-value">${s.avg_power_per_kg}</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">⚡ Max</span><span class="pc-value">${s.max_watt}W${s.rpm_at_max > 0 ? ' @ '+s.rpm_at_max+' rpm' : ''}</span></div>
+            <div class="pc-metric"><span class="pc-label">⚡ Min</span><span class="pc-value">${s.min_watt}W${s.rpm_at_min > 0 ? ' @ '+s.rpm_at_min+' rpm' : ''}</span></div>
+        </div>
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🌀 Avg Cad.</span><span class="pc-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
+            ${torqAvail ? `<div class="pc-metric"><span class="pc-label">⚙️ Avg Torque</span><span class="pc-value">${s.avg_torque > 0 ? s.avg_torque+' Nm' : '-'}</span></div>` : ''}
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🌀 Min/Max Cad.</span><span class="pc-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
+            ${torqAvail ? `<div class="pc-metric"><span class="pc-label">⚙️ Min/Max Torque</span><span class="pc-value">${s.min_torque > 0 ? s.min_torque : '-'} / ${s.max_torque > 0 ? s.max_torque : '-'} Nm</span></div>` : ''}
+        </div>
+        ${torqAvail && (s.torque_at_max > 0 || s.torque_at_min > 0) ? `
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">⚙️ @ Max Power</span><span class="pc-value">${s.torque_at_max > 0 ? s.torque_at_max+' Nm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">⚙️ @ Min Power</span><span class="pc-value">${s.torque_at_min > 0 ? s.torque_at_min+' Nm' : '-'}</span></div>
+        </div>` : ''}
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">❤️ HR Max</span><span class="pc-value">${s.max_hr > 0 ? s.max_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">❤️ HR Min</span><span class="pc-value">${s.min_hr > 0 ? s.min_hr+' bpm' : '-'}</span></div>
+        </div>
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">➡️ Speed Start</span><span class="pc-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">➡️ Speed End</span><span class="pc-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
+        </div>
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">📏 Grade Avg</span><span class="pc-value">${s.avg_grade}%</span></div>
+            <div class="pc-metric"><span class="pc-label">📏 Grade Max</span><span class="pc-value">${s.max_grade}%</span></div>
+        </div>
+    </div>
+    <div class="pc-section">
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${s.kj} kJ</span></div>
+            <div class="pc-metric"><span class="pc-label">kJ &gt; CP</span><span class="pc-value">${s.kj_over_cp} kJ</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">💪 kJ/kg</span><span class="pc-value">${s.kj_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">kJ/kg &gt; CP</span><span class="pc-value">${s.kj_kg_over_cp}</span></div>
+        </div>
+        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🔥 kJ/h/kg</span><span class="pc-value">${s.kj_h_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">kJ/h/kg &gt; CP</span><span class="pc-value">${s.kj_h_kg_over_cp}</span></div>
+        </div>
+    </div>`;
+    return html;
+}
+
+// ════════════════════════════════════════════════════════════════
+// TOOLTIP (hover) — same content as ECharts formatter
+// ════════════════════════════════════════════════════════════════
+function buildEffortTooltip(e) {
+    let html = `<strong>E#${e.id + 1}</strong> (Rank #${e.rank})<br/>`;
+    html += `⚡ ${e.avg_power} W | 5"🔺${e.best_5s_watt} W 🌀 ${e.avg_cadence} rpm<br/>`;
+    html += `⏱️ ${e.duration}s | 🕒 ${e.start_time} | ${e.ftp_pct}%<br/>`;
+    html += `⚖️ ${e.avg_power_per_kg} W/kg | 5"🔺${e.best_5s_watt_kg} W/kg<br/>`;
+    html += `🔀 ${e.avg_watts_first} W | ${e.avg_watts_second} W | ${e.watts_ratio}<br/>`;
+    if (e.avg_hr > 0) html += `❤️ ∅${e.avg_hr} bpm | 🔺${e.max_hr} bpm<br/>`;
+    html += `🚴‍♂️ ${e.avg_speed} km/h 📏 ∅ ${e.avg_grade}% | 🔺${e.max_grade}%<br/>`;
+    if (e.avg_grade >= 4.5) {
+        const sign = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
+        html += `🚵‍♂️ ${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h | ${Math.abs(e.diff_wkg).toFixed(2)} W/kg<br/>`;
+        html += `🧮 ${e.vam_teorico} m/h | ${e.wkg_teoric} W/kg | ${sign}${Math.abs(e.perc_err)}%<br/>`;
+    } else {
+        html += `🚵‍♂️ ${e.vam} m/h<br/>`;
+    }
+    html += `🔋 ${e.kj} kJ | ${e.kj_over_cp} kJ > CP<br/>`;
+    html += `💪 ${e.kj_kg} kJ/kg | ${e.kj_kg_over_cp} kJ/kg > CP<br/>`;
+    html += `🔥 ${e.kj_h_kg} kJ/h/kg | ${e.kj_h_kg_over_cp} kJ/h/kg > CP`;
+    return html;
+}
+
+function buildSprintTooltip(s) {
+    let html = `<strong>S#${s.rank}</strong><br/>`;
+    html += `#${s.rank}    ∅${s.avg_cadence} rpm | ∅${s.avg_torque} Nm | ${s.duration} s<br/>`;
+    html += `⚡ 🔺${s.max_watt} W at ${s.rpm_at_max} rpm @ ${s.torque_at_max} Nm<br/>`;
+    html += `⚡ 🔻${s.min_watt} W at ${s.rpm_at_min} rpm @ ${s.torque_at_min} Nm<br/>`;
+    html += `🌀 🔺${s.max_cadence} rpm | 🔻${s.min_cadence} rpm<br/>`;
+    html += `⚙️ 🔺${s.max_torque} Nm | 🔻${s.min_torque} Nm<br/>`;
+    html += `❤️ 🔻${s.min_hr} bpm |🔺${s.max_hr} bpm<br/>`;
+    if (s.v1 > 0 && s.v2 > 0) html += `➡️ ${s.v1} km/h | ${s.v2} km/h<br/>`;
+    html += `📏 ∅ ${s.avg_grade}% max. ${s.max_grade}%<br/>`;
+    html += `🕒 ${s.start_time}<br/>`;
+    html += `🔋 ${s.kj} kJ | ${s.kj_over_cp} kJ > CP<br/>`;
+    html += `🔥 ${s.kj_h_kg} kJ/h/kg | ${s.kj_h_kg_over_cp} kJ/h/kg > CP`;
+    return html;
+}
+
+function showTooltip(ev, html) {
+    tooltip.innerHTML = html;
+    tooltip.style.display = 'block';
+    moveTooltip(ev);
+}
+function moveTooltip(ev) {
+    const r = chartEl.getBoundingClientRect();
+    let tx = ev.clientX - r.left + 14;
+    let ty = ev.clientY - r.top - 10;
+    if (tx + 290 > W) tx -= 310;
+    if (ty + 200 > H) ty -= 210;
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top  = ty + 'px';
+}
+function hideTooltip() { tooltip.style.display = 'none'; }
+
+// ── Elevation crosshair + tooltip ────────────────────────────────
+const bisect = d3.bisector(d => d.dist).left;
+
+overlay
+    .on('mousemove', function(ev) {
+        if (activeId) return;
+        const [mx] = d3.pointer(ev);
+        const xz = getXZ();
+        const distVal = xz.invert(mx);
+        const idx = bisect(chartData.elevation_data, distVal, 1);
+        const d0 = chartData.elevation_data[idx - 1];
+        const d1 = chartData.elevation_data[idx] || d0;
+        const pt = distVal - d0.dist > d1.dist - distVal ? d1 : d0;
+
+        crossV.attr('x1', mx).attr('x2', mx).style('display', null);
+        crossH.attr('y1', yScale(pt.alt)).attr('y2', yScale(pt.alt)).style('display', null);
+
+        showTooltip(ev, `📏 ${pt.dist} km<br/>🏔️ ${pt.alt} m<br/>⏱️ ${pt.time}`);
+    })
+    .on('mouseleave', function() {
+        crossV.style('display','none');
+        crossH.style('display','none');
+        hideTooltip();
+    })
+    .on('click', function() {
+        if (activeId) {
+            activeId = null;
+            popupCard.style.display = 'none';
+            clearHighlight();
+            renderAnnotations(getXZ());
+        }
+    });
+
+// ════════════════════════════════════════════════════════════════
+// HIGHLIGHT
+// ════════════════════════════════════════════════════════════════
+function highlightId(id) {
+    d3.selectAll('.effort-seg, .sprint-seg').classed('dimmed', true).classed('highlighted', false);
+    d3.selectAll(`[data-id="${id}"]`).classed('dimmed', false).classed('highlighted', true);
+
+    document.querySelectorAll('.effort-card, .sprint-card').forEach(c => c.classList.remove('highlighted'));
+    const sc = document.querySelector(`.effort-card[data-sid="${id}"], .sprint-card[data-sid="${id}"]`);
+    if (sc) { sc.classList.add('highlighted'); sc.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+}
+function clearHighlight() {
+    d3.selectAll('.effort-seg, .sprint-seg').classed('dimmed', false).classed('highlighted', false);
+    document.querySelectorAll('.effort-card, .sprint-card').forEach(c => c.classList.remove('highlighted'));
+}
+
+// ════════════════════════════════════════════════════════════════
+// ZOOM
+// ════════════════════════════════════════════════════════════════
+const zoom = d3.zoom()
+    .scaleExtent([1, 50])
+    .translateExtent([[0, 0], [innerW, innerH]])
+    .extent([[0, 0], [innerW, innerH]])
+    .on('zoom', function(ev) {
+        currentZoom = ev.transform;
+        const xz = getXZ();
+        renderAxes(xz);
+        renderElevation(xz);
+        renderSegments(xz);
+        renderAnnotations(xz);
+    });
+
+svg.call(zoom);
+
+// ════════════════════════════════════════════════════════════════
+// SIDEBAR — exact same HTML structure as ECharts version
+// ════════════════════════════════════════════════════════════════
+function buildSidebar() {
+    // Config section
+    document.getElementById('config-section').innerHTML = `
+        <strong>Configuration</strong><br/>
+        FTP: ${chartData.ftp}W | Weight: ${chartData.weight}kg<br/>
+        Efforts: WIN ${chartData.config.window_sec}s | MRG ${chartData.config.merge_pct}% | MIN ${chartData.config.min_ftp_pct}%<br/>
+        Sprints: WIN ${chartData.config.sprint_window_sec}s | MIN ${chartData.config.min_sprint_power}W<br/>
+        <strong>Y-axis:</strong> ${yMin}m - ${yMax}m (range: ${yMax - yMin}m)
+    `;
+
+    // Efforts
+    const effortsList = document.getElementById('efforts-list');
+    chartData.efforts.forEach((effort, idx) => {
+        const id = `e-${effort.id}`;
+        const card = document.createElement('div');
+        card.className = 'effort-card';
+        card.style.borderLeftColor = effort.color;
+        card.dataset.sid = id;
+
+        card.addEventListener('mouseenter', () => { card.classList.add('highlighted'); highlightId(id); });
+        card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (!activeId) clearHighlight(); });
+        card.addEventListener('click',      () => togglePin(id, effort, 'effort'));
+
+        const signErr  = effort.perc_err > 0 ? '+' : '';
+        const signDwkg = effort.diff_wkg > 0 ? '+' : '';
+
+        card.innerHTML = `
+            <div class="card-header">
+                <span>E#${effort.id + 1}</span>
+                <span style="color:${effort.color}">${effort.avg_power}W (${effort.ftp_pct}%)</span>
+            </div>
+            <div class="card-row">
+                <div class="card-metric"><span class="metric-label">🕒 Start</span><span class="metric-value">${effort.start_time}</span></div>
+                <div class="card-metric"><span class="metric-label">⏱️ Duration</span><span class="metric-value">${effort.duration}s</span></div>
+            </div>
+            <div class="card-row">
+                <div class="card-metric"><span class="metric-label">📏 Distance</span><span class="metric-value">${effort.distance_tot} km</span></div>
+                <div class="card-metric"><span class="metric-label">🏔️ Elevation</span><span class="metric-value">${effort.elevation_gain} m</span></div>
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">⚡ Avg Power</span><span class="metric-value">${effort.avg_power}W</span></div>
+                    <div class="card-metric"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${effort.avg_power_per_kg}</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">5" Peak</span><span class="metric-value">${effort.best_5s_watt}W</span></div>
+                    <div class="card-metric"><span class="metric-label">5" W/kg</span><span class="metric-value">${effort.best_5s_watt_kg}</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">🌀 Cadence</span><span class="metric-value">${effort.avg_cadence} rpm</span></div>
+                    <div class="card-metric"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${effort.avg_watts_first}/${effort.avg_watts_second}</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">Ratio</span><span class="metric-value">${effort.watts_ratio}</span></div>
+                </div>
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">❤️ HR Avg</span><span class="metric-value">${effort.avg_hr > 0 ? effort.avg_hr+' bpm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label">❤️ HR Max</span><span class="metric-value">${effort.max_hr > 0 ? effort.max_hr+' bpm' : '-'}</span></div>
+                </div>
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">🚴 Speed</span><span class="metric-value">${effort.avg_speed} km/h</span></div>
+                    <div class="card-metric"><span class="metric-label">📏 Grade</span><span class="metric-value">${effort.avg_grade}%</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">Grade Max</span><span class="metric-value">${effort.max_grade}%</span></div>
+                </div>
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">🚵 VAM</span><span class="metric-value">${effort.vam} m/h${effort.avg_grade >= 4.5 ? ' '+effort.vam_arrow+' '+effort.diff_vam+' m/h' : ''}</span></div>
+                    <div class="card-metric"><span class="metric-label">VAM Teor.</span><span class="metric-value">${effort.vam_teorico} m/h</span></div>
+                </div>
+                ${effort.avg_grade >= 4.5 ? `
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">W/kg Teor.</span><span class="metric-value">${effort.wkg_teoric}</span></div>
+                    <div class="card-metric"><span class="metric-label">Diff W/kg</span><span class="metric-value">${signDwkg}${effort.diff_wkg}</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">Err %</span><span class="metric-value">${signErr}${effort.perc_err}%</span></div>
+                </div>` : ''}
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${effort.kj} kJ</span></div>
+                    <div class="card-metric"><span class="metric-label">kJ > CP</span><span class="metric-value">${effort.kj_over_cp} kJ</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${effort.kj_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label">kJ/kg > CP</span><span class="metric-value">${effort.kj_kg_over_cp}</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${effort.kj_h_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label">kJ/h/kg > CP</span><span class="metric-value">${effort.kj_h_kg_over_cp}</span></div>
+                </div>
+            </div>`;
+        effortsList.appendChild(card);
+    });
+
+    // Sprints
+    const sprintsList = document.getElementById('sprints-list');
+    chartData.sprints.forEach((sprint, idx) => {
+        const id = `s-${idx}`;
+        const torqAvail = chartData.torque_available;
+        const card = document.createElement('div');
+        card.className = 'sprint-card';
+        card.style.borderLeftColor = '#000000';
+        card.dataset.sid = id;
+
+        card.addEventListener('mouseenter', () => { card.classList.add('highlighted'); highlightId(id); });
+        card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (!activeId) clearHighlight(); });
+        card.addEventListener('click',      () => togglePin(id, sprint, 'sprint'));
+
+        card.innerHTML = `
+            <div class="card-header">
+                <span>S#${sprint.rank}</span>
+                <span style="color:#000000">${sprint.avg_power}W</span>
+            </div>
+            <div class="card-row">
+                <div class="card-metric"><span class="metric-label">⏱️ Duration</span><span class="metric-value">${sprint.duration}s</span></div>
+                <div class="card-metric"><span class="metric-label">📏 Distance</span><span class="metric-value">${sprint.distance_tot} km</span></div>
+            </div>
+            <div class="card-row">
+                <div class="card-metric"><span class="metric-label">🏔️ Elevation</span><span class="metric-value">${sprint.elevation_gain} m</span></div>
+                <div class="card-metric"><span class="metric-label">🕒 Start</span><span class="metric-value">${sprint.start_time}</span></div>
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">⚡ Avg Power</span><span class="metric-value">${sprint.avg_power}W</span></div>
+                    <div class="card-metric"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${sprint.avg_power_per_kg}</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">⚡ Max</span><span class="metric-value">${sprint.max_watt}W${sprint.rpm_at_max > 0 ? ' @ '+sprint.rpm_at_max+' rpm' : ''}</span></div>
+                    <div class="card-metric"><span class="metric-label">⚡ Min</span><span class="metric-value">${sprint.min_watt}W${sprint.rpm_at_min > 0 ? ' @ '+sprint.rpm_at_min+' rpm' : ''}</span></div>
+                </div>
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">🌀 Avg Cad.</span><span class="metric-value">${sprint.avg_cadence > 0 ? sprint.avg_cadence+' rpm' : '-'}</span></div>
+                    ${torqAvail ? `<div class="card-metric"><span class="metric-label">⚙️ Avg Torque</span><span class="metric-value">${sprint.avg_torque > 0 ? sprint.avg_torque+' Nm' : '-'}</span></div>` : ''}
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">🌀 Min/Max Cad.</span><span class="metric-value">${sprint.min_cadence > 0 ? sprint.min_cadence : '-'} / ${sprint.max_cadence > 0 ? sprint.max_cadence : '-'} rpm</span></div>
+                    ${torqAvail ? `<div class="card-metric"><span class="metric-label">⚙️ Min/Max Torque</span><span class="metric-value">${sprint.min_torque > 0 ? sprint.min_torque : '-'} / ${sprint.max_torque > 0 ? sprint.max_torque : '-'} Nm</span></div>` : ''}
+                </div>
+                ${torqAvail && (sprint.torque_at_max > 0 || sprint.torque_at_min > 0) ? `
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">⚙️ @ Max Power</span><span class="metric-value">${sprint.torque_at_max > 0 ? sprint.torque_at_max+' Nm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label">⚙️ @ Min Power</span><span class="metric-value">${sprint.torque_at_min > 0 ? sprint.torque_at_min+' Nm' : '-'}</span></div>
+                </div>` : ''}
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">❤️ HR Max</span><span class="metric-value">${sprint.max_hr > 0 ? sprint.max_hr+' bpm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label">❤️ HR Min</span><span class="metric-value">${sprint.min_hr > 0 ? sprint.min_hr+' bpm' : '-'}</span></div>
+                </div>
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">➡️ Speed Start</span><span class="metric-value">${sprint.v1 > 0 ? sprint.v1+' km/h' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label">➡️ Speed End</span><span class="metric-value">${sprint.v2 > 0 ? sprint.v2+' km/h' : '-'}</span></div>
+                </div>
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">📏 Grade Avg</span><span class="metric-value">${sprint.avg_grade}%</span></div>
+                    <div class="card-metric"><span class="metric-label">📏 Grade Max</span><span class="metric-value">${sprint.max_grade}%</span></div>
+                </div>
+            </div>
+            <div class="card-divider">
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${sprint.kj} kJ</span></div>
+                    <div class="card-metric"><span class="metric-label">kJ > CP</span><span class="metric-value">${sprint.kj_over_cp} kJ</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${sprint.kj_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label">kJ/kg > CP</span><span class="metric-value">${sprint.kj_kg_over_cp}</span></div>
+                </div>
+                <div class="card-row">
+                    <div class="card-metric"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${sprint.kj_h_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label">kJ/h/kg > CP</span><span class="metric-value">${sprint.kj_h_kg_over_cp}</span></div>
+                </div>
+            </div>`;
+        sprintsList.appendChild(card);
+    });
+}
+
+// ════════════════════════════════════════════════════════════════
+// INIT + RESIZE
+// ════════════════════════════════════════════════════════════════
+function fullRender() {
+    const xz = getXZ();
+    renderAxes(xz);
+    renderElevation(xz);
+    renderSegments(xz);
+    renderAnnotations(xz);
+}
+
+buildSidebar();
+fullRender();
+
+window.addEventListener('resize', function() {
+    updateDims();
+    svg.attr('width', W).attr('height', H);
+    xScale.range([0, innerW]);
+    defs.select('#chartClip rect').attr('width', innerW).attr('height', innerH + ANN_SPACE + 5);
+    xAxisG.attr('transform', `translate(0,${innerH})`);
+    g.select('.axis-name[transform]').attr('x', -innerH/2);
+    g.select('.axis-name:not([transform])').attr('x', innerW/2).attr('y', innerH+42);
+    crossV.attr('y2', innerH);
+    crossH.attr('x2', innerW);
+    overlay.attr('width', innerW).attr('height', innerH);
+    zoom.translateExtent([[0,0],[innerW,innerH]]).extent([[0,0],[innerW,innerH]]);
+    fullRender();
+    if (popupCard.style.display !== 'none') positionPopup();
+});
+</script>
+{% endraw %}
+</body>
+</html>

@@ -27,6 +27,9 @@ from routes.altimetria import (
 from routes.altimetria_echarts import (
     router as altimetria_echarts_router, setup_altimetria_echarts_router
 )
+from routes.altimetria_d3 import (
+    router as altimetria_d3_router, setup_altimetria_d3_router
+)
 from routes.map3d import router as map3d_router, setup_map3d_router
 from routes.api import router as api_router, setup_api_router
 
@@ -62,6 +65,7 @@ setup_dashboard_router(sessions)
 setup_inspection_router(sessions)
 setup_altimetria_router(sessions)
 setup_altimetria_echarts_router(sessions)
+setup_altimetria_d3_router(sessions)
 setup_map3d_router(sessions)
 setup_api_router(sessions)
 
@@ -74,6 +78,7 @@ app.include_router(dashboard_router, tags=["dashboard"])
 app.include_router(inspection_router, tags=["inspection"])
 app.include_router(altimetria_router, tags=["altimetria"])
 app.include_router(altimetria_echarts_router, tags=["altimetria-echarts"])
+app.include_router(altimetria_d3_router, tags=["altimetria-d3"])
 app.include_router(map3d_router, tags=["map3d"])
 app.include_router(api_router, tags=["api"])
 
