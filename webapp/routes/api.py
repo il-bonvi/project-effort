@@ -1287,4 +1287,82 @@ async def export_modifications(session_id: str):
     return data
 
 
+@router.get("/export/{session_id}/html-report")
+async def export_html_report(session_id: str):
+    """
+    Export a fully standalone interactive HTML report identical to the Altimetria D3 tab.
+    All data is embedded in the file — no server needed to view it.
+    """
+    if session_id not in _shared_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = _shared_sessions[session_id]
+
+    try:
+        # Import here to avoid circular imports
+        from routes.altimetria_d3 import prepare_chart_data, convert_to_python_types
+
+        chart_data = prepare_chart_data(session)
+        chart_data = convert_to_python_types(chart_data)
+        chart_data_json = json.dumps(chart_data)
+
+        filename = session.get('filename', 'Activity')
+
+        # Read the template file
+        template_path = Path(__file__).resolve().parent.parent / "templates" / "altimetria_d3.html"
+        template_content = template_path.read_text(encoding='utf-8')
+
+        # Replace Jinja2 template variables with actual values
+        template_content = template_content.replace('{{ filename }}', filename)
+        template_content = template_content.replace('{{ chart_data_json | safe }}', chart_data_json)
+
+        # Remove the storage listener block (not needed in standalone export)
+        import re
+        storage_block = re.search(
+            r'<script>\s*// ── storage listener.*?</script>',
+            template_content,
+            re.DOTALL
+        )
+        if storage_block:
+            template_content = template_content.replace(storage_block.group(0), '')
+
+        # Remove Jinja2 {% raw %} / {% endraw %} tags
+        template_content = template_content.replace('{% raw %}', '')
+        template_content = template_content.replace('{% endraw %}', '')
+
+        # Add a small header banner to indicate this is an exported report
+        export_banner = f"""
+<div id="export-banner" style="
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    color: #94a3b8; font-size: 11px; padding: 4px 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    border-bottom: 1px solid #334155;
+">
+    <span>🚴 <strong style="color:#60a5fa">PEFFORT Report</strong> — {filename}</span>
+    <span style="color:#475569">Exported interactive report · bFactor</span>
+</div>
+<style>
+    #container {{ margin-top: 28px; height: calc(100vh - 28px) !important; }}
+    html, body {{ overflow: hidden; }}
+</style>
+"""
+        # Insert banner right after <body>
+        template_content = template_content.replace('<body>', '<body>' + export_banner, 1)
+
+        safe_name = filename.replace('.fit', '').replace(' ', '_')
+        return StreamingResponse(
+            BytesIO(template_content.encode('utf-8')),
+            media_type="text/html",
+            headers={
+                "Content-Disposition": f'attachment; filename="peffort_report_{safe_name}.html"'
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error generating HTML report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
+
+
 __all__ = ['router', 'setup_api_router', 'redetect_efforts_impl', 'redetect_sprints_impl', 'import_modifications', 'export_modifications']

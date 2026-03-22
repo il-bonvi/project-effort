@@ -692,6 +692,15 @@
                             <p>Tabular data export for analysis in Excel/Sheets</p>
                             <button class="btn btn-success" onclick="exportCsv()">Download CSV</button>
                         </div>
+
+                        <div class="export-card" style="border: 2px solid #7c3aed; background: linear-gradient(135deg, #f5f3ff, #ede9fe);">
+                            <h3 style="color: #5b21b6;">📊 Report Interattivo HTML</h3>
+                            <p style="color: #6d28d9;">File HTML standalone con grafici D3.js interattivi, tutti gli effort e sprint con metriche complete. Apribile da chiunque, nessun server richiesto.</p>
+                            <button class="btn btn-success" onclick="exportHtmlReport()" id="exportHtmlBtn" style="background: linear-gradient(135deg, #7c3aed, #6d28d9); width: 100%;">
+                                ⬇️ Download Report HTML
+                            </button>
+                            <div id="htmlExportStatus" style="margin-top: 8px; font-size: 11px; text-align: center; min-height: 16px;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -869,6 +878,44 @@
         function exportJson() { window.location.href = `/export/${sessionId}/json`; }
         function exportGpx() { window.location.href = `/export/${sessionId}/gpx`; }
         function exportCsv() { window.location.href = `/export/${sessionId}/csv`; }
+
+        async function exportHtmlReport() {
+            const btn = document.getElementById('exportHtmlBtn');
+            const status = document.getElementById('htmlExportStatus');
+            btn.disabled = true;
+            btn.textContent = '⏳ Generazione report...';
+            status.textContent = '';
+            status.style.color = '#6b7280';
+            try {
+                const response = await fetch(`/api/export/${sessionId}/html-report`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // Get filename from Content-Disposition header if available
+                const cd = response.headers.get('Content-Disposition') || '';
+                const match = cd.match(/filename="?([^"]+)"?/);
+                a.download = match ? match[1] : 'peffort_report.html';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                btn.textContent = '✅ Report scaricato!';
+                status.textContent = 'Apri il file .html in qualsiasi browser.';
+                status.style.color = '#22c55e';
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = '⬇️ Download Report HTML';
+                    status.textContent = '';
+                }, 4000);
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = '⬇️ Download Report HTML';
+                status.textContent = `❌ Errore: ${err.message}`;
+                status.style.color = '#ef4444';
+            }
+        }
 
         let map3dLoaded = false;
         let isFullscreen = false;
