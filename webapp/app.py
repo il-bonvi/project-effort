@@ -104,7 +104,7 @@ logger.info(
 @app.on_event("startup")
 async def startup_event():
     """Called when application starts"""
-    logger.info("PEFFORT Web app started on http://localhost:8000")
+    logger.info("PEFFORT Web app started on http://localhost:8001")
 
 
 @app.on_event("shutdown")

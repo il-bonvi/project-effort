@@ -57,7 +57,7 @@ async def map3d_view(session_id: str):
     df = session['df']
     efforts = session['efforts']
     sprints = session['sprints']
-    cp = session.get('cp', session.get('ftp', 280))
+    cp = session.get('cp', session.get('ftp', 250))
     weight = session['weight']
 
     # Check for GPS data availability

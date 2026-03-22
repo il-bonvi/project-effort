@@ -101,8 +101,8 @@ class AnalysisConfig:
     def from_dict(config_dict: dict) -> 'AnalysisConfig':
         """Factory method per creare config da dizionario"""
         athlete = AthleteProfile(
-            cp=config_dict.get('cp', config_dict.get('ftp', 280)),
-            weight=config_dict.get('weight', 70),
+            cp=config_dict.get('cp', config_dict.get('ftp', 250)),
+            weight=config_dict.get('weight', 60),
             crank_length=config_dict.get('crank_length', 0) / 1000 if config_dict.get('crank_length', 0) > 0 else 0  # Convert mm to meters
         )
         effort_config = EffortConfig(

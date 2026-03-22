@@ -999,7 +999,7 @@
                     const wattCell = document.createElement('td');
                     const wattDisplay = document.createElement('span');
                     wattDisplay.className = 'watt-display';
-                    const cpValue = parseInt(document.getElementById('cpInput').value) || 280;
+                    const cpValue = parseInt(document.getElementById('cpInput').value) || 250;
                     const minWatt = Math.round((zone.min / 100) * cpValue);
                     if (zone.max === 999) {
                         wattDisplay.textContent = minWatt + 'W+';

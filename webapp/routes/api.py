@@ -129,7 +129,7 @@ async def get_session_data(session_id: str):
         session = _shared_sessions[session_id]
         df = session.get('df')
         efforts = session.get('efforts', [])
-        cp = session.get('cp', 280)
+        cp = session.get('cp', 250)
 
         if df is None or df.empty:
             raise HTTPException(status_code=400, detail="No FIT data available")
@@ -178,7 +178,10 @@ async def get_session_status(session_id: str):
         "total_records": len(session['df']),
         "total_efforts": len(session['efforts']),
         "total_sprints": len(session.get('sprints', [])),
-        "cp": session.get('cp', 280),
+        "cp": session.get('cp', 250),
+        "weight": session.get('weight', 60)
+    }
+
 
 class UpdateCpWeightRequest(BaseModel):
     cp: int
@@ -602,7 +605,7 @@ async def redetect_efforts_impl(
 
     session = _shared_sessions[session_id]
     df = session['df']
-    cp = session.get('cp', 280)
+    cp = session.get('cp', 250)
 
     try:
         efforts = create_efforts(
@@ -950,7 +953,7 @@ async def export_json_data(session_id: str):
         "session_info": {
             "session_id": session_id,
             "filename": session['filename'],
-            "cp": session.get('cp', 280),
+            "cp": session.get('cp', 250),
             "weight": session['weight']
         },
         "ride_statistics": session.get('stats', {}),

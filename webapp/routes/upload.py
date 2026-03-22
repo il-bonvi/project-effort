@@ -49,8 +49,8 @@ def setup_upload_router(sessions_dict: Dict[str, Any]):
 @router.post("/upload")
 async def upload_fit(
     file: UploadFile = File(...),
-    cp: float = Form(280),
-    weight: float = Form(70),
+    cp: float = Form(250),
+    weight: float = Form(60),
     window_sec: int = Form(60),
     min_cp_pct: float = Form(100),
     merge_pct: float = Form(15),
