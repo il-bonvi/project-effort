@@ -123,7 +123,7 @@ def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
                 vam = elevation_gain / (duration / 3600) if duration > 0 else 0
 
                 w_kg = avg / weight if weight > 0 else 0
-                perc_ftp = (avg / cp * 100) if cp > 0 else 0
+                perc_cp = (avg / cp * 100) if cp > 0 else 0
 
                 valid_hr = seg_hr[seg_hr > 0]
                 hr_str = f"{int(valid_hr.mean())}" if len(valid_hr) > 0 else "-"
@@ -153,7 +153,7 @@ def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
                         <td>{duration}s</td>
                         <td class="right"><b>{avg:.0f} W</b></td>
                         <td class="right">{w_kg:.2f}</td>
-                        <td class="right">{perc_ftp:.0f}%</td>
+                        <td class="right">{perc_cp:.0f}%</td>
                         <td class="right">{best_5s_watt:.0f} W</td>
                         <td class="right">{hr_str}</td>
                         <td class="right">{vam:.0f}</td>
