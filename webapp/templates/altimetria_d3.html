@@ -1487,7 +1487,9 @@ function openStreamModal(elemId, dataId, type) {
         timeStream: data.time_stream,
         powerStream: data.power_stream,
         hrStream: data.hr_stream,
-        wkgStream: data.wkg_stream
+        wkgStream: data.wkg_stream,
+        cadenceStream: data.cadence_stream || null,
+        torqueStream: data.torque_stream || null,
     };
     
     // Update modal title
@@ -1507,6 +1509,10 @@ function openStreamModal(elemId, dataId, type) {
     
     modal.classList.add('active');
     overlay.classList.add('active');
+
+    // Show avg controls only for efforts, hide for sprints
+    const ctrlPanel = document.getElementById('streamControlPanel');
+    if (ctrlPanel) ctrlPanel.style.display = (type === 'sprint') ? 'none' : '';
     
     // Delay to let CSS animation register
     setTimeout(() => {
@@ -1567,6 +1573,11 @@ function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
 function buildStreamChartsD3() {
     if (!streamModalData) return;
 
+    if (streamModalData.type === 'sprint') {
+        buildSprintStreamCharts();
+        return;
+    }
+
     const ftp   = chartData.ftp;
     const zones = getIntensityZones();
     const timeS = streamModalData.timeStream;
@@ -1598,8 +1609,8 @@ function buildStreamChartsD3() {
 
     const panelDefs = [
         { title: 'Raw Power',                      vals: powS,  showHR: true  },
-        { title: `${avg30sSeconds}s Avg Power`,     vals: avg30, showHR: false },
-        { title: `${avg60sSeconds}s Avg Power`,     vals: avg60, showHR: false },
+        { title: `Avg ${avg30sSeconds}s`,           vals: avg30, showHR: false },
+        { title: `Avg ${avg60sSeconds}s`,           vals: avg60, showHR: false },
     ];
 
     let curDomain = [0, maxT];
@@ -1713,39 +1724,71 @@ function buildStreamChartsD3() {
                 .filter(d => d.t >= domain[0] && d.t <= domain[1]);
             if (pts.length < 2) return;
 
-            // Light area fill
-            dg.append('path').datum(pts)
-                .attr('fill','#3b82f6').attr('opacity',0.06)
-                .attr('d', d3.area().x(d=>xS(d.t)).y0(panelH).y1(d=>yS(d.p)).curve(d3.curveMonotoneX));
+            // ── Zone-filled area approach ─────────────────────────────
+            // Strategy: draw full area from bottom to curve, then per-zone
+            // colored strips clipped to each zone's Y band, then white mask above curve
 
-            // Base grey line (fills gaps between zones)
-            dg.append('path').datum(pts)
-                .attr('fill','none').attr('stroke','#d1d5db').attr('stroke-width',1.5)
-                .attr('d', d3.line().x(d=>xS(d.t)).y(d=>yS(d.p)).curve(d3.curveMonotoneX));
+            const svgDefs = d3.select(dg.node().closest('svg')).select('defs');
 
-            // Zone-colored lines on top
-            zones.forEach(z => {
+            // 1. Full area from baseline to curve — provides the base shape
+            const fullAreaPath = d3.area()
+                .x(d=>xS(d.t)).y0(panelH).y1(d=>yS(d.p)).curve(d3.curveMonotoneX)(pts);
+
+            // 2. Per-zone colored rectangles clipped to the area shape
+            //    Clip the curve shape itself, then overlay zone color bands
+            const curveClipId = `curve-clip-${pi}-${Math.round(domain[0]*100)}`;
+            svgDefs.selectAll(`#${curveClipId}`).remove();
+            const curveClip = svgDefs.append('clipPath').attr('id', curveClipId);
+            curveClip.append('path').attr('d', fullAreaPath);
+
+            // Draw colored zone bands (horizontal strips) clipped to the curve area
+            zones.forEach((z, zi) => {
                 const minW = (z.min/100)*ftp;
-                const maxW = z.max===999 ? Infinity : (z.max/100)*ftp;
-                const zPts = pts.map(d => ({
-                    t: d.t,
-                    p: (d.p >= minW && (maxW===Infinity || d.p < maxW)) ? d.p : null
-                }));
-                dg.append('path').datum(zPts)
-                    .attr('fill','none').attr('stroke', z.color).attr('stroke-width', 2.2)
-                    .attr('stroke-linejoin','round')
-                    .attr('d', d3.line().x(d=>xS(d.t)).y(d=>yS(d.p))
-                        .defined(d=>d.p!==null).curve(d3.curveMonotoneX));
+                const maxW = z.max===999 ? maxP*1.5 : (z.max/100)*ftp;
+                dg.append('rect')
+                    .attr('x', 0).attr('width', innerW)
+                    .attr('y', yS(maxW))
+                    .attr('height', Math.max(0, yS(minW) - yS(maxW)))
+                    .attr('fill', z.color)
+                    .attr('opacity', 0.82)
+                    .attr('clip-path', `url(#${curveClipId})`);
             });
 
-            // HR line (panel 0 only)
+            // 3. White mask above the curve (so zone bands don't show above line)
+            dg.append('path').datum(pts)
+                .attr('fill', 'white')
+                .attr('d', d3.area()
+                    .x(d=>xS(d.t)).y0(-2).y1(d=>yS(d.p)).curve(d3.curveMonotoneX));
+
+            // 4. Colored outline on top of curve
+            const segG = dg.append('g');
+            for (let i = 0; i < pts.length - 1; i++) {
+                const d0 = pts[i], d1 = pts[i+1];
+                segG.append('line')
+                    .attr('x1', xS(d0.t)).attr('y1', yS(d0.p))
+                    .attr('x2', xS(d1.t)).attr('y2', yS(d1.p))
+                    .attr('stroke', zoneColor((d0.p + d1.p) / 2))
+                    .attr('stroke-width', 0)
+                    .attr('stroke-linecap', 'round');
+            }
+
+            // 5. HR line (panel 0 only) — drawn LAST so it's on top
             if (pi===0 && hrS && hrYS) {
                 const hrPts = timeS.map((t,i)=>({t,h:hrS[i]}))
                     .filter(d=>d.t>=domain[0]&&d.t<=domain[1]&&d.h>0);
                 if (hrPts.length>1) {
                     dg.append('path').datum(hrPts)
-                        .attr('fill','none').attr('stroke','#ef4444')
-                        .attr('stroke-width',1.8).attr('opacity',0.8)
+                        .attr('fill','none')
+                        .attr('stroke','#1e3a5f')   // dark navy — visible over all zone colors
+                        .attr('stroke-width', 2.2)
+                        .attr('opacity', 1)
+                        .attr('d', d3.line().x(d=>xS(d.t)).y(d=>hrYS(d.h)).curve(d3.curveMonotoneX));
+                    // Second pass: lighter blue stroke for visibility
+                    dg.append('path').datum(hrPts)
+                        .attr('fill','none')
+                        .attr('stroke','#60a5fa')   // bright blue overlay
+                        .attr('stroke-width', 1.2)
+                        .attr('opacity', 1)
                         .attr('d', d3.line().x(d=>xS(d.t)).y(d=>hrYS(d.h)).curve(d3.curveMonotoneX));
                 }
             }
@@ -1792,14 +1835,16 @@ function buildStreamChartsD3() {
             const m=Math.floor(ts/60),s=Math.round(ts%60);
             const tStr=m>0?`${m}m${s}s`:`${Math.round(ts)}s`;
             const zc=zoneColor(powS[ci]);
-            let html=`<strong>${tStr}</strong><br/>`;
-            html+=`<span style="color:${zc}">⚡ ${Math.round(powS[ci])}W</span>`;
-            html+=` &nbsp;<span style="color:#8b5cf6">∅${avg30sSeconds}s ${Math.round(avg30[ci])}W</span>`;
-            if (hrS && hrS[ci]>0) html+=`<br/>❤️ ${Math.round(hrS[ci])} bpm`;
+            // Fixed white/light colors for all values — always readable on dark bg
+            let html=`<span style="color:#f9fafb;font-weight:700">${tStr}</span><br/>`;
+            html+=`<span style="color:#fbbf24">⚡ ${Math.round(powS[ci])}W</span>`;
+            html+=` <span style="color:#a78bfa"> ∅${avg30sSeconds}s ${Math.round(avg30[ci])}W</span>`;
+            html+=` <span style="color:#6ee7b7"> ∅${avg60sSeconds}s ${Math.round(avg60[ci])}W</span>`;
+            if (hrS && hrS[ci]>0) html+=`<br/><span style="color:#fca5a5">❤️ ${Math.round(hrS[ci])} bpm</span>`;
             ttEl.innerHTML=html;
             ttEl.style.display='block';
             let lx=ML+mx+14;
-            if (lx+200 > W-MR) lx=ML+mx-210;
+            if (lx+240 > W-MR) lx=ML+mx-250;
             ttEl.style.left=lx+'px';
             ttEl.style.top=Math.max(4, MT+20)+'px';
         })
@@ -1834,6 +1879,280 @@ function buildStreamChartsD3() {
     brushG.selectAll('.handle').attr('fill','#3b82f6').attr('rx',2);
     brushG.append('text').attr('x',0).attr('y',BRUSH_H+10)
         .attr('fill','#9ca3af').attr('font-size',8.5).text('Trascina per zoom · doppio click per reset');
+}
+
+
+// ── Sprint stream chart: 2 panels — Power | Cadence+Torque dual-axis ────
+function buildSprintStreamCharts() {
+    const timeS = streamModalData.timeStream;
+    const powS  = streamModalData.powerStream;
+    const cadS  = streamModalData.cadenceStream;
+    const torS  = streamModalData.torqueStream;
+
+    const container = document.getElementById('streamUnifiedChart');
+    if (!container) return;
+    container.innerHTML = '';
+    container.style.position = 'relative';
+
+    const W = container.offsetWidth  || 900;
+    const H = container.offsetHeight || 560;
+    const ML=64, MR=64, MT=14, MB=48;
+    const BRUSH_H=28, GAP=14;
+    const innerW = W - ML - MR;
+    // 2 equal panels
+    const panelH = Math.floor((H - MT - MB - BRUSH_H - GAP*3) / 2);
+    const maxT   = d3.max(timeS);
+    const maxP   = d3.max(powS) * 1.12;
+
+    const validCad = cadS ? cadS.filter(v=>v&&v>0) : [];
+    const validTor = torS ? torS.filter(v=>v&&v>0) : [];
+    const maxCad   = validCad.length ? d3.max(validCad)*1.1 : 200;
+    const maxTor   = validTor.length ? d3.max(validTor)*1.1 : 50;
+    const minCad   = validCad.length ? d3.min(validCad)*0.92 : 0;
+    const minTor   = validTor.length ? d3.min(validTor)*0.92 : 0;
+
+    let curDomain = [0, maxT];
+
+    const svg = d3.select(container).append('svg')
+        .attr('width', W).attr('height', H)
+        .style('font-family','-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif');
+
+    const defs = svg.append('defs');
+
+    // Gradient for power area
+    const powGrad = defs.append('linearGradient').attr('id','sp-pow-grad')
+        .attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    powGrad.append('stop').attr('offset','0%').attr('stop-color','#3b82f6').attr('stop-opacity',0.35);
+    powGrad.append('stop').attr('offset','100%').attr('stop-color','#3b82f6').attr('stop-opacity',0.02);
+
+    // Gradient for cadence area
+    const cadGrad = defs.append('linearGradient').attr('id','sp-cad-grad')
+        .attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    cadGrad.append('stop').attr('offset','0%').attr('stop-color','#10b981').attr('stop-opacity',0.25);
+    cadGrad.append('stop').attr('offset','100%').attr('stop-color','#10b981').attr('stop-opacity',0.02);
+
+    defs.append('clipPath').attr('id','sp-clip2')
+        .append('rect').attr('width',innerW+2).attr('height',panelH+4).attr('x',-1).attr('y',-2);
+
+    const root = svg.append('g').attr('transform',`translate(${ML},${MT})`);
+    const xFull = d3.scaleLinear().domain([0,maxT]).range([0,innerW]);
+
+    // ── Scales ───────────────────────────────────────────────────
+    const yPow = d3.scaleLinear().domain([0, maxP]).range([panelH, 0]);
+    const yCad = d3.scaleLinear().domain([minCad, maxCad]).range([panelH, 0]);
+    const yTor = validTor.length ? d3.scaleLinear().domain([minTor, maxTor]).range([panelH, 0]) : null;
+
+    // ── Panel 0: Power ───────────────────────────────────────────
+    const pg0 = root.append('g');
+
+    // Shadow
+    pg0.append('rect').attr('width',innerW).attr('height',panelH)
+        .attr('rx',6).attr('fill','#1e3a5f').attr('opacity',0.04)
+        .attr('transform','translate(2,2)');
+    pg0.append('rect').attr('width',innerW).attr('height',panelH)
+        .attr('rx',6).attr('fill','#f8faff').attr('stroke','#e2e8f0').attr('stroke-width',1);
+
+    // Grid
+    yPow.ticks(5).forEach(t => {
+        pg0.append('line').attr('x1',0).attr('x2',innerW)
+            .attr('y1',yPow(t)).attr('y2',yPow(t))
+            .attr('stroke','#e2e8f0').attr('stroke-width',0.8);
+    });
+
+    // Y axis
+    const yAx0 = pg0.append('g').call(d3.axisLeft(yPow).ticks(5).tickFormat(d=>d).tickSize(0));
+    yAx0.select('.domain').attr('stroke','#cbd5e1');
+    yAx0.selectAll('text').attr('fill','#64748b').attr('font-size',9).attr('x',-5);
+    pg0.append('text').attr('transform','rotate(-90)').attr('x',-panelH/2).attr('y',-50)
+        .attr('text-anchor','middle').attr('fill','#3b82f6').attr('font-size',10).attr('font-weight',600).text('W');
+
+    // Title badge
+    pg0.append('rect').attr('x',8).attr('y',6).attr('width',68).attr('height',18)
+        .attr('rx',4).attr('fill','#3b82f6').attr('opacity',0.12);
+    pg0.append('text').attr('x',42).attr('y',19).attr('text-anchor','middle')
+        .attr('fill','#1d4ed8').attr('font-size',10).attr('font-weight',700).text('Power (W)');
+
+    // Data group
+    const dg0 = pg0.append('g').attr('clip-path','url(#sp-clip2)');
+
+    // Crosshair
+    const cv0 = pg0.append('line').attr('y1',0).attr('y2',panelH)
+        .attr('stroke','#94a3b8').attr('stroke-width',1).attr('stroke-dasharray','4,2').style('display','none');
+    const cd0 = pg0.append('circle').attr('r',4)
+        .attr('fill','#3b82f6').attr('stroke','white').attr('stroke-width',2).style('display','none');
+
+    // ── Panel 1: Cadence + Torque dual axis ──────────────────────
+    const ty1 = panelH + GAP;
+    const pg1 = root.append('g').attr('transform',`translate(0,${ty1})`);
+
+    pg1.append('rect').attr('width',innerW).attr('height',panelH)
+        .attr('rx',6).attr('fill','#f8faff').attr('stroke','#e2e8f0').attr('stroke-width',1).attr('opacity',0.04)
+        .attr('transform','translate(2,2)');
+    pg1.append('rect').attr('width',innerW).attr('height',panelH)
+        .attr('rx',6).attr('fill','#f8faff').attr('stroke','#e2e8f0').attr('stroke-width',1);
+
+    // Grid (cadence scale)
+    yCad.ticks(5).forEach(t => {
+        pg1.append('line').attr('x1',0).attr('x2',innerW)
+            .attr('y1',yCad(t)).attr('y2',yCad(t))
+            .attr('stroke','#e2e8f0').attr('stroke-width',0.8);
+    });
+
+    // Left axis: cadence
+    const yAx1L = pg1.append('g').call(d3.axisLeft(yCad).ticks(5).tickFormat(d=>d).tickSize(0));
+    yAx1L.select('.domain').attr('stroke','#cbd5e1');
+    yAx1L.selectAll('text').attr('fill','#10b981').attr('font-size',9).attr('x',-5);
+    pg1.append('text').attr('transform','rotate(-90)').attr('x',-panelH/2).attr('y',-50)
+        .attr('text-anchor','middle').attr('fill','#10b981').attr('font-size',10).attr('font-weight',600).text('rpm');
+
+    // Right axis: torque
+    if (yTor) {
+        const yAx1R = pg1.append('g').attr('transform',`translate(${innerW},0)`)
+            .call(d3.axisRight(yTor).ticks(5).tickFormat(d=>d).tickSize(0));
+        yAx1R.select('.domain').attr('stroke','#cbd5e1');
+        yAx1R.selectAll('text').attr('fill','#f59e0b').attr('font-size',9).attr('x',5);
+        pg1.append('text').attr('transform','rotate(90)').attr('x',panelH/2).attr('y',-innerW-50)
+            .attr('text-anchor','middle').attr('fill','#f59e0b').attr('font-size',10).attr('font-weight',600).text('Nm');
+    }
+
+    // Title badge
+    const badgeW = yTor ? 148 : 88;
+    pg1.append('rect').attr('x',8).attr('y',6).attr('width',badgeW).attr('height',18)
+        .attr('rx',4).attr('fill','#10b981').attr('opacity',0.12);
+    pg1.append('text').attr('x',8+badgeW/2).attr('y',19).attr('text-anchor','middle')
+        .attr('fill','#059669').attr('font-size',10).attr('font-weight',700)
+        .text(yTor ? 'Cadence (rpm)  ·  Torque (Nm)' : 'Cadence (rpm)');
+
+    const dg1 = pg1.append('g').attr('clip-path','url(#sp-clip2)');
+
+    const cv1 = pg1.append('line').attr('y1',0).attr('y2',panelH)
+        .attr('stroke','#94a3b8').attr('stroke-width',1).attr('stroke-dasharray','4,2').style('display','none');
+    const cd1cad = pg1.append('circle').attr('r',4)
+        .attr('fill','#10b981').attr('stroke','white').attr('stroke-width',2).style('display','none');
+    const cd1tor = yTor ? pg1.append('circle').attr('r',4)
+        .attr('fill','#f59e0b').attr('stroke','white').attr('stroke-width',2).style('display','none') : null;
+
+    // ── Draw function ─────────────────────────────────────────────
+    function drawAll(domain) {
+        const xS = d3.scaleLinear().domain(domain).range([0,innerW]);
+
+        // Power panel
+        dg0.selectAll('*').remove();
+        const powPts = timeS.map((t,i)=>({t,p:powS[i]})).filter(d=>d.t>=domain[0]&&d.t<=domain[1]);
+        if (powPts.length>1) {
+            dg0.append('path').datum(powPts)
+                .attr('fill','url(#sp-pow-grad)')
+                .attr('d', d3.area().x(d=>xS(d.t)).y0(panelH).y1(d=>yPow(d.p)).curve(d3.curveMonotoneX));
+            dg0.append('path').datum(powPts)
+                .attr('fill','none').attr('stroke','#3b82f6').attr('stroke-width',2)
+                .attr('d', d3.line().x(d=>xS(d.t)).y(d=>yPow(d.p)).curve(d3.curveMonotoneX));
+        }
+
+        // Cadence + Torque panel
+        dg1.selectAll('*').remove();
+        if (cadS) {
+            const cadPts = timeS.map((t,i)=>({t,p:cadS[i]})).filter(d=>d.t>=domain[0]&&d.t<=domain[1]&&d.p>0);
+            if (cadPts.length>1) {
+                dg1.append('path').datum(cadPts)
+                    .attr('fill','url(#sp-cad-grad)')
+                    .attr('d', d3.area().x(d=>xS(d.t)).y0(panelH).y1(d=>yCad(d.p)).curve(d3.curveMonotoneX));
+                dg1.append('path').datum(cadPts)
+                    .attr('fill','none').attr('stroke','#10b981').attr('stroke-width',2)
+                    .attr('d', d3.line().x(d=>xS(d.t)).y(d=>yCad(d.p)).curve(d3.curveMonotoneX));
+            }
+        }
+        if (torS && yTor) {
+            const torPts = timeS.map((t,i)=>({t,p:torS[i]})).filter(d=>d.t>=domain[0]&&d.t<=domain[1]&&d.p>0);
+            if (torPts.length>1) {
+                dg1.append('path').datum(torPts)
+                    .attr('fill','none').attr('stroke','#f59e0b').attr('stroke-width',2.2)
+                    .attr('stroke-dasharray','6,3')
+                    .attr('d', d3.line().x(d=>xS(d.t)).y(d=>yTor(d.p)).curve(d3.curveMonotoneX));
+            }
+        }
+    }
+    drawAll(curDomain);
+
+    // ── X axis ────────────────────────────────────────────────────
+    const xAxG = root.append('g').attr('transform',`translate(0,${ty1+panelH})`);
+    function updateXAxis(dom) {
+        xAxG.call(d3.axisBottom(d3.scaleLinear().domain(dom).range([0,innerW])).ticks(8)
+            .tickFormat(d=>{ const m=Math.floor(d/60),s=Math.round(d%60); return m>0?`${m}m${s}s`:`${Math.round(d)}s`; }).tickSize(3));
+        xAxG.select('.domain').attr('stroke','#cbd5e1');
+        xAxG.selectAll('line').attr('stroke','#cbd5e1');
+        xAxG.selectAll('text').attr('fill','#64748b').attr('font-size',9);
+    }
+    updateXAxis(curDomain);
+
+    // ── Tooltip ───────────────────────────────────────────────────
+    const ttEl = document.createElement('div');
+    ttEl.style.cssText = 'position:absolute;pointer-events:none;display:none;z-index:999;'+
+        'background:rgba(15,23,42,0.96);color:#fff;border-radius:8px;padding:9px 13px;'+
+        'font-size:11.5px;line-height:1.8;white-space:nowrap;'+
+        'box-shadow:0 8px 24px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);';
+    container.appendChild(ttEl);
+
+    const totalPH = ty1 + panelH;
+    root.append('rect').attr('width',innerW).attr('height',totalPH)
+        .attr('fill','transparent').style('cursor','crosshair')
+        .on('mousemove', function(ev) {
+            const [mx,my] = d3.pointer(ev);
+            const xS = d3.scaleLinear().domain(curDomain).range([0,innerW]);
+            const t  = xS.invert(mx);
+            let ci=0, md=Infinity;
+            timeS.forEach((ts,i)=>{ const d=Math.abs(ts-t); if(d<md){md=d;ci=i;} });
+
+            // Power crosshair
+            cv0.style('display',null).attr('x1',mx).attr('x2',mx);
+            cd0.style('display',null).attr('cx',mx).attr('cy',yPow(powS[ci]||0));
+            // Cad/tor crosshair
+            if (my > ty1) {
+                cv1.style('display',null).attr('x1',mx).attr('x2',mx);
+                if (cadS && cadS[ci]>0) cd1cad.style('display',null).attr('cx',mx).attr('cy',yCad(cadS[ci]));
+                if (cd1tor && torS && torS[ci]>0) cd1tor.style('display',null).attr('cx',mx).attr('cy',yTor(torS[ci]));
+            } else {
+                cv1.style('display','none'); cd1cad.style('display','none');
+                if (cd1tor) cd1tor.style('display','none');
+            }
+
+            const ts=timeS[ci];
+            const m=Math.floor(ts/60),s=Math.round(ts%60);
+            const tStr=m>0?`${m}m${s}s`:`${Math.round(ts)}s`;
+            let html=`<span style="color:#e2e8f0;font-weight:700;font-size:12px">${tStr}</span><br/>`;
+            html+=`<span style="color:#93c5fd">⚡ ${Math.round(powS[ci]||0)} W</span>`;
+            if (cadS && cadS[ci]>0) html+=`  <span style="color:#6ee7b7">🌀 ${Math.round(cadS[ci])} rpm</span>`;
+            if (torS && torS[ci]>0) html+=`<br/><span style="color:#fcd34d">⚙️ ${Math.round(torS[ci])} Nm</span>`;
+            ttEl.innerHTML=html;
+            ttEl.style.display='block';
+            let lx=ML+mx+16; if(lx+220>W-MR) lx=ML+mx-230;
+            ttEl.style.left=lx+'px';
+            ttEl.style.top=Math.max(8,MT+my-50)+'px';
+        })
+        .on('mouseleave', function() {
+            [cv0,cv1,cd0,cd1cad].forEach(c=>c&&c.style('display','none'));
+            if (cd1tor) cd1tor.style('display','none');
+            ttEl.style.display='none';
+        });
+
+    // ── Brush ─────────────────────────────────────────────────────
+    const brushY = MT + totalPH + GAP + 2;
+    const brushG = svg.append('g').attr('transform',`translate(${ML},${brushY})`);
+    const ovYS = d3.scaleLinear().domain([0,maxP]).range([BRUSH_H-2,0]);
+    brushG.append('rect').attr('width',innerW).attr('height',BRUSH_H).attr('fill','#f1f5f9').attr('rx',4);
+    brushG.append('path').datum(timeS.map((t,i)=>({t,p:powS[i]})))
+        .attr('fill','#93c5fd').attr('opacity',0.45)
+        .attr('d', d3.area().x(d=>xFull(d.t)).y0(BRUSH_H-2).y1(d=>ovYS(d.p)).curve(d3.curveMonotoneX));
+    const brush = d3.brushX().extent([[0,0],[innerW,BRUSH_H]])
+        .on('brush end', function(ev) {
+            curDomain = ev.selection ? ev.selection.map(xFull.invert) : [0,maxT];
+            drawAll(curDomain); updateXAxis(curDomain);
+        });
+    brushG.call(brush);
+    brushG.selectAll('.selection').attr('fill','rgba(59,130,246,0.15)').attr('stroke','#3b82f6').attr('stroke-width',1);
+    brushG.selectAll('.handle').attr('fill','#3b82f6').attr('rx',2);
+    brushG.append('text').attr('x',innerW/2).attr('y',BRUSH_H+12)
+        .attr('text-anchor','middle').attr('fill','#94a3b8').attr('font-size',8.5)
+        .text('Trascina per zoom · doppio click per reset');
 }
 
 
@@ -1882,6 +2201,23 @@ function initializeModalListeners() {
         });
     }
 
+    // Mouse wheel on sliders: ±1s per notch
+    function addWheelToSlider(slider, valueEl, varSetter) {
+        if (!slider) return;
+        slider.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 1 : -1;
+            const newVal = Math.min(parseInt(slider.max), Math.max(parseInt(slider.min), parseInt(slider.value) + delta));
+            slider.value = newVal;
+            if (valueEl) valueEl.textContent = newVal + 's';
+            varSetter(newVal);
+            localStorage.setItem(slider.id === 'avg30sStreamSlider' ? 'stream_avg30s' : 'stream_avg60s', newVal);
+            debouncedRebuild();
+        }, { passive: false });
+    }
+    addWheelToSlider(avg30sSlider, avg30sValue, v => { avg30sSeconds = v; });
+    addWheelToSlider(avg60sSlider, avg60sValue, v => { avg60sSeconds = v; });
+
     // Prevent modal close when clicking on modal content
     modal.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -1910,14 +2246,14 @@ window.addEventListener('storage', function(e) {
         <h2 id="streamModalTitle">Stream Zoom</h2>
         <button class="stream-modal-close" id="streamModalCloseBtn">✕</button>
     </div>
-    <div class="stream-control-panel">
+    <div class="stream-control-panel" id="streamControlPanel">
         <div class="stream-control-group">
-            <label for="avg30sStreamSlider">30s Avg:</label>
+            <label for="avg30sStreamSlider">Avg 1:</label>
             <input type="range" id="avg30sStreamSlider" min="5" max="120" value="30">
             <span class="value-display" id="avg30sStreamValue">30s</span>
         </div>
         <div class="stream-control-group">
-            <label for="avg60sStreamSlider">60s Avg:</label>
+            <label for="avg60sStreamSlider">Avg 2:</label>
             <input type="range" id="avg60sStreamSlider" min="10" max="240" value="60">
             <span class="value-display" id="avg60sStreamValue">60s</span>
         </div>

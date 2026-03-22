@@ -110,6 +110,10 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             joules_cumulative[i] = joules_cumulative[i-1]
             joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
     
+    # Initialize torque and cadence settings (used for both efforts and sprints)
+    cadence_min_rpm = 20
+    torque_available = 'torque' in df.columns
+    
     # Process efforts
     efforts_data = []
     efforts_with_idx = [(i, eff) for i, eff in enumerate(efforts)]
@@ -179,6 +183,20 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         hr_stream = [float(h) if h > 0 else None for h in seg_hr]
         wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power]
         
+        # Cadence and torque streams (for consistency with sprints)
+        cadence_min_rpm = 20
+        seg_cadence_clean = np.where(seg_cadence >= cadence_min_rpm, seg_cadence, 0)
+        cadence_stream = [float(c) if c >= cadence_min_rpm else None for c in seg_cadence]
+        
+        # Torque calculation (if not in DataFrame)
+        if torque_available:
+            seg_torque = df["torque"].values[s:e]
+        else:
+            seg_torque = np.zeros_like(seg_power)
+            valid_torque_idx = (seg_cadence_clean > 0) & (seg_power > 0)
+            seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence_clean[valid_torque_idx])
+        torque_stream = [float(t) if t > 0 else None for t in seg_torque]
+        
         effort_info = {
             'id': orig_idx,
             'rank': rank_idx + 1,
@@ -221,7 +239,9 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'time_stream': time_stream,
             'power_stream': power_stream,
             'hr_stream': hr_stream,
-            'wkg_stream': wkg_stream
+            'wkg_stream': wkg_stream,
+            'cadence_stream': cadence_stream,
+            'torque_stream': torque_stream
         }
         
         efforts_data.append(effort_info)
@@ -229,8 +249,6 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     # Process sprints
     sprints_data = []
     sorted_sprints = sorted(enumerate(sprints), key=lambda x: x[1]['avg'], reverse=True)
-    cadence_min_rpm = 20
-    torque_available = 'torque' in df.columns
     
     for rank_idx, (orig_idx, sprint) in enumerate(sorted_sprints):
         start = sprint['start']
@@ -314,6 +332,8 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         power_stream = [float(p) for p in seg_power]
         hr_stream = [float(h) if h > 0 else None for h in seg_hr]
         wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power]
+        cadence_stream = [float(c) if c >= cadence_min_rpm else None for c in seg_cadence]
+        torque_stream = [float(t) if t > 0 else None for t in seg_torque]
         
         sprint_info = {
             'id': orig_idx,
@@ -355,7 +375,9 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'time_stream': time_stream,
             'power_stream': power_stream,
             'hr_stream': hr_stream,
-            'wkg_stream': wkg_stream
+            'wkg_stream': wkg_stream,
+            'cadence_stream': cadence_stream,
+            'torque_stream': torque_stream
         }
         
         sprints_data.append(sprint_info)
