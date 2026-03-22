@@ -775,7 +775,7 @@ function expandPopup(id, obj, type) {
     const chartW = document.getElementById('chart').offsetWidth;
     const chartH = document.getElementById('chart').offsetHeight;
     let finalLeft = pill_cx - CARD_W / 2;
-    finalLeft = Math.max(4, Math.min(finalLeft, chartW - SIDEBAR_W - CARD_W - 4));
+    finalLeft = Math.max(4, Math.min(finalLeft, chartW - CARD_W - 4));
     // Always place at very top of chart div — maximize space, minimize overlap
     let finalTop = MARGIN.top + 4;
     // If card is taller than available space, allow scrolling down but keep near top
