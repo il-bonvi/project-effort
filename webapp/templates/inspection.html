@@ -134,7 +134,7 @@
             text-align: center;
             border: 2px solid #e5e7eb;
         }
-        .ftp-panel {
+        .cp-panel {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -145,17 +145,17 @@
             border-radius: 8px;
             border: 2px solid #bfdbfe;
         }
-        .ftp-control {
+        .cp-control {
             display: flex;
             align-items: center;
             gap: 10px;
         }
-        .ftp-control label {
+        .cp-control label {
             font-size: 13px;
             font-weight: bold;
             color: #1e40af;
         }
-        .ftp-control input {
+        .cp-control input {
             width: 80px;
             padding: 6px 8px;
             border: 2px solid #bfdbfe;
@@ -579,9 +579,9 @@
         <div style="padding: 15px; background: linear-gradient(135deg, #eff6ff, #f0f9ff); border-bottom: 1px solid #bfdbfe;">
             <div style="display: flex; align-items: center; justify-content: center; gap: 30px; flex-wrap: wrap;">
                 <!-- CP Control -->
-                <div class="ftp-control">
-                    <label for="ftpInput">CP:</label>
-                    <input type="number" id="ftpInput" value="{{ ftp | int }}" min="50" max="500" step="5">
+                <div class="cp-control">
+                    <label for="cpInput">CP:</label>
+                    <input type="number" id="cpInput" value="{{ cp | int }}" min="50" max="500" step="5">
                     <span style="font-size: 12px; color: #1e40af; font-weight: bold;">W</span>
                 </div>
                 
@@ -708,7 +708,7 @@
             // eslint-disable-next-line
             const sprintsData = {{ sprints_data_json | safe }};
             // eslint-disable-next-line
-            let ftp = {{ ftp_json | safe }};
+            let cp = {{ cp_json | safe }};
 
             const samplingRate = timeAxis.length > 1 ? 1 / (timeAxis[1] - timeAxis[0]) : 1;
             let avg30sSeconds = 30;
@@ -749,8 +749,8 @@
 
             // Helper to build per-zone series with colored curve
             function makeZoneSeries(dataCoords, gridIdx, axisIdx, zone) {
-                const minW = Math.round((zone.min / 100) * ftp);
-                const maxW = zone.max === 999 ? Infinity : Math.round((zone.max / 100) * ftp);
+                const minW = Math.round((zone.min / 100) * cp);
+                const maxW = zone.max === 999 ? Infinity : Math.round((zone.max / 100) * cp);
 
                 // Linear interpolation helper
                 function interpCross(x0, y0, x1, y1, target) {
@@ -995,16 +995,16 @@
                     minCell.appendChild(minInput);
                     row.appendChild(minCell);
 
-                    // Watt display cell (range from FTP)
+                    // Watt display cell (range from CP)
                     const wattCell = document.createElement('td');
                     const wattDisplay = document.createElement('span');
                     wattDisplay.className = 'watt-display';
-                    const ftpValue = parseInt(document.getElementById('ftpInput').value) || 280;
-                    const minWatt = Math.round((zone.min / 100) * ftpValue);
+                    const cpValue = parseInt(document.getElementById('cpInput').value) || 280;
+                    const minWatt = Math.round((zone.min / 100) * cpValue);
                     if (zone.max === 999) {
                         wattDisplay.textContent = minWatt + 'W+';
                     } else {
-                        const maxWatt = Math.round((zone.max / 100) * ftpValue);
+                        const maxWatt = Math.round((zone.max / 100) * cpValue);
                         wattDisplay.textContent = minWatt + ' - ' + maxWatt + 'W';
                     }
                     wattCell.appendChild(wattDisplay);
@@ -1109,18 +1109,18 @@
             updateWattDisplays();
             saveLocalZones();
 
-            // Function to update watt displays when FTP changes
+            // Function to update watt displays when CP changes
             function updateWattDisplays() {
-                const ftpValue = parseInt(document.getElementById('ftpInput').value) || 280;
+                const cpValue = parseInt(document.getElementById('cpInput').value) || 280;
                 const wattDisplays = document.querySelectorAll('.watt-display');
                 wattDisplays.forEach((display, idx) => {
                     const zone = localZones[idx];
                     if (zone) {
-                        const minWatt = Math.round((zone.min / 100) * ftpValue);
+                        const minWatt = Math.round((zone.min / 100) * cpValue);
                         if (zone.max === 999) {
                             display.textContent = minWatt + 'W+';
                         } else {
-                            const maxWatt = Math.round((zone.max / 100) * ftpValue);
+                            const maxWatt = Math.round((zone.max / 100) * cpValue);
                             display.textContent = minWatt + ' - ' + maxWatt + 'W';
                         }
                     }
@@ -1158,7 +1158,7 @@
                             
                             let result = '<div style="font-weight: bold; margin-bottom: 5px;">' + timeStr + '</div>';
                             
-                            // Find the power value from any series (excluding FTP)
+                            // Find the power value from any series (excluding CP)
                             let powerValue = null;
                             for (const param of params) {
                                 if (param.value[1] !== null && param.value[1] !== undefined && param.seriesName !== 'CP') {
@@ -1168,8 +1168,8 @@
                             }
                             
                             if (powerValue !== null) {
-                                // Determine the zone based on power relative to FTP
-                                const powerPercent = (powerValue / ftp) * 100;
+                                // Determine the zone based on power relative to CP
+                                const powerPercent = (powerValue / cp) * 100;
                                 let zoneColor = '#3b82f6'; // Default to main power color if no zone matches
                                 for (const zone of localZones) {
                                     if (powerPercent >= zone.min && (zone.max === 999 || powerPercent < zone.max)) {
@@ -1266,8 +1266,8 @@
                     // Add horizontal zone bands for all three grids (lightweight markArea)
                     // Each zone becomes one markArea series per grid so we can apply per-zone color
                     localZones.forEach((zone) => {
-                        const minW = Math.round((zone.min / 100) * ftp);
-                        const maxW = zone.max === 999 ? Math.ceil(maxPower * 1.05) : Math.round((zone.max / 100) * ftp);
+                        const minW = Math.round((zone.min / 100) * cp);
+                        const maxW = zone.max === 999 ? Math.ceil(maxPower * 1.05) : Math.round((zone.max / 100) * cp);
                         for (let gridIdx = 0; gridIdx < 3; gridIdx++) {
                             option.series.push({
                                 name: zone.name + '_band',
@@ -1353,10 +1353,10 @@
                     }
                 });
 
-                const ftpLineData = timeAxis.map((t, i) => [t, ftp]);
+                const cpLineData = timeAxis.map((t, i) => [t, cp]);
                 for (let i = 0; i < 3; i++) {
                     option.series.push({
-                        name: 'CP', type: 'line', xAxisIndex: i, yAxisIndex: i, data: ftpLineData,
+                        name: 'CP', type: 'line', xAxisIndex: i, yAxisIndex: i, data: cpLineData,
                         lineStyle: { color: '#4b5563', width: 1, type: 'dashed' },
                         smooth: false, z: 999, symbol: 'none', animation: false
                     });
@@ -1441,7 +1441,7 @@
             const avg30sValue = document.getElementById('avg30sValue');
             const avg60sInput = document.getElementById('avg60sSeconds');
             const avg60sValue = document.getElementById('avg60sValue');
-            const ftpInput = document.getElementById('ftpInput');
+            const cpInput = document.getElementById('cpInput');
             const zoneColorToggle = document.getElementById('zoneColorToggle');
             const zoneOpacityInput = document.getElementById('zoneOpacity');
             const zoneOpacityValue = document.getElementById('zoneOpacityValue');
@@ -1565,16 +1565,16 @@
                 rebuildChart();
             });
 
-            ftpInput.addEventListener('change', function() {
-                ftp = parseInt(this.value);
-                localStorage.setItem('inspection_cp', ftp);
+            cpInput.addEventListener('change', function() {
+                cp = parseInt(this.value);
+                localStorage.setItem('inspection_cp', cp);
                 rebuildChart();
                 updateWattDisplays();
             });
 
-            ftpInput.addEventListener('input', function() {
-                ftp = parseInt(this.value) || ftp;
-                localStorage.setItem('inspection_cp', ftp);
+            cpInput.addEventListener('input', function() {
+                cp = parseInt(this.value) || cp;
+                localStorage.setItem('inspection_cp', cp);
                 updateWattDisplays();
                 rebuildChart();
             });

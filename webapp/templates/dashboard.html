@@ -434,7 +434,7 @@
             <span><strong>File:</strong> {{ session.filename }}</span>
             <span><strong>Efforts:</strong> {{ session.efforts|length }}</span>
             <span><strong>Sprints:</strong> {{ session.sprints|length }}</span>
-            <span><strong>CP:</strong> {{ session.ftp | int }}W</span>
+            <span><strong>CP:</strong> {{ session.cp | int }}W</span>
             <span><strong>Weight:</strong> {{ session.weight }}kg</span>
             <span><strong>Session:</strong> {{ session_id }}</span>
         </div>
@@ -586,7 +586,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="cpValue">CP (W)</label>
-                                <input type="number" id="cpValue" value="{{ session.ftp | int }}" min="50" max="500" step="5">
+                                <input type="number" id="cpValue" value="{{ session.cp | int }}" min="50" max="500" step="5">
                             </div>
                             <div class="form-group">
                                 <label for="weightValue">Weight (kg)</label>
@@ -605,7 +605,7 @@
                             </div>
                             <div class="form-group">
                                 <label for="effortMinCpPct">Min CP (%)</label>
-                                <input type="number" id="effortMinCpPct" value="{{ session.effort_config.min_effort_intensity_ftp | default(100) | int }}" min="50" max="200">
+                                <input type="number" id="effortMinCpPct" value="{{ session.effort_config.min_effort_intensity_cp | default(100) | int }}" min="50" max="200">
                             </div>
                             <div class="form-group">
                                 <label for="effortMergePct">Merge Tolerance (%)</label>
@@ -769,12 +769,12 @@
         
         async function updateCpWeight() {
             const params = {
-                ftp: parseInt(document.getElementById('cpValue').value),
+                cp: parseInt(document.getElementById('cpValue').value),
                 weight: parseFloat(document.getElementById('weightValue').value)
             };
             
             try {
-                const response = await fetch(`/api/${sessionId}/update-ftp-weight`, {
+                const response = await fetch(`/api/${sessionId}/update-cp-weight`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(params)

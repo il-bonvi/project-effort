@@ -66,7 +66,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     df = session['df']
     efforts = session['efforts']
     sprints = session['sprints']
-    ftp = session['ftp']
+    cp = session['cp'] if 'cp' in session else session.get('ftp', 280)
     weight = session['weight']
     
     power = df["power"].values
@@ -78,12 +78,9 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     grade = df["grade"].values
     cadence = df["cadence"].values
     
-    # Sample data for performance (max 1000 points for base elevation)
-    step = max(1, len(dist_km) // 1000)
-    
     # Base elevation data
     elevation_data = []
-    for i in range(0, len(dist_km), step):
+    for i in range(len(dist_km)):
         t = time_sec[i]
         if t >= 3600:
             time_str = format_time_hhmmss(t)
@@ -102,7 +99,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         dt = time_sec[i] - time_sec[i-1]
         if dt > 0 and dt < 30:
             joules_cumulative[i] = joules_cumulative[i-1] + power[i] * dt
-            if power[i] >= ftp:
+            if power[i] >= cp:
                 joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1] + power[i] * dt
             else:
                 joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
@@ -130,7 +127,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         seg_cadence = cadence[s:e]
         
         avg_power = avg
-        color = get_zone_color(avg_power, ftp)
+        color = get_zone_color(avg_power, cp)
         
         duration = float(seg_time[-1] - seg_time[0] + 1)
         
@@ -245,7 +242,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'avg_power': round(avg_power, 0),
             'duration': int(duration),
             'start_time': format_time_hhmmss(time_sec[s]) if s < len(time_sec) else '',
-            'cp_pct': round((avg_power / ftp * 100), 0),
+            'cp_pct': round((avg_power / cp * 100), 0),
             'avg_power_per_kg': round(avg_power_per_kg, 2),
             'best_5s_watt': best_5s_watt,
             'best_5s_watt_kg': round(best_5s_watt_kg, 2),
@@ -484,7 +481,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     effort_config = session['effort_config']
     sprint_config = session['sprint_config']
     
-    # Standard intensity zones (% of FTP)
+    # Standard intensity zones (% of CP)
     # Intensity zones are defined and stored exclusively in the Inspection tab (localStorage).
     # The browser sends them at export time. We ship an empty list here as a safe placeholder —
     # the real zones always come from the client via the POST body.
@@ -494,14 +491,14 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         'elevation_data': elevation_data,
         'efforts': efforts_data,
         'sprints': sprints_data,
-        'cp': float(ftp),
+        'cp': float(cp),
         'weight': float(weight),
         'intensity_zones': intensity_zones,
         'torque_available': 'torque' in df.columns,
         'config': {
             'window_sec': float(effort_config.window_seconds),
             'merge_pct': float(effort_config.merge_power_diff_percent),
-            'min_cp_pct': float(effort_config.min_effort_intensity_ftp),
+            'min_cp_pct': float(effort_config.min_effort_intensity_cp),
             'sprint_window_sec': float(sprint_config.window_seconds),
             'min_sprint_power': float(sprint_config.min_power)
         }

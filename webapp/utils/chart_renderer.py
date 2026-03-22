@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]], 
                       sprints: List[Dict[str, Any]], img_base64_str: str, 
-                      ftp: float, weight: float, output_path: str, 
+                      cp: float, weight: float, output_path: str, 
                       params_str: str) -> bool:
     """
     Genera un file PDF contenente il grafico e le tabelle.
@@ -31,7 +31,7 @@ def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
         efforts: Lista efforts (start, end, avg_power)
         sprints: Lista sprints {start, end, avg}
         img_base64_str: Immagine grafico in base64
-        ftp: Functional Threshold Power
+        cp: Functional Threshold Power
         weight: Peso atleta
         output_path: Percorso output PDF
         params_str: Stringa parametri configurazione
@@ -85,7 +85,7 @@ def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
             <h1>Effort Analysis Report</h1>
             <div class="params">
                 {params_str} <br>
-                FTP: <b>{ftp:.0f} W</b> | Weight: <b>{weight:.1f} kg</b>
+                CP: <b>{cp:.0f} W</b> | Weight: <b>{weight:.1f} kg</b>
             </div>
             {img_html}
         """
@@ -98,7 +98,7 @@ def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
                 <thead>
                     <tr>
                         <th>ID</th><th>Start</th><th>Dur</th>
-                        <th class="right">Power</th><th class="right">W/kg</th><th class="right">%FTP</th>
+                        <th class="right">Power</th><th class="right">W/kg</th><th class="right">%CP</th>
                         <th class="right">Best 5s</th><th class="right">HR</th>
                         <th class="right">VAM</th><th class="right">Grade</th><th class="right">kJ</th>
                     </tr>
@@ -123,7 +123,7 @@ def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
                 vam = elevation_gain / (duration / 3600) if duration > 0 else 0
 
                 w_kg = avg / weight if weight > 0 else 0
-                perc_ftp = (avg / ftp * 100) if ftp > 0 else 0
+                perc_ftp = (avg / cp * 100) if cp > 0 else 0
 
                 valid_hr = seg_hr[seg_hr > 0]
                 hr_str = f"{int(valid_hr.mean())}" if len(valid_hr) > 0 else "-"
@@ -240,8 +240,8 @@ def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
 
 
 def plot_unified_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]], 
-                      sprints: List[Dict[str, Any]], ftp: float, weight: float,
-                      window_sec: int, merge_pct: float, min_ftp_pct: float, 
+                      sprints: List[Dict[str, Any]], cp: float, weight: float,
+                      window_sec: int, merge_pct: float, min_cp_pct: float, 
                       trim_win: int, trim_low: float, extend_win: int, extend_low: float,
                       sprint_window_sec: int, min_sprint_power: float) -> str:
     """
@@ -289,7 +289,7 @@ def plot_unified_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
         dt = time_sec[i] - time_sec[i-1]
         if dt > 0 and dt < 30:
             joules_cumulative[i] = joules_cumulative[i-1] + power[i] * dt
-            if power[i] >= ftp:
+            if power[i] >= cp:
                 joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1] + power[i] * dt
             else:
                 joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
@@ -316,7 +316,7 @@ def plot_unified_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
         seg_cadence = cadence[s:e]
         
         avg_power = avg
-        color = get_zone_color(avg_power, ftp)
+        color = get_zone_color(avg_power, cp)
         
         duration = seg_time[-1] - seg_time[0] + 1
         elevation_gain = seg_alt[-1] - seg_alt[0]
@@ -359,7 +359,7 @@ def plot_unified_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
         
         hover_lines = [
             f"⚡ {avg_power:.0f} W | 5\"🔺{best_5s_watt} W 🌀 {avg_cadence:.0f} rpm",
-            f"⏱️ {format_time_mmss(duration)} | 🕒 {format_time_hhmmss(seg_time[0])} | {(avg_power/ftp*100):.0f}%",
+            f"⏱️ {format_time_mmss(duration)} | 🕒 {format_time_hhmmss(seg_time[0])} | {(avg_power/cp*100):.0f}%",
             f"⚖️ {avg_power_per_kg:.2f} W/kg | 5\"🔺{best_5s_watt_kg:.2f} W/kg",
             f"🔀 {avg_watts_first:.0f} W | {avg_watts_second:.0f} W | {watts_ratio:.2f}",
         ]
@@ -497,7 +497,7 @@ def plot_unified_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
     
     config_title = (
         f"<b>UNIFIED ANALYSIS</b> | "
-        f"<span style='color:#000000'>EFFORTS: MRG [{merge_pct}%] WIN [{window_sec}s] MIN [{min_ftp_pct}%FTP]</span> | "
+        f"<span style='color:#000000'>EFFORTS: MRG [{merge_pct}%] WIN [{window_sec}s] MIN [{min_cp_pct}%CP]</span> | "
         f"<span style='color:#ff0000'>TRIM [{trim_win}s, {trim_low}%]</span> "
         f"<span style='color:#1901f5'>EXT [{extend_win}s, {extend_low}%]</span> | "
         f"<span style='color:#000000'>SPRINTS: WIN [{sprint_window_sec}s] MIN [{min_sprint_power:.0f}W]</span>"

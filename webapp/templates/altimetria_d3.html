@@ -1721,13 +1721,39 @@ function calculateMovingAverage(data, windowSize) {
 // ── Time-based moving average ────────────────────────────────────────────
 function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
     const result = [];
-    for (let i = 0; i < timeData.length; i++) {
-        const c = timeData[i], lo = c - windowSeconds/2, hi = c + windowSeconds/2;
-        let sum = 0, cnt = 0;
-        for (let j = 0; j < timeData.length; j++) {
-            if (timeData[j] >= lo && timeData[j] <= hi) { sum += powerData[j]; cnt++; }
+    const n = timeData.length;
+    if (n === 0) {
+        return result;
+    }
+
+    let left = 0;
+    let right = 0;
+    let sum = 0;
+
+    for (let i = 0; i < n; i++) {
+        const c = timeData[i];
+        const halfWindow = windowSeconds / 2;
+        const lo = c - halfWindow;
+        const hi = c + halfWindow;
+
+        // Move left pointer to first index within [lo, hi]
+        while (left < n && timeData[left] < lo) {
+            sum -= powerData[left];
+            left++;
         }
-        result.push(cnt ? sum/cnt : powerData[i]);
+
+        // Move right pointer to one past last index within [lo, hi]
+        while (right < n && timeData[right] <= hi) {
+            sum += powerData[right];
+            right++;
+        }
+
+        const count = right - left;
+        if (count > 0) {
+            result.push(sum / count);
+        } else {
+            result.push(powerData[i]);
+        }
     }
     return result;
 }
