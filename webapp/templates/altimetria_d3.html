@@ -1626,9 +1626,9 @@ function buildStreamChartsD3() {
     const W = container.offsetWidth  || 900;
     const H = container.offsetHeight || 560;
     const ML=60, MR=60, MT=10, MB=44;
-    const BRUSH_H=28, GAP=8;
+    const GAP=8;
     const innerW = W - ML - MR;
-    const panelH = Math.floor((H - MT - MB - BRUSH_H - GAP*4) / 3);
+    const panelH = Math.floor((H - MT - MB - GAP*4) / 3);
     const maxT   = d3.max(timeS);
     const maxP   = d3.max(powS) * 1.1;
 
@@ -1687,49 +1687,12 @@ function buildStreamChartsD3() {
         panel._yS = yS;
         yScales.push(yS);
 
-        // Background rect
+        // Background rect — white
         pg.append('rect').attr('width',innerW).attr('height',panelH)
-            .attr('fill','#fafafa').attr('rx',3)
+            .attr('fill','#ffffff').attr('rx',3)
             .attr('stroke','#e5e7eb').attr('stroke-width',0.5);
 
-        // Buffer zone visualization (before effort starts)
-        if (streamModalData.effortStartIdx > 0) {
-            const bufferStartX = xFull(0);
-            const bufferEndX = xFull(effortStartTime);
-            pg.append('rect')
-                .attr('x', bufferStartX).attr('width', Math.max(0, bufferEndX - bufferStartX))
-                .attr('height', panelH)
-                .attr('fill', '#d1d5db').attr('opacity', 0.2)
-                .attr('class', 'buffer-before');
-        }
-        
-        // Buffer zone visualization (after effort ends)
-        if (streamModalData.effortEndIdx < timeS.length) {
-            const bufferStartX = xFull(effortEndTime);
-            const bufferEndX = xFull(maxT);
-            pg.append('rect')
-                .attr('x', bufferStartX).attr('width', Math.max(0, bufferEndX - bufferStartX))
-                .attr('height', panelH)
-                .attr('fill', '#d1d5db').attr('opacity', 0.2)
-                .attr('class', 'buffer-after');
-        }
 
-        // Zone background bands
-        zones.forEach(z => {
-            const minW = (z.min/100)*cp;
-            const maxW = z.max===999 ? panelMax : (z.max/100)*cp;
-            pg.append('rect').attr('class','zone-band').attr('x',0).attr('width',innerW)
-                .attr('y', yS(maxW)).attr('height', Math.max(0, yS(minW)-yS(maxW)))
-                .attr('fill', z.color).attr('opacity', 0.11);
-        });
-
-        // Y grid lines
-        const gridG = pg.append('g');
-        yS.ticks(4).forEach(t => {
-            gridG.append('line').attr('x1',0).attr('x2',innerW)
-                .attr('y1',yS(t)).attr('y2',yS(t))
-                .attr('stroke','#e5e7eb').attr('stroke-width',0.8);
-        });
 
         // Y axis left
         const yAx = pg.append('g').attr('class','y-ax-panel');
@@ -1798,12 +1761,7 @@ function buildStreamChartsD3() {
             yS.domain([0, visMax]);
             if (panel._redrawYAx) panel._redrawYAx(yS);
             const pg = pg_refs[pi];
-            pg.selectAll('.zone-band').each(function(_, zi) {
-                const z = zones[zi]; if (!z) return;
-                const minW = (z.min/100)*cp;
-                const maxW = z.max===999 ? visMax : (z.max/100)*cp;
-                d3.select(this).attr('y', yS(maxW)).attr('height', Math.max(0, yS(minW)-yS(maxW)));
-            });
+
             pg.select('line.cp-line').attr('y1',yS(cp)).attr('y2',yS(cp));
             pg.select('text.cp-label').attr('y',yS(cp)-3);
 
@@ -1842,6 +1800,25 @@ function buildStreamChartsD3() {
                 .attr('fill', 'white')
                 .attr('d', d3.area()
                     .x(d=>xS(d.t)).y0(-2).y1(d=>yS(d.p)).curve(d3.curveMonotoneX));
+
+            // 3b. Grid lines drawn on top of white mask — visible as faint reference lines
+            // Horizontal every 100W
+            d3.range(0, visMax + 100, 100).forEach(w => {
+                const yy = yS(w);
+                if (yy < 0 || yy > panelH) return;
+                dg.append('line')
+                    .attr('x1', 0).attr('x2', innerW)
+                    .attr('y1', yy).attr('y2', yy)
+                    .attr('stroke', '#94a3b8').attr('stroke-width', 0.5).attr('opacity', 0.35);
+            });
+            // Vertical every 60s
+            const minStep = Math.ceil(domain[0] / 60) * 60;
+            for (let t60 = minStep; t60 <= domain[1]; t60 += 60) {
+                dg.append('line')
+                    .attr('x1', xS(t60)).attr('x2', xS(t60))
+                    .attr('y1', 0).attr('y2', panelH)
+                    .attr('stroke', '#94a3b8').attr('stroke-width', 0.5).attr('opacity', 0.35);
+            }
 
             // 4. Colored outline on top of curve
             const segG = dg.append('g');
@@ -1937,32 +1914,8 @@ function buildStreamChartsD3() {
             ttEl.style.display='none';
         });
 
-    // ── Brush ─────────────────────────────────────────────────────────────
-    const brushY = MT + totalPH + GAP + 2;
-    const brushG = svg.append('g').attr('transform',`translate(${ML},${brushY})`);
-
-    const ovYS   = d3.scaleLinear().domain([0,maxP]).range([BRUSH_H-2,0]);
-    brushG.append('rect').attr('width',innerW).attr('height',BRUSH_H).attr('fill','#f3f4f6').attr('rx',3);
-    brushG.append('path')
-        .datum(timeS.map((t,i)=>({t,p:powS[i]})))
-        .attr('fill','#93c5fd').attr('opacity',0.55)
-        .attr('d', d3.area().x(d=>xFull(d.t)).y0(BRUSH_H-2).y1(d=>ovYS(d.p)).curve(d3.curveMonotoneX));
-    brushG.append('line').attr('x1',0).attr('x2',innerW)
-        .attr('y1',ovYS(cp)).attr('y2',ovYS(cp))
-        .attr('stroke','#f59e0b').attr('stroke-width',0.8).attr('stroke-dasharray','3,2');
-
-    const brush = d3.brushX().extent([[0,0],[innerW,BRUSH_H]])
-        .on('brush end', function(ev) {
-            curDomain = ev.selection ? ev.selection.map(xFull.invert) : [0,maxT];
-            drawAll(curDomain);
-            updateXAxis(curDomain);
-        });
-    brushG.call(brush);
-    if (effortStartTime < effortEndTime) brushG.call(brush.move, [xFull(effortStartTime), xFull(effortEndTime)]);
-    brushG.selectAll('.selection').attr('fill','rgba(59,130,246,0.15)').attr('stroke','#3b82f6').attr('stroke-width',1);
-    brushG.selectAll('.handle').attr('fill','#3b82f6').attr('rx',2);
-    brushG.append('text').attr('x',0).attr('y',BRUSH_H+10)
-        .attr('fill','#9ca3af').attr('font-size',8.5).text('Trascina per zoom · doppio click per reset');
+    // Brush removed — buffer is only used internally for avg calculations,
+    // not exposed to the user. The view is locked to the effort range.
 }
 
 
@@ -1981,10 +1934,10 @@ function buildSprintStreamCharts() {
     const W = container.offsetWidth  || 900;
     const H = container.offsetHeight || 560;
     const ML=64, MR=64, MT=14, MB=48;
-    const BRUSH_H=28, GAP=14;
+    const GAP=14;
     const innerW = W - ML - MR;
     // 2 equal panels
-    const panelH = Math.floor((H - MT - MB - BRUSH_H - GAP*3) / 2);
+    const panelH = Math.floor((H - MT - MB - GAP*3) / 2);
     const maxT   = d3.max(timeS);
     const maxP   = d3.max(powS) * 1.12;
 
@@ -2249,26 +2202,8 @@ function buildSprintStreamCharts() {
             ttEl.style.display='none';
         });
 
-    // ── Brush ─────────────────────────────────────────────────────
-    const brushY = MT + totalPH + GAP + 2;
-    const brushG = svg.append('g').attr('transform',`translate(${ML},${brushY})`);
-    const ovYS = d3.scaleLinear().domain([0,maxP]).range([BRUSH_H-2,0]);
-    brushG.append('rect').attr('width',innerW).attr('height',BRUSH_H).attr('fill','#f1f5f9').attr('rx',4);
-    brushG.append('path').datum(timeS.map((t,i)=>({t,p:powS[i]})))
-        .attr('fill','#93c5fd').attr('opacity',0.45)
-        .attr('d', d3.area().x(d=>xFull(d.t)).y0(BRUSH_H-2).y1(d=>ovYS(d.p)).curve(d3.curveMonotoneX));
-    const brush = d3.brushX().extent([[0,0],[innerW,BRUSH_H]])
-        .on('brush end', function(ev) {
-            curDomain = ev.selection ? ev.selection.map(xFull.invert) : [0,maxT];
-            drawAll(curDomain); updateXAxis(curDomain);
-        });
-    brushG.call(brush);
-    if (effortStartTime < effortEndTime) brushG.call(brush.move, [xFull(effortStartTime), xFull(effortEndTime)]);
-    brushG.selectAll('.selection').attr('fill','rgba(59,130,246,0.15)').attr('stroke','#3b82f6').attr('stroke-width',1);
-    brushG.selectAll('.handle').attr('fill','#3b82f6').attr('rx',2);
-    brushG.append('text').attr('x',innerW/2).attr('y',BRUSH_H+12)
-        .attr('text-anchor','middle').attr('fill','#94a3b8').attr('font-size',8.5)
-        .text('Trascina per zoom · doppio click per reset');
+    // Brush removed — buffer is only used internally for avg calculations,
+    // not exposed to the user. The view is locked to the sprint range.
 }
 
 
