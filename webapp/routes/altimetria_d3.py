@@ -133,6 +133,26 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         color = get_zone_color(avg_power, ftp)
         
         duration = float(seg_time[-1] - seg_time[0] + 1)
+        
+        # Extended stream data for moving averages (includes buffer before/after effort)
+        # This allows 30s/60s moving averages to have proper context at effort boundaries
+        buffer_seconds = 120  # Look 120s before and after effort
+        s_ext = s
+        e_ext = e
+        # Find extended indices by time distance
+        while s_ext > 0 and (time_sec[s] - time_sec[s_ext - 1]) < buffer_seconds:
+            s_ext -= 1
+        while e_ext < len(time_sec) and (time_sec[e_ext] - time_sec[e - 1]) < buffer_seconds:
+            e_ext += 1
+        
+        seg_power_ext = power[s_ext:e_ext]
+        seg_time_ext = time_sec[s_ext:e_ext]
+        seg_hr_ext = hr[s_ext:e_ext]
+        seg_cadence_ext = cadence[s_ext:e_ext]
+        if torque_available:
+            seg_torque_ext = df["torque"].values[s_ext:e_ext]
+        else:
+            seg_torque_ext = np.zeros_like(seg_power_ext)
         elevation_gain = float(seg_alt[-1] - seg_alt[0])
         dist_tot = float(seg_dist[-1] - seg_dist[0])
         avg_speed = float(dist_tot / (duration / 3600) / 1000) if duration > 0 else 0.0
@@ -177,33 +197,29 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         for i in range(len(seg_dist_km)):
             line_data.append([round(seg_dist_km[i], 2), round(seg_alt[i], 1)])
         
-        # Stream data for zoom modal (power, HR, W/kg time series)
-        time_stream = [(t - seg_time[0]) for t in seg_time]  # Relative times starting from 0
-        power_stream = [float(p) for p in seg_power]
-        hr_stream = [float(h) if h > 0 else None for h in seg_hr]
-        wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power]
+        # Stream data for zoom modal (power, HR, W/kg time series) — using EXTENDED data
+        time_stream = [(t - seg_time_ext[0]) for t in seg_time_ext]  # Relative times starting from buffer
+        power_stream = [float(p) for p in seg_power_ext]
+        hr_stream = [float(h) if h > 0 else None for h in seg_hr_ext]
+        wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power_ext]
         
         # Cadence and torque streams (for consistency with sprints)
         cadence_min_rpm = 20
-        seg_cadence_clean = np.where(seg_cadence >= cadence_min_rpm, seg_cadence, 0)
-        cadence_stream = [float(c) if c >= cadence_min_rpm else None for c in seg_cadence]
+        seg_cadence_ext_clean = np.where(seg_cadence_ext >= cadence_min_rpm, seg_cadence_ext, 0)
+        cadence_stream = [float(c) if c >= cadence_min_rpm else None for c in seg_cadence_ext]
         
-        # Torque calculation (if not in DataFrame)
-        if torque_available:
-            seg_torque = df["torque"].values[s:e]
-        else:
-            seg_torque = np.zeros_like(seg_power)
-            valid_torque_idx = (seg_cadence_clean > 0) & (seg_power > 0)
-            seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence_clean[valid_torque_idx])
-        torque_stream = [float(t) if t > 0 else None for t in seg_torque]
+        # Torque stream (extended)
+        valid_torque_idx = (seg_cadence_ext_clean > 0) & (seg_power_ext > 0)
+        seg_torque_ext[valid_torque_idx] = (seg_power_ext[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence_ext_clean[valid_torque_idx])
+        torque_stream = [float(t) if t > 0 else None for t in seg_torque_ext]
         
-        # Speed stream (km/h) - calculated from distance changes using segment-relative distances
+        # Speed stream (km/h) - calculated from distance changes using FULL DATA
+        dist_km_ext = dist_km[s_ext:e_ext]
         raw_speed = [0.0]  # First value is 0
-        for i in range(1, len(seg_dist_km)):
-            dt = seg_time[i] - seg_time[i-1]
+        for i in range(1, len(dist_km_ext)):
+            dt = seg_time_ext[i] - seg_time_ext[i-1]
             if dt > 0:
-                # seg_dist_km is already segment-relative, in km
-                dist_diff_km = seg_dist_km[i] - seg_dist_km[i-1]
+                dist_diff_km = dist_km_ext[i] - dist_km_ext[i-1]
                 speed_kmh = (dist_diff_km / (dt / 3600))  # km/h
                 raw_speed.append(float(max(0, speed_kmh)))
             else:
@@ -294,6 +310,26 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             valid_torque_idx = (seg_cadence > 0) & (seg_power > 0)
             seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence[valid_torque_idx])
         
+        # Extended stream data for moving averages (includes buffer before/after sprint)
+        buffer_seconds = 120  # Look 120s before and after sprint
+        s_ext = start
+        e_ext = end
+        # Find extended indices by time distance
+        while s_ext > 0 and (time_sec[start] - time_sec[s_ext - 1]) < buffer_seconds:
+            s_ext -= 1
+        while e_ext < len(time_sec) and (time_sec[e_ext] - time_sec[end - 1]) < buffer_seconds:
+            e_ext += 1
+        
+        seg_power_ext = power[s_ext:e_ext]
+        seg_time_ext = time_sec[s_ext:e_ext]
+        seg_hr_ext = hr[s_ext:e_ext]
+        seg_cadence_ext = cadence[s_ext:e_ext]
+        if torque_available:
+            seg_torque_ext = df["torque"].values[s_ext:e_ext]
+        else:
+            seg_torque_ext = np.zeros_like(seg_power_ext)
+            seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence[valid_torque_idx])
+        
         elevation_gain = float(seg_alt[-1] - seg_alt[0]) if len(seg_alt) > 1 else 0.0
         dist_tot = float(seg_dist[-1] - seg_dist[0]) if len(seg_dist) > 1 else 0.0
         avg_grade = float((elevation_gain / dist_tot * 100) if dist_tot > 0 else 0)
@@ -347,22 +383,28 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         for i in range(len(seg_dist_km)):
             line_data.append([round(seg_dist_km[i], 2), round(seg_alt[i], 1)])
         
-        # Stream data for zoom modal (power, HR, W/kg time series)
-        seg_time = time_sec[start:end]
-        time_stream = [(t - seg_time[0]) for t in seg_time]  # Relative times starting from 0
-        power_stream = [float(p) for p in seg_power]
-        hr_stream = [float(h) if h > 0 else None for h in seg_hr]
-        wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power]
-        cadence_stream = [float(c) if c >= cadence_min_rpm else None for c in seg_cadence]
-        torque_stream = [float(t) if t > 0 else None for t in seg_torque]
+        # Stream data for zoom modal (power, HR, W/kg time series) — using EXTENDED data
+        time_stream = [(t - seg_time_ext[0]) for t in seg_time_ext]  # Relative times starting from buffer
+        power_stream = [float(p) for p in seg_power_ext]
+        hr_stream = [float(h) if h > 0 else None for h in seg_hr_ext]
+        wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power_ext]
         
-        # Speed stream (km/h) - calculated from distance changes using segment-relative distances
+        # Cadence and torque streams (extended)
+        seg_cadence_ext_clean = np.where(seg_cadence_ext >= cadence_min_rpm, seg_cadence_ext, 0)
+        cadence_stream = [float(c) if c >= cadence_min_rpm else None for c in seg_cadence_ext]
+        
+        # Torque stream (extended)
+        valid_torque_idx = (seg_cadence_ext_clean > 0) & (seg_power_ext > 0)
+        seg_torque_ext[valid_torque_idx] = (seg_power_ext[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence_ext_clean[valid_torque_idx])
+        torque_stream = [float(t) if t > 0 else None for t in seg_torque_ext]
+        
+        # Speed stream (km/h) - calculated from distance changes using FULL DATA
+        dist_km_ext = dist_km[s_ext:e_ext]
         raw_speed = [0.0]  # First value is 0
-        for i in range(1, len(seg_dist_km)):
-            dt = seg_time[i] - seg_time[i-1]
+        for i in range(1, len(dist_km_ext)):
+            dt = seg_time_ext[i] - seg_time_ext[i-1]
             if dt > 0:
-                # seg_dist_km is already segment-relative, in km
-                dist_diff_km = seg_dist_km[i] - seg_dist_km[i-1]
+                dist_diff_km = dist_km_ext[i] - dist_km_ext[i-1]
                 speed_kmh = (dist_diff_km / (dt / 3600))  # km/h
                 raw_speed.append(float(max(0, speed_kmh)))
             else:
@@ -372,9 +414,9 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         win = min(3, len(raw_speed))
         speed_stream = []
         for i in range(len(raw_speed)):
-            start = max(0, i - win // 2)
-            end = min(len(raw_speed), i + win // 2 + 1)
-            speed_stream.append(float(np.mean(raw_speed[start:end])))
+            start_idx = max(0, i - win // 2)
+            end_idx = min(len(raw_speed), i + win // 2 + 1)
+            speed_stream.append(float(np.mean(raw_speed[start_idx:end_idx])))
         
         sprint_info = {
             'id': orig_idx,
