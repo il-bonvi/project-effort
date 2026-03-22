@@ -242,6 +242,106 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 .zoom-stream-btn:hover {
     background: linear-gradient(135deg, #2563eb, #1d4ed8); transform: scale(1.05);
 }
+
+/* ── Mobile / Tablet responsive ── */
+@media (max-width: 900px) {
+    html, body {
+        overflow: hidden !important;
+        height: 100dvh;
+        width: 100vw;
+    }
+
+    /* Vertical stack: chart on top, sidebar below */
+    #container {
+        flex-direction: column;
+        height: 100dvh;
+    }
+
+    #chart {
+        flex: none;
+        width: 100%;
+        height: 52dvh;
+        min-height: 200px;
+    }
+
+    #chart-svg {
+        width: 100%;
+        height: 100%;
+    }
+
+    /* Sidebar becomes a horizontal-scroll card strip at the bottom */
+    #sidebar {
+        width: 100%;
+        height: calc(48dvh - 0px);
+        border-left: none;
+        border-top: 2px solid #e5e7eb;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 10px 12px;
+        flex-shrink: 0;
+    }
+
+    #sidebar h2 { font-size: 1rem; margin-bottom: 8px; }
+
+    .effort-card, .sprint-card {
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        font-size: 0.78rem;
+    }
+
+    .card-header { font-size: 0.95rem; }
+
+    /* Popup card: full width on mobile */
+    #popup-card {
+        width: calc(100vw - 16px) !important;
+        left: 8px !important;
+        font-size: 10.5px !important;
+        max-height: 48dvh;
+        overflow-y: auto;
+    }
+
+    #popup-card .pc-cols {
+        grid-template-columns: 1fr 1fr !important;
+    }
+
+    /* Stream modal: full screen on mobile */
+    .stream-modal {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100dvh !important;
+        top: 0 !important; left: 0 !important;
+        transform: none !important;
+        border-radius: 0 !important;
+        padding: 12px !important;
+    }
+    .stream-modal.active {
+        transform: none !important;
+    }
+
+    .stream-control-panel {
+        gap: 10px;
+        padding: 6px 8px;
+    }
+
+    .stream-control-group input[type="range"] {
+        width: 80px;
+    }
+
+    /* Annotations: slightly smaller pills */
+    .ann-pill rect { rx: 4; }
+
+    /* Larger touch targets for axis interactions */
+    .zoom-stream-btn {
+        padding: 8px 14px;
+        font-size: 12px;
+    }
+}
+
+/* Landscape phone: chart takes more vertical space */
+@media (max-width: 900px) and (orientation: landscape) {
+    #chart { height: 60dvh; }
+    #sidebar { height: 40dvh; }
+}
 </style>
 </head>
 <body>
@@ -1140,7 +1240,8 @@ let _segHoverActive = null; // currently hovered segment id
 
 function findSegmentNearCursor(mx, my, xz) {
     // Check each effort and sprint: find the one whose line passes closest to (mx,my)
-    const HIT_DIST = 10; // px threshold
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+    const HIT_DIST = isTouchDevice ? 22 : 10; // bigger target on touch
     let best = null, bestDist = HIT_DIST;
 
     function checkLine(lineData, id, tooltipFn) {
@@ -1453,6 +1554,36 @@ requestAnimationFrame(function() {
     applyDims();
     fullRender();
 });
+
+// Redraw on resize / orientation change (mobile)
+const _resizeObserver = new ResizeObserver(() => {
+    requestAnimationFrame(() => {
+        applyDims();
+        fullRender();
+        if (activeId) collapsePopup(activeId); // close popup on resize to avoid misposition
+    });
+});
+_resizeObserver.observe(document.getElementById('chart'));
+
+// Also handle touch tap on segments (mobile — no mousemove)
+svg.on('touchstart', function(ev) {
+    if (ev.touches.length !== 1) return;
+    const touch = ev.touches[0];
+    const r = chartEl.getBoundingClientRect();
+    const mx = touch.clientX - r.left - MARGIN.left;
+    const my = touch.clientY - r.top - ROOT_Y;
+    const seg = findSegmentNearCursor(mx, my, getXZ());
+    if (seg) {
+        ev.preventDefault();
+        const id = seg.id;
+        const isEffort = id.startsWith('e-');
+        const idx2 = isEffort
+            ? chartData.efforts.findIndex(e => `e-${e.id}` === id)
+            : parseInt(id.split('-')[1]);
+        if (isEffort) togglePin(id, chartData.efforts[idx2], 'effort');
+        else togglePin(id, chartData.sprints[idx2], 'sprint');
+    }
+}, { passive: false });
 
 // ════════════════════════════════════════════════════════════════
 // STREAM ZOOM MODAL - Display detailed power/HR graphs with D3.js
@@ -1876,43 +2007,88 @@ function buildStreamChartsD3() {
 
     // ── Mouse overlay (covers all panels) ─────────────────────────────────
     const totalPH = (panelH+GAP)*3-GAP;
-    root.append('rect').attr('width',innerW).attr('height',totalPH)
-        .attr('fill','transparent').style('cursor','crosshair')
-        .on('mousemove', function(ev) {
-            const [mx] = d3.pointer(ev);
-            const xS = d3.scaleLinear().domain(curDomain).range([0,innerW]);
-            const t  = xS.invert(mx);
-            let ci=0, md=Infinity;
-            timeS.forEach((ts,i)=>{ const d=Math.abs(ts-t); if(d<md){md=d;ci=i;} });
+    // Shared pointer update function — used by both mouse and touch
+    function updateEffortPointer(mx) {
+        const xS = d3.scaleLinear().domain(curDomain).range([0,innerW]);
+        const t  = xS.invert(Math.max(0, Math.min(innerW, mx)));
+        let ci=0, md=Infinity;
+        timeS.forEach((ts,i)=>{ const d=Math.abs(ts-t); if(d<md){md=d;ci=i;} });
 
-            panelDefs.forEach((_,pi) => {
-                const yv = yScales[pi](panelDefs[pi].vals[ci] ?? 0);
-                crossVLines[pi].style('display',null).attr('x1',mx).attr('x2',mx);
-                crossDots[pi].style('display',null).attr('cx',mx).attr('cy',yv);
-            });
+        panelDefs.forEach((_,pi) => {
+            const yv = yScales[pi](panelDefs[pi].vals[ci] ?? 0);
+            crossVLines[pi].style('display',null).attr('x1',mx).attr('x2',mx);
+            crossDots[pi].style('display',null).attr('cx',mx).attr('cy',yv);
+        });
 
-            const ts=timeS[ci];
-            const m=Math.floor(ts/60),s=Math.round(ts%60);
-            const tStr=m>0?`${m}m${s}s`:`${Math.round(ts)}s`;
-            const zc=zoneColor(powS[ci]);
-            // Fixed white/light colors for all values — always readable on dark bg
-            let html=`<span style="color:#f9fafb;font-weight:700">${tStr}</span><br/>`;
-            html+=`<span style="color:#fbbf24">⚡ ${Math.round(powS[ci])}W</span>`;
-            html+=` <span style="color:#a78bfa"> ∅${avg30sSeconds}s ${Math.round(avg30[ci])}W</span>`;
-            html+=` <span style="color:#6ee7b7"> ∅${avg60sSeconds}s ${Math.round(avg60[ci])}W</span>`;
-            if (hrS && hrS[ci]>0) html+=`<br/><span style="color:#fca5a5">❤️ ${Math.round(hrS[ci])} bpm</span>`;
-            ttEl.innerHTML=html;
-            ttEl.style.display='block';
+        const ts=timeS[ci];
+        const m=Math.floor(ts/60),s=Math.round(ts%60);
+        const tStr=m>0?`${m}m${s}s`:`${Math.round(ts)}s`;
+        let html=`<span style="color:#f9fafb;font-weight:700">${tStr}</span><br/>`;
+        html+=`<span style="color:#fbbf24">⚡ ${Math.round(powS[ci])}W</span>`;
+        html+=` <span style="color:#a78bfa"> ∅${avg30sSeconds}s ${Math.round(avg30[ci])}W</span>`;
+        html+=` <span style="color:#6ee7b7"> ∅${avg60sSeconds}s ${Math.round(avg60[ci])}W</span>`;
+        if (hrS && hrS[ci]>0) html+=`<br/><span style="color:#fca5a5">❤️ ${Math.round(hrS[ci])} bpm</span>`;
+        ttEl.innerHTML=html;
+        ttEl.style.display='block';
+        const isTouchE = window.matchMedia('(pointer: coarse)').matches;
+        if (isTouchE) {
+            // On touch: fixed at top-center so it never hides under the finger
+            ttEl.style.left = '50%';
+            ttEl.style.transform = 'translateX(-50%)';
+            ttEl.style.top = '4px';
+        } else {
+            ttEl.style.transform = '';
             let lx=ML+mx+14;
             if (lx+240 > W-MR) lx=ML+mx-250;
             ttEl.style.left=lx+'px';
             ttEl.style.top=Math.max(4, MT+20)+'px';
+        }
+    }
+
+    const effortOverlay = root.append('rect').attr('width',innerW).attr('height',totalPH)
+        .attr('fill','transparent').style('cursor','crosshair')
+        .on('mousemove', function(ev) {
+            const [mx] = d3.pointer(ev);
+            updateEffortPointer(mx);
         })
         .on('mouseleave', function() {
-            crossVLines.forEach(c=>c.style('display','none'));
-            crossDots.forEach(c=>c.style('display','none'));
-            ttEl.style.display='none';
+            // On touch devices keep crosshair visible; on desktop hide it
+            if (!window.matchMedia('(pointer: coarse)').matches) {
+                crossVLines.forEach(c=>c.style('display','none'));
+                crossDots.forEach(c=>c.style('display','none'));
+                ttEl.style.display='none';
+            }
         });
+
+    // Touch: drag to move crosshair, keep visible after finger lifts
+    effortOverlay.node().addEventListener('touchstart', function(ev) {
+        ev.preventDefault();
+        const r = container.getBoundingClientRect();
+        const mx = ev.touches[0].clientX - r.left - ML;
+        updateEffortPointer(mx);
+    }, { passive: false });
+    effortOverlay.node().addEventListener('touchmove', function(ev) {
+        ev.preventDefault();
+        const r = container.getBoundingClientRect();
+        const mx = ev.touches[0].clientX - r.left - ML;
+        updateEffortPointer(mx);
+    }, { passive: false });
+    effortOverlay.node().addEventListener('touchend', function(ev) {
+        ev.preventDefault();
+        crossVLines.forEach(c=>c.style('display','none'));
+        crossDots.forEach(c=>c.style('display','none'));
+        ttEl.style.display='none';
+    }, { passive: false });
+
+    // On desktop: show crosshair at midpoint immediately on open
+    // On touch: wait for user drag
+    if (!window.matchMedia('(pointer: coarse)').matches) {
+        requestAnimationFrame(() => {
+            const midTime = (effortStartTime + effortEndTime) / 2;
+            const xS0 = d3.scaleLinear().domain(curDomain).range([0, innerW]);
+            updateEffortPointer(xS0(midTime));
+        });
+    }
 
     // Brush removed — buffer is only used internally for avg calculations,
     // not exposed to the user. The view is locked to the effort range.
@@ -2158,49 +2334,87 @@ function buildSprintStreamCharts() {
     container.appendChild(ttEl);
 
     const totalPH = ty1 + panelH;
-    root.append('rect').attr('width',innerW).attr('height',totalPH)
-        .attr('fill','transparent').style('cursor','crosshair')
-        .on('mousemove', function(ev) {
-            const [mx,my] = d3.pointer(ev);
-            const xS = d3.scaleLinear().domain(curDomain).range([0,innerW]);
-            const t  = xS.invert(mx);
-            let ci=0, md=Infinity;
-            timeS.forEach((ts,i)=>{ const d=Math.abs(ts-t); if(d<md){md=d;ci=i;} });
+    // Shared pointer update for sprint stream
+    function updateSprintPointer(mx) {
+        mx = Math.max(0, Math.min(innerW, mx));
+        const xS = d3.scaleLinear().domain(curDomain).range([0,innerW]);
+        const t  = xS.invert(mx);
+        let ci=0, md=Infinity;
+        timeS.forEach((ts,i)=>{ const d=Math.abs(ts-t); if(d<md){md=d;ci=i;} });
 
-            // Power crosshair
-            cv0.style('display',null).attr('x1',mx).attr('x2',mx);
-            cd0.style('display',null).attr('cx',mx).attr('cy',yPow(powS[ci]||0));
-            if (ySpd && spdS && spdS[ci]>0) cd0spd.style('display',null).attr('cx',mx).attr('cy',ySpd(spdS[ci]));
-            else cd0spd.style('display','none');
-            // Cad/tor crosshair
-            if (my > ty1) {
-                cv1.style('display',null).attr('x1',mx).attr('x2',mx);
-                if (cadS && cadS[ci]>0) cd1cad.style('display',null).attr('cx',mx).attr('cy',yCad(cadS[ci]));
-                if (cd1tor && torS && torS[ci]>0) cd1tor.style('display',null).attr('cx',mx).attr('cy',yTor(torS[ci]));
-            } else {
-                cv1.style('display','none'); cd1cad.style('display','none');
-                if (cd1tor) cd1tor.style('display','none');
-            }
+        cv0.style('display',null).attr('x1',mx).attr('x2',mx);
+        cd0.style('display',null).attr('cx',mx).attr('cy',yPow(powS[ci]||0));
+        if (ySpd && spdS && spdS[ci]>0) cd0spd.style('display',null).attr('cx',mx).attr('cy',ySpd(spdS[ci]));
+        else cd0spd.style('display','none');
+        cv1.style('display',null).attr('x1',mx).attr('x2',mx);
+        if (cadS && cadS[ci]>0) cd1cad.style('display',null).attr('cx',mx).attr('cy',yCad(cadS[ci]));
+        if (cd1tor && torS && torS[ci]>0) cd1tor.style('display',null).attr('cx',mx).attr('cy',yTor(torS[ci]));
 
-            const ts=timeS[ci];
-            const m=Math.floor(ts/60),s=Math.round(ts%60);
-            const tStr=m>0?`${m}m${s}s`:`${Math.round(ts)}s`;
-            let html=`<span style="color:#e2e8f0;font-weight:700;font-size:12px">${tStr}</span><br/>`;
-            html+=`<span style="color:#93c5fd">⚡ ${Math.round(powS[ci]||0)} W</span>`;
-            if (spdS && spdS[ci]>0) html+=`  <span style="color:#d8b4fe">🚴 ${spdS[ci].toFixed(1)} km/h</span>`;
-            if (cadS && cadS[ci]>0) html+=`  <span style="color:#6ee7b7">🌀 ${Math.round(cadS[ci])} rpm</span>`;
-            if (torS && torS[ci]>0) html+=`<br/><span style="color:#fcd34d">⚙️ ${Math.round(torS[ci])} Nm</span>`;
-            ttEl.innerHTML=html;
-            ttEl.style.display='block';
+        const ts=timeS[ci];
+        const m=Math.floor(ts/60),s=Math.round(ts%60);
+        const tStr=m>0?`${m}m${s}s`:`${Math.round(ts)}s`;
+        let html=`<span style="color:#e2e8f0;font-weight:700;font-size:12px">${tStr}</span><br/>`;
+        html+=`<span style="color:#93c5fd">⚡ ${Math.round(powS[ci]||0)} W</span>`;
+        if (spdS && spdS[ci]>0) html+=`  <span style="color:#d8b4fe">🚴 ${spdS[ci].toFixed(1)} km/h</span>`;
+        if (cadS && cadS[ci]>0) html+=`  <span style="color:#6ee7b7">🌀 ${Math.round(cadS[ci])} rpm</span>`;
+        if (torS && torS[ci]>0) html+=`<br/><span style="color:#fcd34d">⚙️ ${Math.round(torS[ci])} Nm</span>`;
+        ttEl.innerHTML=html;
+        ttEl.style.display='block';
+        const isTouchS = window.matchMedia('(pointer: coarse)').matches;
+        if (isTouchS) {
+            ttEl.style.left = '50%';
+            ttEl.style.transform = 'translateX(-50%)';
+            ttEl.style.top = '4px';
+        } else {
+            ttEl.style.transform = '';
             let lx=ML+mx+16; if(lx+220>W-MR) lx=ML+mx-230;
             ttEl.style.left=lx+'px';
-            ttEl.style.top=Math.max(8,MT+my-50)+'px';
+            ttEl.style.top=Math.max(8, MT+20)+'px';
+        }
+    }
+
+    const sprintOverlay = root.append('rect').attr('width',innerW).attr('height',totalPH)
+        .attr('fill','transparent').style('cursor','crosshair')
+        .on('mousemove', function(ev) {
+            const [mx] = d3.pointer(ev);
+            updateSprintPointer(mx);
         })
         .on('mouseleave', function() {
-            [cv0,cv1,cd0,cd0spd,cd1cad].forEach(c=>c&&c.style('display','none'));
-            if (cd1tor) cd1tor.style('display','none');
-            ttEl.style.display='none';
+            if (!window.matchMedia('(pointer: coarse)').matches) {
+                [cv0,cv1,cd0,cd0spd,cd1cad].forEach(c=>c&&c.style('display','none'));
+                if (cd1tor) cd1tor.style('display','none');
+                ttEl.style.display='none';
+            }
         });
+
+    // Touch: drag to move crosshair, keep visible after finger lifts
+    sprintOverlay.node().addEventListener('touchstart', function(ev) {
+        ev.preventDefault();
+        const r = container.getBoundingClientRect();
+        const mx = ev.touches[0].clientX - r.left - ML;
+        updateSprintPointer(mx);
+    }, { passive: false });
+    sprintOverlay.node().addEventListener('touchmove', function(ev) {
+        ev.preventDefault();
+        const r = container.getBoundingClientRect();
+        const mx = ev.touches[0].clientX - r.left - ML;
+        updateSprintPointer(mx);
+    }, { passive: false });
+    sprintOverlay.node().addEventListener('touchend', function(ev) {
+        ev.preventDefault();
+        [cv0,cv1,cd0,cd0spd,cd1cad].forEach(c=>c&&c.style('display','none'));
+        if (cd1tor) cd1tor.style('display','none');
+        ttEl.style.display='none';
+    }, { passive: false });
+
+    // On desktop: show crosshair at midpoint on open. On touch: wait for drag.
+    if (!window.matchMedia('(pointer: coarse)').matches) {
+        requestAnimationFrame(() => {
+            const midTime = (effortStartTime + effortEndTime) / 2;
+            const xS0 = d3.scaleLinear().domain(curDomain).range([0, innerW]);
+            updateSprintPointer(xS0(midTime));
+        });
+    }
 
     // Brush removed — buffer is only used internally for avg calculations,
     // not exposed to the user. The view is locked to the sprint range.
