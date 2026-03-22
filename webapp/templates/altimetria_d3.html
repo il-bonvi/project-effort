@@ -195,10 +195,10 @@ const ANN_SPACE = 80;
 
 let W, H, innerW, innerH;
 function updateDims() {
-    W = chartEl.clientWidth;
-    H = chartEl.clientHeight;
-    innerW = W - MARGIN.left - MARGIN.right;
-    innerH = H - MARGIN.top - MARGIN.bottom - ANN_SPACE;
+    W = Math.max(chartEl.clientWidth,  400);
+    H = Math.max(chartEl.clientHeight, 300);
+    innerW = Math.max(W - MARGIN.left - MARGIN.right, 100);
+    innerH = Math.max(H - MARGIN.top - MARGIN.bottom - ANN_SPACE, 100);
 }
 updateDims();
 
@@ -375,12 +375,11 @@ function renderSegments(xz) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// ANNOTATION COLLISION DETECTION
+// ANNOTATION COLLISION DETECTION — no clustering, X+Y avoidance
 // ════════════════════════════════════════════════════════════════
-const PILL_W       = 70;  // same visual footprint as ECharts markPoint 70px
-const PILL_H       = 30;  // same as ECharts markPoint 35px  (a bit less for crispness)
-const PILL_PAD     = 5;   // min gap between pills
-const CLUSTER_THR  = 50;  // px: collapse to cluster if closer than this
+const PILL_W       = 70;
+const PILL_H       = 30;
+const PILL_PAD     = 6;   // min gap between pills
 const ANN_MIN_Y    = -(ANN_SPACE - 8); // topmost allowed Y (in g coords)
 
 function buildAnnotationItems(xz) {
@@ -417,105 +416,65 @@ function buildAnnotationItems(xz) {
     return items;
 }
 
+function rectsOverlap(x1,y1,w1,h1, x2,y2,w2,h2, pad) {
+    return !(x1+w1+pad < x2 || x2+w2+pad < x1 || y1+h1+pad < y2 || y2+h2+pad < y1);
+}
+
 function resolveCollisions(items) {
-    // Sort by anchorX
+    // Sort left → right
     items.sort((a, b) => a.anchorX - b.anchorX);
 
-    const placed   = [];
-    const clusters = {}; // clusterKey → [items]
-
-    for (const item of items) {
-        // Natural Y: 45px above anchor
+    // Initial placement: centered above anchor
+    items.forEach(item => {
         item.finalX = item.anchorX - PILL_W / 2;
         item.finalY = item.anchorY - 45;
-
-        // Check X-proximity → cluster
-        const nearby = placed.filter(p =>
-            !p.inCluster &&
-            Math.abs((p.anchorX) - item.anchorX) < CLUSTER_THR
-        );
-
-        if (nearby.length > 0) {
-            const ck = nearby[0].clusterKey || nearby[0].id;
-            item.inCluster  = true;
-            item.clusterKey = ck;
-            nearby.forEach(p => { p.inCluster = true; p.clusterKey = ck; });
-            if (!clusters[ck]) clusters[ck] = [...nearby];
-            clusters[ck].push(item);
-            placed.push(item);
-            continue;
-        }
-
-        // Greedy Y-push upward
-        for (let tries = 0; tries < 40; tries++) {
-            const collides = placed.filter(p => !p.inCluster && rectsOverlap(
-                item.finalX, item.finalY, PILL_W, PILL_H,
-                p.finalX,   p.finalY,   PILL_W, PILL_H, PILL_PAD
-            ));
-            if (collides.length === 0) break;
-            item.finalY -= (PILL_H + PILL_PAD);
-        }
         item.finalY = Math.max(ANN_MIN_Y, item.finalY);
+    });
+
+    const placed = [];
+
+    for (const item of items) {
+        // Try up to 8 positions: alternate Y-shift and X-shift
+        let resolved = false;
+        const ySteps  = [0, -(PILL_H + PILL_PAD), -(PILL_H + PILL_PAD)*2, -(PILL_H + PILL_PAD)*3];
+        const xShifts = [0, PILL_W + PILL_PAD, -(PILL_W + PILL_PAD)];
+
+        outer:
+        for (const xs of xShifts) {
+            for (const ys of ySteps) {
+                const tx = item.finalX + xs;
+                const ty = Math.max(ANN_MIN_Y, item.finalY + ys);
+                const ok = placed.every(p =>
+                    !rectsOverlap(tx, ty, PILL_W, PILL_H, p.finalX, p.finalY, PILL_W, PILL_H, PILL_PAD)
+                );
+                if (ok) {
+                    item.finalX = tx;
+                    item.finalY = ty;
+                    resolved = true;
+                    break outer;
+                }
+            }
+        }
+
+        // Last resort: stack above all placed pills
+        if (!resolved) {
+            const minY = placed.reduce((m, p) => Math.min(m, p.finalY), item.finalY);
+            item.finalY = Math.max(ANN_MIN_Y, minY - PILL_H - PILL_PAD);
+        }
+
         placed.push(item);
     }
 
-    return {
-        singles: placed.filter(p => !p.inCluster),
-        clusters: Object.values(clusters)
-    };
-}
-
-function rectsOverlap(x1,y1,w1,h1, x2,y2,w2,h2, pad) {
-    return !(x1+w1+pad < x2 || x2+w2+pad < x1 || y1+h1+pad < y2 || y2+h2+pad < y1);
+    return { singles: items, clusters: [] };
 }
 
 function renderAnnotations(xz) {
     annG.selectAll('*').remove();
 
     const items = buildAnnotationItems(xz);
-    const { singles, clusters } = resolveCollisions(items);
+    const { singles } = resolveCollisions(items);
 
-    // Draw individual pills
     singles.forEach(item => drawPill(item));
-
-    // Draw clusters
-    clusters.forEach(group => {
-        if (!group || group.length === 0) return;
-        const cx = d3.mean(group, d => d.anchorX);
-        const cy = Math.max(ANN_MIN_Y, Math.min(...group.map(d => d.anchorY)) - 55);
-        const cw = 26 + group.length * 18;
-
-        const cg = annG.append('g').attr('class','ann-cluster').style('cursor','pointer');
-
-        // Leader lines
-        group.forEach(m => {
-            cg.append('line').attr('class','ann-leader')
-                .attr('x1', cx).attr('y1', cy + PILL_H)
-                .attr('x2', m.anchorX).attr('y2', m.anchorY);
-        });
-
-        // Cluster pill
-        cg.append('rect')
-            .attr('x', cx - cw/2).attr('y', cy)
-            .attr('width', cw).attr('height', PILL_H)
-            .attr('rx', 5)
-            .attr('fill', '#374151')
-            .attr('stroke','rgba(255,255,255,0.25)').attr('stroke-width', 1);
-
-        cg.append('text')
-            .attr('x', cx).attr('y', cy + PILL_H / 2)
-            .attr('text-anchor','middle').attr('dominant-baseline','central')
-            .attr('fill','#fff').attr('font-size', 11).attr('font-weight', 700)
-            .text(`${group.length}× ${group[0].type === 'effort' ? 'E' : 'S'}`);
-
-        // Click → expand cluster (uncluster and re-render)
-        cg.on('click', function() {
-            group.forEach(i => { i.inCluster = false; });
-            singles.push(...group);
-            annG.selectAll('*').remove();
-            singles.forEach(item => drawPill(item));
-        });
-    });
 }
 
 function drawPill(item) {
@@ -1085,20 +1044,30 @@ function fullRender() {
 }
 
 buildSidebar();
-fullRender();
 
-window.addEventListener('resize', function() {
+function applyDims() {
     updateDims();
     svg.attr('width', W).attr('height', H);
     xScale.range([0, innerW]);
+    yScale.range([innerH, 0]);
     defs.select('#chartClip rect').attr('width', innerW).attr('height', innerH + ANN_SPACE + 5);
     xAxisG.attr('transform', `translate(0,${innerH})`);
     g.select('.axis-name[transform]').attr('x', -innerH/2);
-    g.select('.axis-name:not([transform])').attr('x', innerW/2).attr('y', innerH+42);
+    g.select(".axis-name:not([transform])").attr('x', innerW/2).attr('y', innerH+42);
     crossV.attr('y2', innerH);
     crossH.attr('x2', innerW);
     overlay.attr('width', innerW).attr('height', innerH);
     zoom.translateExtent([[0,0],[innerW,innerH]]).extent([[0,0],[innerW,innerH]]);
+}
+
+// Delay first render so DOM is fully laid out
+requestAnimationFrame(function() {
+    applyDims();
+    fullRender();
+});
+
+window.addEventListener('resize', function() {
+    applyDims();
     fullRender();
     if (popupCard.style.display !== 'none') positionPopup();
 });
