@@ -173,6 +173,12 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         for i in range(len(seg_dist_km)):
             line_data.append([round(seg_dist_km[i], 2), round(seg_alt[i], 1)])
         
+        # Stream data for zoom modal (power, HR, W/kg time series)
+        time_stream = [(t - seg_time[0]) for t in seg_time]  # Relative times starting from 0
+        power_stream = [float(p) for p in seg_power]
+        hr_stream = [float(h) if h > 0 else None for h in seg_hr]
+        wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power]
+        
         effort_info = {
             'id': orig_idx,
             'rank': rank_idx + 1,
@@ -210,7 +216,12 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'kj_kg': round(kj_kg, 1),
             'kj_kg_over_cp': round(kj_kg_over_cp, 1),
             'kj_h_kg': round(kj_h_kg, 1),
-            'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1)
+            'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1),
+            # Stream data for zoom modal
+            'time_stream': time_stream,
+            'power_stream': power_stream,
+            'hr_stream': hr_stream,
+            'wkg_stream': wkg_stream
         }
         
         efforts_data.append(effort_info)
@@ -297,6 +308,13 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         for i in range(len(seg_dist_km)):
             line_data.append([round(seg_dist_km[i], 2), round(seg_alt[i], 1)])
         
+        # Stream data for zoom modal (power, HR, W/kg time series)
+        seg_time = time_sec[start:end]
+        time_stream = [(t - seg_time[0]) for t in seg_time]  # Relative times starting from 0
+        power_stream = [float(p) for p in seg_power]
+        hr_stream = [float(h) if h > 0 else None for h in seg_hr]
+        wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power]
+        
         sprint_info = {
             'id': orig_idx,
             'rank': rank_idx + 1,
@@ -332,7 +350,12 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'kj_kg': round(kj_kg, 1),
             'kj_kg_over_cp': round(kj_kg_over_cp, 1),
             'kj_h_kg': round(kj_h_kg, 1),
-            'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1)
+            'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1),
+            # Stream data for zoom modal
+            'time_stream': time_stream,
+            'power_stream': power_stream,
+            'hr_stream': hr_stream,
+            'wkg_stream': wkg_stream
         }
         
         sprints_data.append(sprint_info)
@@ -341,12 +364,25 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     effort_config = session['effort_config']
     sprint_config = session['sprint_config']
     
+    # Standard intensity zones (% of FTP)
+    intensity_zones = [
+        {'name': 'Z1 Active Recovery', 'min': 0, 'max': 55, 'color': '#3b82f6'},
+        {'name': 'Z2 Endurance', 'min': 55, 'max': 75, 'color': '#10b981'},
+        {'name': 'Z3 Tempo', 'min': 75, 'max': 90, 'color': '#eab308'},
+        {'name': 'Z4 Threshold', 'min': 90, 'max': 105, 'color': '#f97316'},
+        {'name': 'Z5 VO2Max', 'min': 105, 'max': 120, 'color': '#ef4444'},
+        {'name': 'Z6 Anaerobic', 'min': 120, 'max': 150, 'color': '#991b1b'},
+        {'name': 'Z7 Neuromuscular', 'min': 150, 'max': 999, 'color': '#6b21a8'}
+    ]
+    
     return {
         'elevation_data': elevation_data,
         'efforts': efforts_data,
         'sprints': sprints_data,
         'ftp': float(ftp),
         'weight': float(weight),
+        'intensity_zones': intensity_zones,
+        'torque_available': 'torque' in df.columns,
         'config': {
             'window_sec': float(effort_config.window_seconds),
             'merge_pct': float(effort_config.merge_power_diff_percent),
