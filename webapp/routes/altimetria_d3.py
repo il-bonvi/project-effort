@@ -198,7 +198,9 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             line_data.append([round(seg_dist_km[i], 2), round(seg_alt[i], 1)])
         
         # Stream data for zoom modal (power, HR, W/kg time series) — using EXTENDED data
-        time_stream = [(t - seg_time_ext[0]) for t in seg_time_ext]  # Relative times starting from buffer
+        # Normalize: t=0 is the effort start (buffer has negative times)
+        effort_t0 = time_sec[s]
+        time_stream = [round(float(t - effort_t0), 2) for t in seg_time_ext]
         power_stream = [float(p) for p in seg_power_ext]
         hr_stream = [float(h) if h > 0 else None for h in seg_hr_ext]
         wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power_ext]
@@ -271,16 +273,19 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'kj_kg_over_cp': round(kj_kg_over_cp, 1),
             'kj_h_kg': round(kj_h_kg, 1),
             'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1),
-            # Stream data for zoom modal
+            # Stream data for zoom modal (extended with 120s buffer before/after)
             'time_stream': time_stream,
             'power_stream': power_stream,
             'hr_stream': hr_stream,
             'wkg_stream': wkg_stream,
             'cadence_stream': cadence_stream,
             'torque_stream': torque_stream,
-            'speed_stream': speed_stream
+            'speed_stream': speed_stream,
+            # Track effort position: ACTUAL times relative to buffer start (not indices)
+            'stream_effort_start': 0.0,  # Effort always starts at t=0
+            'stream_effort_end':   float(time_sec[e - 1] - effort_t0 + 1),
+            'stream_effort_duration': int(duration)  # Actual effort duration (not including buffer)
         }
-        
         efforts_data.append(effort_info)
     
     # Process sprints
@@ -384,7 +389,11 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             line_data.append([round(seg_dist_km[i], 2), round(seg_alt[i], 1)])
         
         # Stream data for zoom modal (power, HR, W/kg time series) — using EXTENDED data
-        time_stream = [(t - seg_time_ext[0]) for t in seg_time_ext]  # Relative times starting from buffer
+        # Normalize: t=0 is the effort start (buffer has negative times)
+        effort_t0 = time_sec[start]
+        time_stream = [round(float(t - effort_t0), 2) for t in seg_time_ext]
+        stream_effort_start = 0.0
+        stream_effort_end   = float(time_sec[end - 1] - effort_t0)
         power_stream = [float(p) for p in seg_power_ext]
         hr_stream = [float(h) if h > 0 else None for h in seg_hr_ext]
         wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power_ext]
@@ -454,16 +463,21 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'kj_kg_over_cp': round(kj_kg_over_cp, 1),
             'kj_h_kg': round(kj_h_kg, 1),
             'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1),
-            # Stream data for zoom modal
+            # Stream data for zoom modal (extended with 120s buffer before/after)
             'time_stream': time_stream,
+            'stream_effort_start': stream_effort_start,
+            'stream_effort_end':   stream_effort_end,
             'power_stream': power_stream,
             'hr_stream': hr_stream,
             'wkg_stream': wkg_stream,
             'cadence_stream': cadence_stream,
             'torque_stream': torque_stream,
-            'speed_stream': speed_stream
+            'speed_stream': speed_stream,
+            # Track sprint position: ACTUAL times relative to buffer start (not indices)
+            'stream_effort_start': 0.0,
+            'stream_effort_end':   float(time_sec[end - 1] - time_sec[start]),
+            'stream_effort_duration': int(duration)     # Actual sprint duration (not including buffer)
         }
-        
         sprints_data.append(sprint_info)
     
     # Get config params

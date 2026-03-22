@@ -312,6 +312,14 @@ const MARGIN = { top: 15, right: 20, bottom: 55, left: 60 };
 // label space above chart (annotations can float up here)
 const ANN_SPACE = 80;
 
+// Utility function to format seconds as MM:SS
+function format_time_mmss(seconds) {
+    if (!seconds || seconds < 0) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 let W, H, innerW, innerH;
 function updateDims() {
     W = Math.max(chartEl.clientWidth,  400);
@@ -1510,6 +1518,10 @@ function openStreamModal(elemId, dataId, type) {
         cadenceStream: data.cadence_stream || null,
         torqueStream: data.torque_stream || null,
         speedStream: data.speed_stream || null,
+        // Track indices for the actual effort/sprint within extended stream
+        effortStart:    (data.stream_effort_start != null) ? data.stream_effort_start : 0,
+        effortEnd:      (data.stream_effort_end   != null) ? data.stream_effort_end   : data.time_stream[data.time_stream.length-1],
+        effortDuration: (data.stream_effort_end != null) ? Math.round(data.stream_effort_end - data.stream_effort_start) : (data.stream_effort_duration || 0),
     };
     
     // Update modal title
@@ -1517,7 +1529,7 @@ function openStreamModal(elemId, dataId, type) {
     if (!titleEl) {
         return;
     }
-    titleEl.textContent = `${streamModalData.label} - Stream Zoom`;
+    titleEl.textContent = `${streamModalData.label} - Duration: ${format_time_mmss(streamModalData.effortDuration)}s`;
     
     // Open modal with animation
     const modal = document.getElementById('streamModal');
@@ -1620,6 +1632,12 @@ function buildStreamChartsD3() {
     const maxT   = d3.max(timeS);
     const maxP   = d3.max(powS) * 1.1;
 
+    // Determine the time range for THIS effort/sprint (using actual times from backend, not indices)
+    const effortStartTime = streamModalData.effortStart || 0;
+    const effortEndTime   = streamModalData.effortEnd   || maxT;
+
+    const timeMargin = 0;
+
     // zone color lookup
     function zoneColor(w) {
         const pct = w / cp * 100;
@@ -1633,7 +1651,7 @@ function buildStreamChartsD3() {
         { title: `Avg ${avg60sSeconds}s`,           vals: avg60, showHR: false },
     ];
 
-    let curDomain = [0, maxT];
+    let curDomain = [effortStartTime, effortEndTime];
 
     const svg = d3.select(container).append('svg')
         .attr('width', W).attr('height', H)
@@ -1658,11 +1676,15 @@ function buildStreamChartsD3() {
     const crossVLines = [];
     const crossDots   = [];
     const yScales     = [];
+    const pg_refs     = [];
 
     panelDefs.forEach((panel, pi) => {
         const ty = (panelH + GAP) * pi;
         const pg = root.append('g').attr('transform',`translate(0,${ty})`);
-        const yS = d3.scaleLinear().domain([0, maxP]).range([panelH, 0]);
+        pg_refs.push(pg);
+        const panelMax = d3.max(panel.vals) * 1.1;
+        const yS = d3.scaleLinear().domain([0, panelMax]).range([panelH, 0]);
+        panel._yS = yS;
         yScales.push(yS);
 
         // Background rect
@@ -1670,11 +1692,33 @@ function buildStreamChartsD3() {
             .attr('fill','#fafafa').attr('rx',3)
             .attr('stroke','#e5e7eb').attr('stroke-width',0.5);
 
+        // Buffer zone visualization (before effort starts)
+        if (streamModalData.effortStartIdx > 0) {
+            const bufferStartX = xFull(0);
+            const bufferEndX = xFull(effortStartTime);
+            pg.append('rect')
+                .attr('x', bufferStartX).attr('width', Math.max(0, bufferEndX - bufferStartX))
+                .attr('height', panelH)
+                .attr('fill', '#d1d5db').attr('opacity', 0.2)
+                .attr('class', 'buffer-before');
+        }
+        
+        // Buffer zone visualization (after effort ends)
+        if (streamModalData.effortEndIdx < timeS.length) {
+            const bufferStartX = xFull(effortEndTime);
+            const bufferEndX = xFull(maxT);
+            pg.append('rect')
+                .attr('x', bufferStartX).attr('width', Math.max(0, bufferEndX - bufferStartX))
+                .attr('height', panelH)
+                .attr('fill', '#d1d5db').attr('opacity', 0.2)
+                .attr('class', 'buffer-after');
+        }
+
         // Zone background bands
         zones.forEach(z => {
             const minW = (z.min/100)*cp;
-            const maxW = z.max===999 ? maxP : (z.max/100)*cp;
-            pg.append('rect').attr('x',0).attr('width',innerW)
+            const maxW = z.max===999 ? panelMax : (z.max/100)*cp;
+            pg.append('rect').attr('class','zone-band').attr('x',0).attr('width',innerW)
                 .attr('y', yS(maxW)).attr('height', Math.max(0, yS(minW)-yS(maxW)))
                 .attr('fill', z.color).attr('opacity', 0.11);
         });
@@ -1688,9 +1732,14 @@ function buildStreamChartsD3() {
         });
 
         // Y axis left
-        const yAx = pg.append('g').call(d3.axisLeft(yS).ticks(4).tickFormat(d=>d).tickSize(0));
-        yAx.select('.domain').attr('stroke','#d1d5db');
-        yAx.selectAll('text').attr('fill','#6b7280').attr('font-size',9).attr('x',-4);
+        const yAx = pg.append('g').attr('class','y-ax-panel');
+        function redrawYAx(ys) {
+            yAx.call(d3.axisLeft(ys).ticks(4).tickFormat(d=>d).tickSize(0));
+            yAx.select('.domain').attr('stroke','#d1d5db');
+            yAx.selectAll('text').attr('fill','#6b7280').attr('font-size',9).attr('x',-4);
+        }
+        redrawYAx(yS);
+        panel._redrawYAx = redrawYAx;
         pg.append('text').attr('transform','rotate(-90)').attr('x',-panelH/2).attr('y',-46)
             .attr('text-anchor','middle').attr('fill','#9ca3af').attr('font-size',9).text('W');
 
@@ -1706,11 +1755,11 @@ function buildStreamChartsD3() {
         }
 
         // CP line
-        pg.append('line').attr('x1',0).attr('x2',innerW)
+        pg.append('line').attr('class','cp-line').attr('x1',0).attr('x2',innerW)
             .attr('y1',yS(cp)).attr('y2',yS(cp))
             .attr('stroke','#f59e0b').attr('stroke-width',1)
             .attr('stroke-dasharray','5,3').attr('opacity',0.9);
-        pg.append('text').attr('x',innerW-3).attr('y',yS(cp)-3)
+        pg.append('text').attr('class','cp-label').attr('x',innerW-3).attr('y',yS(cp)-3)
             .attr('text-anchor','end').attr('fill','#f59e0b').attr('font-size',8.5)
             .text(`CP ${cp}W`);
 
@@ -1743,6 +1792,20 @@ function buildStreamChartsD3() {
             const pts = timeS.map((t,i) => ({t, p: panel.vals[i]}))
                 .filter(d => d.t >= domain[0] && d.t <= domain[1]);
             if (pts.length < 2) return;
+
+            // Update Y scale to visible data max (independent per panel)
+            const visMax = d3.max(pts, d=>d.p) * 1.1;
+            yS.domain([0, visMax]);
+            if (panel._redrawYAx) panel._redrawYAx(yS);
+            const pg = pg_refs[pi];
+            pg.selectAll('.zone-band').each(function(_, zi) {
+                const z = zones[zi]; if (!z) return;
+                const minW = (z.min/100)*cp;
+                const maxW = z.max===999 ? visMax : (z.max/100)*cp;
+                d3.select(this).attr('y', yS(maxW)).attr('height', Math.max(0, yS(minW)-yS(maxW)));
+            });
+            pg.select('line.cp-line').attr('y1',yS(cp)).attr('y2',yS(cp));
+            pg.select('text.cp-label').attr('y',yS(cp)-3);
 
             // ── Zone-filled area approach ─────────────────────────────
             // Strategy: draw full area from bottom to curve, then per-zone
@@ -1895,6 +1958,7 @@ function buildStreamChartsD3() {
             updateXAxis(curDomain);
         });
     brushG.call(brush);
+    if (effortStartTime < effortEndTime) brushG.call(brush.move, [xFull(effortStartTime), xFull(effortEndTime)]);
     brushG.selectAll('.selection').attr('fill','rgba(59,130,246,0.15)').attr('stroke','#3b82f6').attr('stroke-width',1);
     brushG.selectAll('.handle').attr('fill','#3b82f6').attr('rx',2);
     brushG.append('text').attr('x',0).attr('y',BRUSH_H+10)
@@ -1932,7 +1996,9 @@ function buildSprintStreamCharts() {
     const minCad   = validCad.length ? d3.min(validCad)*0.92 : 0;
     const minTor   = validTor.length ? d3.min(validTor)*0.92 : 0;
 
-    let curDomain = [0, maxT];
+    const effortStartTime = streamModalData.effortStart || 0;
+    const effortEndTime   = streamModalData.effortEnd   || maxT;
+    let curDomain = [effortStartTime, effortEndTime];
 
     const svg = d3.select(container).append('svg')
         .attr('width', W).attr('height', H)
@@ -2197,6 +2263,7 @@ function buildSprintStreamCharts() {
             drawAll(curDomain); updateXAxis(curDomain);
         });
     brushG.call(brush);
+    if (effortStartTime < effortEndTime) brushG.call(brush.move, [xFull(effortStartTime), xFull(effortEndTime)]);
     brushG.selectAll('.selection').attr('fill','rgba(59,130,246,0.15)').attr('stroke','#3b82f6').attr('stroke-width',1);
     brushG.selectAll('.handle').attr('fill','#3b82f6').attr('rx',2);
     brushG.append('text').attr('x',innerW/2).attr('y',BRUSH_H+12)
