@@ -1353,7 +1353,7 @@
                     }
                 });
 
-                const cpLineData = timeAxis.map((t, i) => [t, cp]);
+                const cpLineData = timeAxis.map(t => [t, cp]);
                 for (let i = 0; i < 3; i++) {
                     option.series.push({
                         name: 'CP', type: 'line', xAxisIndex: i, yAxisIndex: i, data: cpLineData,

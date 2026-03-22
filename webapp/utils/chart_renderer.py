@@ -31,7 +31,7 @@ def create_pdf_report(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
         efforts: Lista efforts (start, end, avg_power)
         sprints: Lista sprints {start, end, avg}
         img_base64_str: Immagine grafico in base64
-        cp: Functional Threshold Power
+        cp: Critical Power
         weight: Peso atleta
         output_path: Percorso output PDF
         params_str: Stringa parametri configurazione

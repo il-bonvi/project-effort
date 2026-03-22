@@ -66,7 +66,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     df = session['df']
     efforts = session['efforts']
     sprints = session['sprints']
-    cp = session['cp'] if 'cp' in session else session.get('ftp', 280)
+    cp = session.get('cp', session.get('ftp', 280))
     weight = session['weight']
     
     power = df["power"].values
