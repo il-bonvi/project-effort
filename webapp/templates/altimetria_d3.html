@@ -445,23 +445,20 @@ function rectsOverlap(x1,y1,w1,h1, x2,y2,w2,h2, pad) {
     return !(x1+w1+pad < x2 || x2+w2+pad < x1 || y1+h1+pad < y2 || y2+h2+pad < y1);
 }
 
-// Given a pill X range [px, px+PILL_W] in g-coords, return the highest
-// terrain Y (lowest SVG Y value = top of mountain) in that span.
-// Returns the Y that the pill bottom must stay ABOVE.
+// Highest terrain Y (smallest SVG Y = top of mountain) under pill X range [px, px+PILL_W]
+// Uses xz scale — no dependency on bisect
 function terrainTopUnder(px, xz) {
     const distL = xz.invert(px);
     const distR = xz.invert(px + PILL_W);
     const data  = chartData.elevation_data;
-    // Find index range covering [distL, distR]
-    let lo = 0, hi = data.length - 1;
-    while (lo < hi - 1 && data[lo + 1].dist < distL) lo++;
-    while (hi > lo + 1 && data[hi - 1].dist > distR) hi--;
-    let minY = Infinity; // smallest SVG Y = highest terrain
-    for (let i = lo; i <= hi; i++) {
+    let minY = Infinity;
+    for (let i = 0; i < data.length; i++) {
+        if (data[i].dist < distL - 0.1) continue;
+        if (data[i].dist > distR + 0.1) break;
         const y = yScale(data[i].alt);
         if (y < minY) minY = y;
     }
-    return minY; // pill bottom must be < minY - gap
+    return minY; // pill bottom (ty+PILL_H) must stay < minY - gap
 }
 
 function resolveCollisions(items, xz) {
@@ -470,43 +467,40 @@ function resolveCollisions(items, xz) {
     // Sort left → right
     items.sort((a, b) => a.anchorX - b.anchorX);
 
-    // Initial placement: 45px above anchor OR above terrain, whichever is higher
+    // Initial placement: 45px above anchor, but never below terrain
     items.forEach(item => {
-        const terrain = terrainTopUnder(item.anchorX - PILL_W / 2, xz);
-        const minYFromTerrain = terrain - PILL_H - TERRAIN_GAP; // pill top must be here or above
         item.finalX = item.anchorX - PILL_W / 2;
-        item.finalY = Math.min(item.anchorY - 45, minYFromTerrain);
-        item.finalY = Math.max(ANN_MIN_Y, item.finalY);
+        const terrain = terrainTopUnder(item.finalX, xz);
+        const safeY   = isFinite(terrain) ? terrain - PILL_H - TERRAIN_GAP : item.anchorY - 45;
+        item.finalY   = Math.min(item.anchorY - 45, safeY);
+        item.finalY   = Math.max(ANN_MIN_Y, item.finalY);
     });
 
-    const placed = [];
-    const STEP_Y   = PILL_H + PILL_PAD;
-    const MAX_LVL  = 10;
-    const X_NUDGES = [15, -15, 30, -30, 50, -50];
-
-    // Check if a candidate position (tx,ty) is free of pills AND terrain
+    // Returns true if position (tx,ty) is clear of placed pills AND terrain
     function ok(tx, ty) {
-        // Pill-pill collision
         if (!placed.every(p => !rectsOverlap(tx, ty, PILL_W, PILL_H, p.finalX, p.finalY, PILL_W, PILL_H, PILL_PAD))) return false;
-        // Terrain collision: pill bottom (ty+PILL_H) must be above terrain top
         const terrain = terrainTopUnder(tx, xz);
         if (isFinite(terrain) && (ty + PILL_H + TERRAIN_GAP) > terrain) return false;
         return true;
     }
 
+    const placed = [];
+    const STEP_Y  = PILL_H + PILL_PAD;
+    const MAX_LVL = 10;
+    const X_NUDGES = [15, -15, 30, -30, 50, -50];
+
     for (const item of items) {
         let resolved = false;
 
-        // 1. Vertical only — move upward from initial position
+        // 1. Vertical only
         for (let lvl = 0; lvl < MAX_LVL; lvl++) {
             const tx = item.finalX;
             const ty = Math.max(ANN_MIN_Y, item.finalY - lvl * STEP_Y);
             if (ok(tx, ty)) { item.finalX = tx; item.finalY = ty; resolved = true; break; }
         }
 
-        // 2. Small X nudge + vertical — nudge away from center of chart
+        // 2. Small X nudge + vertical (prefer direction away from chart center)
         if (!resolved) {
-            // Prefer nudging toward whichever side has more room
             const nudges = item.anchorX < innerW / 2 ? [-15,-30,-50,15,30,50] : [15,30,50,-15,-30,-50];
             outer:
             for (const xs of nudges) {
@@ -518,7 +512,7 @@ function resolveCollisions(items, xz) {
             }
         }
 
-        // 3. Last resort: above everything
+        // 3. Last resort: stack above all placed pills
         if (!resolved) {
             const minY = placed.reduce((m, p) => Math.min(m, p.finalY), item.finalY);
             item.finalY = Math.max(ANN_MIN_Y, minY - STEP_Y);
@@ -608,6 +602,124 @@ function removeLeader() {
     if (_popupLeader) { _popupLeader.remove(); _popupLeader = null; }
 }
 
+// Track dodged pills: id → amount shifted in g-coords x
+const _dodgeShift = {};
+
+function dodgePills(cardRect) {
+    // cardRect in chart-div px {left,top,right,bottom}
+    // Convert to g-coords
+    const cL = cardRect.left   - MARGIN.left;
+    const cR = cardRect.right  - MARGIN.left;
+    const cT = cardRect.top    - ROOT_Y;
+    const cB = cardRect.bottom - ROOT_Y;
+    const PAD = 8;
+
+    // Gather all non-active pills with their current g-coord rects
+    const pills = [];
+    annG.selectAll('.ann-pill').each(function() {
+        const id = this.getAttribute('data-id');
+        if (!id || id === activeId) return;
+        const reg = pillRegistry[id];
+        if (!reg) return;
+        const baseX = reg.x - MARGIN.left; // original finalX in g-coords
+        pills.push({ id, el: this, baseX, reg });
+    });
+
+    // For each pill overlapping card, compute required dodge direction
+    // Then resolve cascading collisions among dodged pills
+    const shifts = {}; // id → shift in x (g-coords)
+    pills.forEach(p => { shifts[p.id] = 0; });
+
+    // Step 1: initial dodge away from card
+    pills.forEach(p => {
+        const px = p.baseX;
+        const pillL = px, pillR = px + PILL_W;
+        const pillT = p.reg.y - ROOT_Y, pillB = pillT + PILL_H;
+        const overlapsCard = pillR + PAD > cL && pillL - PAD < cR &&
+                             pillB + PAD > cT && pillT - PAD < cB;
+        if (!overlapsCard) return;
+        const pillCx = px + PILL_W / 2;
+        const cardCx = (cL + cR) / 2;
+        if (pillCx < cardCx) {
+            // Push left: pill right must clear card left
+            shifts[p.id] = cL - PAD - PILL_W - px - 4;
+        } else {
+            // Push right: pill left must clear card right
+            shifts[p.id] = cR + PAD + 4 - px;
+        }
+    });
+
+    // Step 2: resolve pill-pill collisions among shifted pills (iterative)
+    for (let pass = 0; pass < 10; pass++) {
+        let changed = false;
+        for (let i = 0; i < pills.length; i++) {
+            for (let j = i + 1; j < pills.length; j++) {
+                const a = pills[i], b = pills[j];
+                const ax = a.baseX + shifts[a.id];
+                const bx = b.baseX + shifts[b.id];
+                const aT = a.reg.y - ROOT_Y, aB = aT + PILL_H;
+                const bT = b.reg.y - ROOT_Y, bB = bT + PILL_H;
+                // Vertical overlap?
+                if (aB + PAD <= bT || bB + PAD <= aT) continue;
+                // Horizontal overlap?
+                const aR = ax + PILL_W, bR = bx + PILL_W;
+                if (aR + PAD <= bx || bR + PAD <= ax) continue;
+                // They collide — push the one that moved more, further in same direction
+                const overlapX = Math.min(aR, bR) - Math.max(ax, bx) + PAD;
+                if (ax + PILL_W/2 < bx + PILL_W/2) {
+                    // a is left of b — push b right (or a left if b already pushed right)
+                    if (shifts[b.id] >= 0) { shifts[b.id] += overlapX; }
+                    else { shifts[a.id] -= overlapX; }
+                } else {
+                    if (shifts[a.id] >= 0) { shifts[a.id] += overlapX; }
+                    else { shifts[b.id] -= overlapX; }
+                }
+                changed = true;
+            }
+        }
+        if (!changed) break;
+    }
+
+    // Step 3: animate each pill to its new position
+    pills.forEach(p => {
+        const shift = shifts[p.id];
+        if (shift === 0) return;
+        _dodgeShift[p.id] = shift;
+        const origX = p.baseX;
+        const sel = d3.select(p.el);
+        sel.select('line.ann-leader')
+            .transition().duration(280).ease(d3.easeCubicOut)
+            .attr('x2', origX + PILL_W / 2 + shift);
+        sel.select('rect')
+            .transition().duration(280).ease(d3.easeCubicOut)
+            .attr('x', origX + shift);
+        sel.selectAll('text')
+            .transition().duration(280).ease(d3.easeCubicOut)
+            .attr('x', origX + PILL_W / 2 + shift);
+    });
+}
+
+function undodgePills() {
+    annG.selectAll('.ann-pill').each(function() {
+        const id = this.getAttribute('data-id');
+        if (!id || !_dodgeShift[id]) return;
+        const reg = pillRegistry[id];
+        if (!reg) return;
+        const origX = reg.x - MARGIN.left;
+        delete _dodgeShift[id];
+        const sel = d3.select(this);
+        sel.select('line.ann-leader')
+            .transition().duration(220).ease(d3.easeCubicInOut)
+            .attr('x2', origX + PILL_W / 2);
+        sel.select('rect')
+            .transition().duration(220).ease(d3.easeCubicInOut)
+            .attr('x', origX);
+        sel.selectAll('text')
+            .transition().duration(220).ease(d3.easeCubicInOut)
+            .attr('x', origX + PILL_W / 2);
+    });
+}
+
 function togglePin(id, obj, type) {
     if (activeId === id) {
         collapsePopup(id);
@@ -619,6 +731,7 @@ function togglePin(id, obj, type) {
         popupCard.style.opacity = '0';
         popupCard.classList.remove('shown');
         removeLeader();
+        undodgePills();
     }
     activeId = id;
     highlightId(id);
@@ -658,22 +771,14 @@ function expandPopup(id, obj, type) {
         pill_top = ROOT_Y + yScale(mid[1]);
     }
 
-    // Final card position: centered on pill_cx, ABOVE the pill
-    // Place it in the annotation space (above innerH area)
-    const GAP = 10; // gap between card bottom and pill top
-    let finalLeft = pill_cx - CARD_W / 2;
-    let finalTop  = pill_top - CARD_H - GAP;
-
-    // Clamp horizontally (avoid sidebar)
+    // Final card position: top of chart area, centered horizontally on pill
     const chartW = document.getElementById('chart').offsetWidth;
-    finalLeft = Math.max(4, Math.min(finalLeft, chartW - SIDEBAR_W - CARD_W - 4));
-
-    // If card would go above the chart div top, push down (below pill)
-    if (finalTop < 2) {
-        finalTop = pill_top + PILL_H + GAP;
-    }
-    // Clamp vertically
     const chartH = document.getElementById('chart').offsetHeight;
+    let finalLeft = pill_cx - CARD_W / 2;
+    finalLeft = Math.max(4, Math.min(finalLeft, chartW - SIDEBAR_W - CARD_W - 4));
+    // Always place at very top of chart div — maximize space, minimize overlap
+    let finalTop = MARGIN.top + 4;
+    // If card is taller than available space, allow scrolling down but keep near top
     finalTop = Math.max(2, Math.min(finalTop, chartH - CARD_H - 4));
 
     // Leader line: from card bottom-center to trace anchor point
@@ -716,6 +821,10 @@ function expandPopup(id, obj, type) {
     popupCard.classList.add('shown');
     void popupCard.offsetHeight; // flush — browser registers start state
 
+    setTimeout(() => {
+        dodgePills({ left: finalLeft, top: finalTop, right: finalLeft + CARD_W, bottom: finalTop + CARD_H });
+    }, 30);
+
     // ANIMATE to final state
     popupCard.style.transition = [
         'transform 0.32s cubic-bezier(0.34,1.15,0.64,1)',
@@ -746,6 +855,7 @@ function collapsePopup(id) {
     const toY = pill_top - card_T + PILL_H / 2;
 
     removeLeader();
+    undodgePills();
     popupCard.style.transformOrigin = `${toX}px ${toY}px`;
     popupCard.style.transition = [
         'transform 0.22s cubic-bezier(0.4,0,0.6,1)',
