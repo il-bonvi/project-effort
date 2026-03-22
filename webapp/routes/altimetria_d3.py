@@ -485,15 +485,10 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     sprint_config = session['sprint_config']
     
     # Standard intensity zones (% of FTP)
-    intensity_zones = [
-        {'name': 'Z1 Active Recovery', 'min': 0, 'max': 55, 'color': '#3b82f6'},
-        {'name': 'Z2 Endurance', 'min': 55, 'max': 75, 'color': '#10b981'},
-        {'name': 'Z3 Tempo', 'min': 75, 'max': 90, 'color': '#eab308'},
-        {'name': 'Z4 Threshold', 'min': 90, 'max': 105, 'color': '#f97316'},
-        {'name': 'Z5 VO2Max', 'min': 105, 'max': 120, 'color': '#ef4444'},
-        {'name': 'Z6 Anaerobic', 'min': 120, 'max': 150, 'color': '#991b1b'},
-        {'name': 'Z7 Neuromuscular', 'min': 150, 'max': 999, 'color': '#6b21a8'}
-    ]
+    # Intensity zones are defined and stored exclusively in the Inspection tab (localStorage).
+    # The browser sends them at export time. We ship an empty list here as a safe placeholder —
+    # the real zones always come from the client via the POST body.
+    intensity_zones = []
     
     return {
         'elevation_data': elevation_data,

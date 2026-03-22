@@ -887,13 +887,40 @@
             status.textContent = '';
             status.style.color = '#6b7280';
             try {
-                const response = await fetch(`/api/export/${sessionId}/html-report`);
+                // Default zones — identical to inspection.html defaultZones
+                const DEFAULT_ZONES = [
+                    { min: 0,   max: 60,  color: '#009e80', name: 'Z1' },
+                    { min: 60,  max: 80,  color: '#009e00', name: 'Z2' },
+                    { min: 80,  max: 90,  color: '#ffcb0e', name: 'Z3' },
+                    { min: 90,  max: 105, color: '#ff7f0e', name: 'Z4' },
+                    { min: 105, max: 135, color: '#dd0447', name: 'Z5' },
+                    { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
+                    { min: 300, max: 999, color: '#504861', name: 'Z7' },
+                ];
+
+                // Read zones from localStorage (set in Inspection tab), fall back to defaults
+                let zones = DEFAULT_ZONES;
+                try {
+                    const zonesRaw = localStorage.getItem('inspection_zones');
+                    if (zonesRaw) {
+                        const parsed = JSON.parse(zonesRaw);
+                        if (Array.isArray(parsed) && parsed.length > 0) zones = parsed;
+                    }
+                } catch(e) {}
+
+                // Read CP from localStorage (saved when user changes it in Inspection tab)
+                const cp = parseInt(localStorage.getItem('inspection_cp')) || null;
+
+                const response = await fetch(`/api/export/${sessionId}/html-report`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ zones, cp })
+                });
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                // Get filename from Content-Disposition header if available
                 const cd = response.headers.get('Content-Disposition') || '';
                 const match = cd.match(/filename="?([^"]+)"?/);
                 a.download = match ? match[1] : 'peffort_report.html';

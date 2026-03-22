@@ -578,9 +578,9 @@
     <div class="intensity-zones-card">
         <div style="padding: 15px; background: linear-gradient(135deg, #eff6ff, #f0f9ff); border-bottom: 1px solid #bfdbfe;">
             <div style="display: flex; align-items: center; justify-content: center; gap: 30px; flex-wrap: wrap;">
-                <!-- FTP Control -->
+                <!-- CP Control -->
                 <div class="ftp-control">
-                    <label for="ftpInput">FTP:</label>
+                    <label for="ftpInput">CP:</label>
                     <input type="number" id="ftpInput" value="{{ ftp | int }}" min="50" max="500" step="5">
                     <span style="font-size: 12px; color: #1e40af; font-weight: bold;">W</span>
                 </div>
@@ -1103,9 +1103,11 @@
                 rebuildChart();
             });
 
-            // Initialize zones on page load
+            // Initialize zones on page load and always persist to localStorage
+            // so that the export function can always read the current zones.
             initializeZonesUI();
             updateWattDisplays();
+            saveLocalZones();
 
             // Function to update watt displays when FTP changes
             function updateWattDisplays() {
@@ -1159,7 +1161,7 @@
                             // Find the power value from any series (excluding FTP)
                             let powerValue = null;
                             for (const param of params) {
-                                if (param.value[1] !== null && param.value[1] !== undefined && param.seriesName !== 'FTP') {
+                                if (param.value[1] !== null && param.value[1] !== undefined && param.seriesName !== 'CP') {
                                     powerValue = param.value[1];
                                     break;
                                 }
@@ -1354,7 +1356,7 @@
                 const ftpLineData = timeAxis.map((t, i) => [t, ftp]);
                 for (let i = 0; i < 3; i++) {
                     option.series.push({
-                        name: 'FTP', type: 'line', xAxisIndex: i, yAxisIndex: i, data: ftpLineData,
+                        name: 'CP', type: 'line', xAxisIndex: i, yAxisIndex: i, data: ftpLineData,
                         lineStyle: { color: '#4b5563', width: 1, type: 'dashed' },
                         smooth: false, z: 999, symbol: 'none', animation: false
                     });
@@ -1565,11 +1567,14 @@
 
             ftpInput.addEventListener('change', function() {
                 ftp = parseInt(this.value);
+                localStorage.setItem('inspection_cp', ftp);
                 rebuildChart();
                 updateWattDisplays();
             });
 
             ftpInput.addEventListener('input', function() {
+                ftp = parseInt(this.value) || ftp;
+                localStorage.setItem('inspection_cp', ftp);
                 updateWattDisplays();
                 rebuildChart();
             });

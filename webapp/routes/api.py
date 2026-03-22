@@ -1287,11 +1287,15 @@ async def export_modifications(session_id: str):
     return data
 
 
-@router.get("/export/{session_id}/html-report")
-async def export_html_report(session_id: str):
+@router.api_route("/export/{session_id}/html-report", methods=["GET", "POST"])
+async def export_html_report(session_id: str, request=None):
     """
     Export a fully standalone interactive HTML report identical to the Altimetria D3 tab.
-    All data is embedded in the file — no server needed to view it.
+    All data is embedded — no server needed to open it.
+
+    Accepts optional POST body: { "zones": [...] } with user-customized zone colors
+    read from localStorage in the browser. If provided, these override the server
+    defaults so the report matches exactly what the user sees in the Inspection tab.
     """
     if session_id not in _shared_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -1299,38 +1303,80 @@ async def export_html_report(session_id: str):
     session = _shared_sessions[session_id]
 
     try:
-        # Import here to avoid circular imports
         from routes.altimetria_d3 import prepare_chart_data, convert_to_python_types
+        import re
+
+        # Default zones — identical to inspection.html defaultZones.
+        # Used whenever the browser does not send valid custom zones.
+        DEFAULT_ZONES = [
+            {'min': 0,   'max': 60,  'color': '#009e80', 'name': 'Z1'},
+            {'min': 60,  'max': 80,  'color': '#009e00', 'name': 'Z2'},
+            {'min': 80,  'max': 90,  'color': '#ffcb0e', 'name': 'Z3'},
+            {'min': 90,  'max': 105, 'color': '#ff7f0e', 'name': 'Z4'},
+            {'min': 105, 'max': 135, 'color': '#dd0447', 'name': 'Z5'},
+            {'min': 135, 'max': 300, 'color': '#6633cc', 'name': 'Z6'},
+            {'min': 300, 'max': 999, 'color': '#504861', 'name': 'Z7'},
+        ]
 
         chart_data = prepare_chart_data(session)
         chart_data = convert_to_python_types(chart_data)
-        chart_data_json = json.dumps(chart_data)
 
+        # Always start with defaults, then override with user's custom values from browser
+        chart_data['intensity_zones'] = DEFAULT_ZONES
+
+        if request is not None:
+            try:
+                body = await request.json()
+                if body:
+                    if 'zones' in body and isinstance(body['zones'], list) and len(body['zones']) > 0:
+                        chart_data['intensity_zones'] = body['zones']
+                    if 'cp' in body and body['cp'] and isinstance(body['cp'], (int, float)) and body['cp'] > 0:
+                        chart_data['cp'] = float(body['cp'])
+            except Exception:
+                pass  # No body or JSON parse error — keep defaults
+
+        chart_data_json = json.dumps(chart_data)
         filename = session.get('filename', 'Activity')
 
-        # Read the template file
+        # Read template and substitute Jinja2 placeholders with real values
         template_path = Path(__file__).resolve().parent.parent / "templates" / "altimetria_d3.html"
-        template_content = template_path.read_text(encoding='utf-8')
+        html = template_path.read_text(encoding='utf-8')
 
-        # Replace Jinja2 template variables with actual values
-        template_content = template_content.replace('{{ filename }}', filename)
-        template_content = template_content.replace('{{ chart_data_json | safe }}', chart_data_json)
+        html = html.replace('{{ filename }}', filename)
+        html = html.replace('{{ chart_data_json | safe }}', chart_data_json)
 
-        # Remove the storage listener block (not needed in standalone export)
-        import re
+        # Remove the storage listener (irrelevant in a standalone file)
         storage_block = re.search(
             r'<script>\s*// ── storage listener.*?</script>',
-            template_content,
-            re.DOTALL
+            html, re.DOTALL
         )
         if storage_block:
-            template_content = template_content.replace(storage_block.group(0), '')
+            html = html.replace(storage_block.group(0), '')
 
-        # Remove Jinja2 {% raw %} / {% endraw %} tags
-        template_content = template_content.replace('{% raw %}', '')
-        template_content = template_content.replace('{% endraw %}', '')
+        # Remove Jinja2 block tags left in the template
+        html = html.replace('{% raw %}', '').replace('{% endraw %}', '')
 
-        # Add a small header banner to indicate this is an exported report
+        # The report is a self-contained snapshot: zones injected at export time
+        # from the user localStorage. Only return the embedded value — immutable.
+        html = html.replace(
+            """function getIntensityZones() {
+    const stored = localStorage.getItem('inspection_zones');
+    if (stored) {
+        try {
+            return JSON.parse(stored);
+        } catch (e) {
+            console.log('Failed to parse stored zones');
+        }
+    }
+    // Fallback to chart data zones
+    return chartData.intensity_zones || [];
+}""",
+            """function getIntensityZones() {
+    return chartData.intensity_zones;
+}"""
+        )
+
+        # Add a slim header banner
         export_banner = f"""
 <div id="export-banner" style="
     position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
@@ -1348,12 +1394,11 @@ async def export_html_report(session_id: str):
     html, body {{ overflow: hidden; }}
 </style>
 """
-        # Insert banner right after <body>
-        template_content = template_content.replace('<body>', '<body>' + export_banner, 1)
+        html = html.replace('<body>', '<body>' + export_banner, 1)
 
         safe_name = filename.replace('.fit', '').replace(' ', '_')
         return StreamingResponse(
-            BytesIO(template_content.encode('utf-8')),
+            BytesIO(html.encode('utf-8')),
             media_type="text/html",
             headers={
                 "Content-Disposition": f'attachment; filename="peffort_report_{safe_name}.html"'
