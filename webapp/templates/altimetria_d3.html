@@ -25,16 +25,18 @@ html, body {
 .effort-seg {
     fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round;
     cursor: pointer; transition: stroke-width 0.15s, filter 0.15s;
+    pointer-events: stroke;
 }
 .effort-seg.dimmed { opacity: 0.2; }
 .effort-seg.highlighted { stroke-width: 8; filter: drop-shadow(0 0 5px var(--seg-color)); }
 
 .sprint-seg {
     fill: none; stroke: #000000; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round;
-    cursor: pointer; transition: stroke-width 0.15s;
+    cursor: pointer; transition: stroke-width 0.15s, opacity 0.15s, filter 0.15s;
+    pointer-events: stroke;
 }
 .sprint-seg.dimmed { opacity: 0.15; }
-.sprint-seg.highlighted { stroke-width: 8; filter: drop-shadow(0 0 5px rgba(0,0,0,0.6)); }
+.sprint-seg.highlighted { stroke-width: 8; opacity: 1; filter: drop-shadow(0 0 5px rgba(0,0,0,0.6)); }
 
 /* short sprint markers */
 .sprint-marker { fill: #000; }
@@ -343,20 +345,7 @@ function renderSegments(xz) {
             .attr('data-id', `e-${effort.id}`)
             .attr('d', lineGen)
             .attr('stroke', effort.color)
-            .style('--seg-color', effort.color)
-            .on('mouseenter', function(ev) {
-                showTooltip(ev, buildEffortTooltip(effort));
-                highlightId(`e-${effort.id}`);
-            })
-            .on('mousemove', moveTooltip)
-            .on('mouseleave', function() {
-                hideTooltip();
-                if (!activeId) clearHighlight();
-            })
-            .on('click', function(ev) {
-                ev.stopPropagation();
-                togglePin(`e-${effort.id}`, effort, 'effort');
-            });
+            .style('--seg-color', effort.color);
     });
 
     // ── Sprints ───────────────────────────────────────────────
@@ -369,20 +358,7 @@ function renderSegments(xz) {
             .datum(sprint.line_data)
             .attr('class','sprint-seg')
             .attr('data-id', `s-${idx}`)
-            .attr('d', lineGen)
-            .on('mouseenter', function(ev) {
-                showTooltip(ev, buildSprintTooltip(sprint));
-                highlightId(`s-${idx}`);
-            })
-            .on('mousemove', moveTooltip)
-            .on('mouseleave', function() {
-                hideTooltip();
-                if (!activeId) clearHighlight();
-            })
-            .on('click', function(ev) {
-                ev.stopPropagation();
-                togglePin(`s-${idx}`, sprint, 'sprint');
-            });
+            .attr('d', lineGen);
 
         // Short sprint: start/end dots
         const isShort = sprint.duration < 30 || sprint.distance_tot < 0.5;
@@ -555,7 +531,7 @@ function drawPill(item) {
             togglePin(item.id, item.obj, item.type);
         })
         .on('mouseenter', () => { if (!isActive) highlightId(item.id); })
-        .on('mouseleave', () => { if (!activeId) clearHighlight(); });
+        .on('mouseleave', () => { if (activeId) highlightId(activeId); else clearHighlight(); });
 
     // Leader line from anchor to pill bottom-center
     pg.append('line').attr('class','ann-leader')
@@ -819,6 +795,9 @@ function expandPopup(id, obj, type) {
         transition:none;
     `;
     popupCard.classList.add('shown');
+    // Highlight on hover over expanded card
+    popupCard.onmouseenter = () => { if (activeId) highlightId(activeId); };
+    popupCard.onmouseleave = () => { if (activeId) highlightId(activeId); };
     void popupCard.offsetHeight; // flush — browser registers start state
 
     setTimeout(() => {
@@ -1023,11 +1002,68 @@ function hideTooltip() { tooltip.style.display = 'none'; }
 // ── Elevation crosshair + tooltip ────────────────────────────────
 const bisect = d3.bisector(d => d.dist).left;
 
+// Segment proximity detection: build lookup of effort/sprint data per xz
+// Called from overlay mousemove to find nearest segment at cursor position
+let _segHoverActive = null; // currently hovered segment id
+
+function findSegmentNearCursor(mx, my, xz) {
+    // Check each effort and sprint: find the one whose line passes closest to (mx,my)
+    const HIT_DIST = 10; // px threshold
+    let best = null, bestDist = HIT_DIST;
+
+    function checkLine(lineData, id, tooltipFn) {
+        for (let i = 1; i < lineData.length; i++) {
+            const x1 = xz(lineData[i-1][0]), y1 = yScale(lineData[i-1][1]);
+            const x2 = xz(lineData[i][0]),   y2 = yScale(lineData[i][1]);
+            // Distance from point to segment
+            const dx = x2-x1, dy = y2-y1;
+            const lenSq = dx*dx + dy*dy;
+            if (lenSq === 0) continue;
+            const t = Math.max(0, Math.min(1, ((mx-x1)*dx + (my-y1)*dy) / lenSq));
+            const px = x1 + t*dx - mx, py = y1 + t*dy - my;
+            const dist = Math.sqrt(px*px + py*py);
+            if (dist < bestDist) { bestDist = dist; best = { id, tooltipFn }; }
+        }
+    }
+
+    chartData.efforts.forEach(e => checkLine(e.line_data, `e-${e.id}`,
+        (ev) => showTooltip(ev, buildEffortTooltip(e))));
+    chartData.sprints.forEach((s, i) => checkLine(s.line_data, `s-${i}`,
+        (ev) => showTooltip(ev, buildSprintTooltip(s))));
+
+    return best;
+}
+
 overlay
     .on('mousemove', function(ev) {
-        if (activeId) return;
-        const [mx] = d3.pointer(ev);
+        const [mx, my] = d3.pointer(ev);
         const xz = getXZ();
+
+        // Segment proximity highlight
+        const seg = findSegmentNearCursor(mx, my, xz);
+        if (seg) {
+            if (_segHoverActive !== seg.id) {
+                _segHoverActive = seg.id;
+                highlightId(seg.id);
+                seg.tooltipFn(ev);
+            } else {
+                moveTooltip(ev);
+            }
+            crossV.style('display','none');
+            crossH.style('display','none');
+            return;
+        }
+
+        // No segment nearby — clear segment hover
+        if (_segHoverActive) {
+            _segHoverActive = null;
+            hideTooltip();
+            if (activeId) highlightId(activeId); else clearHighlight();
+        }
+
+        if (activeId) return;
+
+        // Crosshair on elevation
         const distVal = xz.invert(mx);
         const idx = bisect(chartData.elevation_data, distVal, 1);
         const d0 = chartData.elevation_data[idx - 1];
@@ -1043,8 +1079,23 @@ overlay
         crossV.style('display','none');
         crossH.style('display','none');
         hideTooltip();
+        _segHoverActive = null;
+        if (activeId) highlightId(activeId); else clearHighlight();
     })
-    .on('click', function() {
+    .on('click', function(ev) {
+        // Check if clicking on a segment
+        const [mx, my] = d3.pointer(ev);
+        const seg = findSegmentNearCursor(mx, my, getXZ());
+        if (seg) {
+            const id = seg.id;
+            const isEffort = id.startsWith('e-');
+            const idx2 = isEffort
+                ? chartData.efforts.findIndex(e => `e-${e.id}` === id)
+                : parseInt(id.split('-')[1]);
+            if (isEffort) togglePin(id, chartData.efforts[idx2], 'effort');
+            else togglePin(id, chartData.sprints[idx2], 'sprint');
+            return;
+        }
         if (activeId) collapsePopup(activeId);
     });
 
