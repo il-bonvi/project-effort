@@ -114,7 +114,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 
 /* ── Sidebar ── */
 #sidebar {
-    width: 350px; height: 100%; overflow-y: auto;
+    width: 380px; height: 100%; overflow-y: auto;
     background: #f8f9fa; border-left: 2px solid #e5e7eb; padding: 15px;
     flex-shrink: 0;
 }
@@ -145,12 +145,26 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 }
 .card-row {
     display: grid; grid-template-columns: 1fr 1fr;
-    gap: 8px; margin-bottom: 6px; font-size: 0.85rem;
+    gap: 4px 8px; margin-bottom: 4px; font-size: 0.85rem;
 }
 .card-metric { display: flex; justify-content: space-between; }
-.metric-label { color: #6b7280; }
+.metric-label { color: #6b7280; white-space: nowrap; }
 .metric-value { font-weight: 600; color: #111827; }
-.card-divider { border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; }
+.card-divider { border-top: 1px solid #e5e7eb; padding-top: 6px; margin-top: 6px; }
+/* Single unified 4-col grid for effort card body */
+.eg {
+    display: grid;
+    grid-template-columns: max-content max-content max-content 1fr;
+    column-gap: 6px; row-gap: 3px;
+    font-size: 0.8rem; align-items: baseline;
+    width: 100%;
+}
+.eg .a { color: #6b7280; white-space: nowrap; min-width: 0; }
+.eg .b { font-weight: 600; color: #111827; white-space: nowrap; }
+.eg .c { color: #6b7280; white-space: nowrap; padding-left: 4px; }
+.eg .d { font-weight: 600; color: #111827; white-space: nowrap; }
+.eg .sep { grid-column: 1/-1; border-top: 1px solid #e5e7eb; margin: 2px 0; }
+.eg .span2 { grid-column: 2/-1; font-weight: 600; color: #111827; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -572,7 +586,7 @@ function drawPill(item) {
 // ════════════════════════════════════════════════════════════════
 const pillRegistry = {}; // id → {x,y,cx,cy,color}  (set in drawPill)
 const CARD_W = 560;      // matches CSS width
-const SIDEBAR_W = 352;
+const SIDEBAR_W = 382;
 
 // SVG leader line from card to trace anchor
 let _popupLeader = null;
@@ -866,34 +880,34 @@ function positionPopup() {
 
 // ── Effort card — 3-column horizontal layout ────────────────────
 function buildEffortCard(e) {
-    const signErr  = e.perc_err > 0 ? '+' : '';
+    const signErr  = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
     const signDwkg = e.diff_wkg > 0 ? '+' : '';
-    const vamExtra = e.avg_grade >= 4.5
-        ? `<div class="pc-metric"><span class="pc-label">VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>
-           <div class="pc-metric"><span class="pc-label">W/kg Teor.</span><span class="pc-value">${e.wkg_teoric}</span></div>
-           <div class="pc-metric"><span class="pc-label">Diff W/kg</span><span class="pc-value">${signDwkg}${e.diff_wkg}</span></div>
-           <div class="pc-metric"><span class="pc-label">Err %</span><span class="pc-value">${signErr}${e.perc_err}%</span></div>`
-        : `<div class="pc-metric"><span class="pc-label">VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>`;
+    const showVamTeor = e.avg_grade >= 4.5;
+    const vamSection = showVamTeor
+        ? `<div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h</span></div>
+           <div class="pc-metric"><span class="pc-label">🧮 VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>
+           <div class="pc-metric"><span class="pc-label">🧮 W/kg Teor.</span><span class="pc-value">${e.wkg_teoric} · Δ${signDwkg}${e.diff_wkg}</span></div>
+           <div class="pc-metric"><span class="pc-label">Err %</span><span class="pc-value">${signErr}${Math.abs(e.perc_err)}%</span></div>`
+        : `<div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h</span></div>`;
     return `
     <div class="pc-header">
-        <span>E#${e.id + 1} &nbsp;<span style="font-weight:400;font-size:11px;color:#6b7280">${e.start_time} · ${e.duration}s · ${e.distance_tot} km · ${e.elevation_gain}m ↑</span></span>
+        <span>E#${e.id + 1} <span style="font-weight:400;font-size:10px;color:#9ca3af">Rank #${e.rank}</span> &nbsp;<span style="font-weight:400;font-size:10.5px;color:#6b7280">${e.start_time} · ${e.duration}s · ${e.distance_tot} km · ${e.elevation_gain}m ↑</span></span>
         <span style="color:${e.color};font-size:15px">${e.avg_power}W <span style="font-size:11px;font-weight:400">(${e.ftp_pct}%)</span></span>
     </div>
     <div class="pc-cols">
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">⚡ Avg Power</span><span class="pc-value">${e.avg_power}W</span></div>
+            <div class="pc-metric"><span class="pc-label">⚡ Avg</span><span class="pc-value">${e.avg_power}W</span></div>
             <div class="pc-metric"><span class="pc-label">⚖️ W/kg</span><span class="pc-value">${e.avg_power_per_kg}</span></div>
-            <div class="pc-metric"><span class="pc-label">5″ Peak</span><span class="pc-value">${e.best_5s_watt}W · ${e.best_5s_watt_kg} W/kg</span></div>
+            <div class="pc-metric"><span class="pc-label">5″🔺 Peak</span><span class="pc-value">${e.best_5s_watt}W · ${e.best_5s_watt_kg} W/kg</span></div>
             <div class="pc-metric"><span class="pc-label">🌀 Cadence</span><span class="pc-value">${e.avg_cadence} rpm</span></div>
             <div class="pc-metric"><span class="pc-label">🔀 1st/2nd</span><span class="pc-value">${e.avg_watts_first}/${e.avg_watts_second} · ${e.watts_ratio}</span></div>
         </div>
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">❤️ HR Avg</span><span class="pc-value">${e.avg_hr > 0 ? e.avg_hr+' bpm' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">❤️ HR Max</span><span class="pc-value">${e.max_hr > 0 ? e.max_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">❤️ HR</span><span class="pc-value">${e.avg_hr > 0 ? e.avg_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 HR Max</span><span class="pc-value">${e.max_hr > 0 ? e.max_hr+' bpm' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">🚴 Speed</span><span class="pc-value">${e.avg_speed} km/h</span></div>
-            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${e.avg_grade}% · max ${e.max_grade}%</span></div>
-            <div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h</span></div>
-            ${vamExtra}
+            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${e.avg_grade}% · 🔺${e.max_grade}%</span></div>
+            ${vamSection}
         </div>
         <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${e.kj} kJ</span></div>
@@ -905,6 +919,7 @@ function buildEffortCard(e) {
         </div>
     </div>`;
 }
+
 
 // ── Sprint card — 3-column horizontal layout ───────────────────
 function buildSprintCard(s) {
@@ -1168,77 +1183,36 @@ function buildSidebar() {
 
         card.innerHTML = `
             <div class="card-header">
-                <span>E#${effort.id + 1}</span>
+                <span>E#${effort.id + 1} <span style="font-size:0.73rem;font-weight:400;color:#9ca3af">Rank #${effort.rank}</span></span>
                 <span style="color:${effort.color}">${effort.avg_power}W (${effort.ftp_pct}%)</span>
             </div>
-            <div class="card-row">
-                <div class="card-metric"><span class="metric-label">🕒 Start</span><span class="metric-value">${effort.start_time}</span></div>
-                <div class="card-metric"><span class="metric-label">⏱️ Duration</span><span class="metric-value">${effort.duration}s</span></div>
-            </div>
-            <div class="card-row">
-                <div class="card-metric"><span class="metric-label">📏 Distance</span><span class="metric-value">${effort.distance_tot} km</span></div>
-                <div class="card-metric"><span class="metric-label">🏔️ Elevation</span><span class="metric-value">${effort.elevation_gain} m</span></div>
-            </div>
-            <div class="card-divider">
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">⚡ Avg Power</span><span class="metric-value">${effort.avg_power}W</span></div>
-                    <div class="card-metric"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${effort.avg_power_per_kg}</span></div>
-                </div>
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">5" Peak</span><span class="metric-value">${effort.best_5s_watt}W</span></div>
-                    <div class="card-metric"><span class="metric-label">5" W/kg</span><span class="metric-value">${effort.best_5s_watt_kg}</span></div>
-                </div>
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">🌀 Cadence</span><span class="metric-value">${effort.avg_cadence} rpm</span></div>
-                    <div class="card-metric"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${effort.avg_watts_first}/${effort.avg_watts_second}</span></div>
-                </div>
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">Ratio</span><span class="metric-value">${effort.watts_ratio}</span></div>
-                </div>
-            </div>
-            <div class="card-divider">
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">❤️ HR Avg</span><span class="metric-value">${effort.avg_hr > 0 ? effort.avg_hr+' bpm' : '-'}</span></div>
-                    <div class="card-metric"><span class="metric-label">❤️ HR Max</span><span class="metric-value">${effort.max_hr > 0 ? effort.max_hr+' bpm' : '-'}</span></div>
-                </div>
-            </div>
-            <div class="card-divider">
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">🚴 Speed</span><span class="metric-value">${effort.avg_speed} km/h</span></div>
-                    <div class="card-metric"><span class="metric-label">📏 Grade</span><span class="metric-value">${effort.avg_grade}%</span></div>
-                </div>
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">Grade Max</span><span class="metric-value">${effort.max_grade}%</span></div>
-                </div>
-            </div>
-            <div class="card-divider">
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">🚵 VAM</span><span class="metric-value">${effort.vam} m/h${effort.avg_grade >= 4.5 ? ' '+effort.vam_arrow+' '+effort.diff_vam+' m/h' : ''}</span></div>
-                    <div class="card-metric"><span class="metric-label">VAM Teor.</span><span class="metric-value">${effort.vam_teorico} m/h</span></div>
-                </div>
+            <div class="eg">
+                <span class="a">🕒 Start</span><span class="b">${effort.start_time}</span><span class="c">⏱️ Dur.</span><span class="d">${effort.duration}s</span>
+                <span class="a">📏 Dist.</span><span class="b">${effort.distance_tot} km</span><span class="c">🏔️ Elev.</span><span class="d">${effort.elevation_gain} m</span>
+                <div class="sep"></div>
+                <span class="a">⚡ Avg</span><span class="b">${effort.avg_power}W</span><span class="c">5″🔺 Peak</span><span class="d">${effort.best_5s_watt}W</span>
+                <span class="a">⚖️ W/kg</span><span class="b">${effort.avg_power_per_kg}</span><span class="c">5″🔺 W/kg</span><span class="d">${effort.best_5s_watt_kg}</span>
+                <span class="a">🌀 Cad.</span><span class="b">${effort.avg_cadence} rpm</span><span class="c">🚴 Speed</span><span class="d">${effort.avg_speed} km/h</span>
+                <span class="a">🔀 1st/2nd</span><span class="b">${effort.avg_watts_first}/${effort.avg_watts_second}</span><span class="c">Ratio</span><span class="d">${effort.watts_ratio}</span>
+                ${effort.avg_hr > 0 ? `
+                <div class="sep"></div>
+                <span class="a">❤️ HR</span><span class="b">${effort.avg_hr} bpm</span><span class="c">🔺 HR Max</span><span class="d">${effort.max_hr} bpm</span>
+                ` : ''}
+                <div class="sep"></div>
+                <span class="a">📏 Grade</span><span class="b">${effort.avg_grade}%</span><span class="c">🔺 Max</span><span class="d">${effort.max_grade}%</span>
+                <div class="sep"></div>
                 ${effort.avg_grade >= 4.5 ? `
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">W/kg Teor.</span><span class="metric-value">${effort.wkg_teoric}</span></div>
-                    <div class="card-metric"><span class="metric-label">Diff W/kg</span><span class="metric-value">${signDwkg}${effort.diff_wkg}</span></div>
-                </div>
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">Err %</span><span class="metric-value">${signErr}${effort.perc_err}%</span></div>
-                </div>` : ''}
-            </div>
-            <div class="card-divider">
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${effort.kj} kJ</span></div>
-                    <div class="card-metric"><span class="metric-label">kJ > CP</span><span class="metric-value">${effort.kj_over_cp} kJ</span></div>
-                </div>
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${effort.kj_kg}</span></div>
-                    <div class="card-metric"><span class="metric-label">kJ/kg > CP</span><span class="metric-value">${effort.kj_kg_over_cp}</span></div>
-                </div>
-                <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${effort.kj_h_kg}</span></div>
-                    <div class="card-metric"><span class="metric-label">kJ/h/kg > CP</span><span class="metric-value">${effort.kj_h_kg_over_cp}</span></div>
-                </div>
-            </div>`;
+                <span class="a">🚵 VAM</span><span class="b">${effort.vam} m/h</span><span class="c">Diff</span><span class="d">${effort.vam_arrow} ${effort.diff_vam} m/h</span>
+                <span class="a">🧮 VAM T</span><span class="b">${effort.vam_teorico} m/h</span><span class="c">⚖️ W/kg T</span><span class="d">${effort.wkg_teoric}</span>
+                <span class="a">Δ W/kg</span><span class="b">${signDwkg}${effort.diff_wkg}</span><span class="c">Err %</span><span class="d">${signErr}${effort.perc_err}%</span>
+                ` : `
+                <span class="a">🚵 VAM</span><span class="span2">${effort.vam} m/h</span>
+                `}
+                <div class="sep"></div>
+                <span class="a">🔋 kJ</span><span class="b">${effort.kj}</span><span class="c">kJ &gt; CP</span><span class="d">${effort.kj_over_cp}</span>
+                <span class="a">💪 kJ/kg</span><span class="b">${effort.kj_kg}</span><span class="c">kJ/kg &gt; CP</span><span class="d">${effort.kj_kg_over_cp}</span>
+                <span class="a">🔥 kJ/h/kg</span><span class="b">${effort.kj_h_kg}</span><span class="c">kJ/h/kg&gt;CP</span><span class="d">${effort.kj_h_kg_over_cp}</span>
+            </div>`
         effortsList.appendChild(card);
     });
 
