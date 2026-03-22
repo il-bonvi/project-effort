@@ -108,7 +108,7 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
                                df: pd.DataFrame, 
                                alt_values: np.ndarray,
                                dist_km_values: np.ndarray,
-                               ftp: float, weight: float,
+                               cp: float, weight: float,
                                joules_cumulative: np.ndarray,
                                joules_over_cp_cumulative: np.ndarray) -> Dict[str, Any]:
     """
@@ -120,7 +120,7 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
         df: DataFrame completo con dati attività
         alt_values: Array altitudini dal DataFrame COMPLETO (per calcoli con indici s, e)
         dist_km_values: Array distanze dal DataFrame COMPLETO (per calcoli con indici s, e)
-        ftp: Functional Threshold Power
+        cp: Critical Power
         weight: Peso atleta
         joules_cumulative: Array Joules cumulativi
         joules_over_cp_cumulative: Array Joules > CP cumulativi
@@ -230,7 +230,7 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
 
 
 def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
-                        sprints: List[Dict[str, Any]], ftp: float, weight: float,
+                        sprints: List[Dict[str, Any]], cp: float, weight: float,
                         geojson_data: dict, orig_indices: List[int],
                         alt_values_full: np.ndarray, dist_km_values_full: np.ndarray,
                         alt_values_filtered: np.ndarray, dist_km_values_filtered: np.ndarray) -> str:
@@ -241,7 +241,7 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         df: DataFrame completo con dati attività (usato per calcoli energetici)
         efforts: Lista efforts (start, end, avg_power) con indici riferiti al df completo
         sprints: Lista sprints (dict con start, end, avg_power, ecc.) con indici riferiti al df completo
-        ftp: Functional Threshold Power
+        cp: Critical Power
         weight: Peso atleta
         geojson_data: GeoJSON della traccia (da df filtrato)
         orig_indices: Indici del df filtrato nel df completo
@@ -263,7 +263,7 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         dt = time_sec[i] - time_sec[i-1]
         if dt > 0 and dt < 30:
             joules_cumulative[i] = joules_cumulative[i-1] + power_all[i] * dt
-            if power_all[i] >= ftp:
+            if power_all[i] >= cp:
                 joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1] + power_all[i] * dt
             else:
                 joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
@@ -293,7 +293,7 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         if pos_end >= len(coords):
             pos_end = len(coords) - 1
         
-        zone_color = get_zone_color(avg, ftp)
+        zone_color = get_zone_color(avg, cp)
         
         # Segmenti per visualizzazione (usa array filtrati allineati con coords)
         segment_coords = coords[pos_start:pos_end+1]
@@ -302,7 +302,7 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         
         # Calcola parametri (usa array completi dal df originale)
         params = calculate_effort_parameters(s, e, avg, df, alt_values_full, dist_km_values_full, 
-                                            ftp, weight, joules_cumulative, joules_over_cp_cumulative)
+                                            cp, weight, joules_cumulative, joules_over_cp_cumulative)
         
         if len(segment_coords) > 0:
             effort_dict = {
@@ -353,7 +353,7 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         
         # Calcola parametri per sprint (usando stessa logica degli efforts, usa array completi)
         params = calculate_effort_parameters(s, e, avg, df, alt_values_full, dist_km_values_full, 
-                                            ftp, weight, joules_cumulative, joules_over_cp_cumulative)
+                                            cp, weight, joules_cumulative, joules_over_cp_cumulative)
         
         if len(segment_coords) > 0:
             sprint_dict = {

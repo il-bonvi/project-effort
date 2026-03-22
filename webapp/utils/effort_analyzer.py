@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # =====================
 WINDOW_SECONDS = 60
 MERGE_POWER_DIFF_PERCENT = 15
-MIN_EFFORT_INTENSITY_FTP = 100
+MIN_EFFORT_INTENSITY_CP = 100
 TRIM_WINDOW_SECONDS = 10
 TRIM_LOW_PERCENT = 85
 EXTEND_WINDOW_SECONDS = 15
@@ -168,20 +168,20 @@ def parse_fit(file_path: str) -> pd.DataFrame:
     return df
 
 
-def get_zone_color(avg_power: float, ftp: float) -> str:
+def get_zone_color(avg_power: float, cp: float) -> str:
     """Determina colore zona in base alla potenza
     
     Args:
         avg_power: Potenza media [W]
-        ftp: Functional Threshold Power [W]
+        cp: Critical Power [W]
         
     Returns:
         Colore hex della zona
     """
-    if ftp <= 0:
+    if cp <= 0:
         return "#cccccc"  # grigio neutro
     
-    perc = (avg_power / ftp) * 100
+    perc = (avg_power / cp) * 100
     
     # Gestione valori estremi
     if perc < 0:
@@ -191,7 +191,7 @@ def get_zone_color(avg_power: float, ftp: float) -> str:
         if perc < th:
             return color
     
-    # Valori > 999% FTP usano default
+    # Valori > 999% CP usano default
     return ZONE_DEFAULT[1]
 
 
@@ -254,16 +254,16 @@ def trim_segment(power: np.ndarray, start: int, end: int, trim_win: int, trim_pc
     return start, end
 
 
-def create_efforts(df: pd.DataFrame, ftp: float, window_sec: int = 60, merge_pct: float = 15, 
-                   min_ftp_pct: float = 100, trim_win: int = 10, trim_low: float = 85) -> List[Tuple[int, int, float]]:
-    """Crea finestre, merge, trim, filtro FTP.
+def create_efforts(df: pd.DataFrame, cp: float, window_sec: int = 60, merge_pct: float = 15, 
+                   min_cp_pct: float = 100, trim_win: int = 10, trim_low: float = 85) -> List[Tuple[int, int, float]]:
+    """Crea finestre, merge, trim, filtro CP.
     
     Args:
         df: DataFrame con dati potenza
-        ftp: Functional Threshold Power [W]
+        cp: Critical Power [W]
         window_sec: Dimensione finestra [s]
         merge_pct: Threshold merge [%]
-        min_ftp_pct: Minima intensità [%FTP]
+        min_cp_pct: Minima intensità [%CP]
         trim_win: Finestra trim [s]
         trim_low: Soglia trim [%]
         
@@ -273,12 +273,12 @@ def create_efforts(df: pd.DataFrame, ftp: float, window_sec: int = 60, merge_pct
     Raises:
         ValueError: Se parametri invalidi
     """
-    if ftp <= 0:
-        raise ValueError(f"FTP non valida: {ftp}")
+    if cp <= 0:
+        raise ValueError(f"CP non valida: {cp}")
     if window_sec <= 0:
         raise ValueError(f"window_sec non valido: {window_sec}")
-    if min_ftp_pct < 0 or min_ftp_pct > 300:
-        raise ValueError(f"min_ftp_pct fuori range: {min_ftp_pct}")
+    if min_cp_pct < 0 or min_cp_pct > 300:
+        raise ValueError(f"min_cp_pct fuori range: {min_cp_pct}")
     
     power = df["power"].values
     n = len(power)
@@ -314,7 +314,7 @@ def create_efforts(df: pd.DataFrame, ftp: float, window_sec: int = 60, merge_pct
         s_trim, e_trim = trim_segment(power, s, e, trim_win, trim_low)
         avg_trim = power[s_trim:e_trim].mean() if e_trim > s_trim else 0
         
-        if avg_trim > ftp * min_ftp_pct / 100:
+        if avg_trim > cp * min_cp_pct / 100:
             merged.append((s_trim, e_trim, avg_trim))
         
         idx = j

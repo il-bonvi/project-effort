@@ -21,11 +21,8 @@ from routes.dashboard import (
 from routes.inspection import (
     router as inspection_router, setup_inspection_router
 )
-from routes.altimetria import (
-    router as altimetria_router, setup_altimetria_router
-)
-from routes.altimetria_echarts import (
-    router as altimetria_echarts_router, setup_altimetria_echarts_router
+from routes.altimetria_d3 import (
+    router as altimetria_d3_router, setup_altimetria_d3_router
 )
 from routes.map3d import router as map3d_router, setup_map3d_router
 from routes.api import router as api_router, setup_api_router
@@ -60,8 +57,7 @@ setup_home_router(sessions)
 setup_upload_router(sessions)
 setup_dashboard_router(sessions)
 setup_inspection_router(sessions)
-setup_altimetria_router(sessions)
-setup_altimetria_echarts_router(sessions)
+setup_altimetria_d3_router(sessions)
 setup_map3d_router(sessions)
 setup_api_router(sessions)
 
@@ -72,8 +68,7 @@ app.include_router(home_router, tags=["home"])
 app.include_router(upload_router, tags=["upload"])
 app.include_router(dashboard_router, tags=["dashboard"])
 app.include_router(inspection_router, tags=["inspection"])
-app.include_router(altimetria_router, tags=["altimetria"])
-app.include_router(altimetria_echarts_router, tags=["altimetria-echarts"])
+app.include_router(altimetria_d3_router, tags=["altimetria-d3"])
 app.include_router(map3d_router, tags=["map3d"])
 app.include_router(api_router, tags=["api"])
 
@@ -88,10 +83,7 @@ logger.info(
     "  GET  /inspection/{id}       - Interactive effort editor"
 )
 logger.info(
-    "  GET  /altimetria/{id}       - Elevation profile visualization"
-)
-logger.info(
-    "  GET  /altimetria-echarts/{id} - Elevation profile with ECharts.js"
+    "GET  /altimetria-d3/{id}    - Elevation profile visualization (D3.js)"
 )
 logger.info(
     "  GET  /map3d/{id}            - 3D map with terrain visualization"
@@ -112,7 +104,7 @@ logger.info(
 @app.on_event("startup")
 async def startup_event():
     """Called when application starts"""
-    logger.info("PEFFORT Web app started on http://localhost:8000")
+    logger.info("PEFFORT Web app started on http://localhost:8001")
 
 
 @app.on_event("shutdown")

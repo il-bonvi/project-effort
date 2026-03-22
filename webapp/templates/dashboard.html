@@ -434,7 +434,7 @@
             <span><strong>File:</strong> {{ session.filename }}</span>
             <span><strong>Efforts:</strong> {{ session.efforts|length }}</span>
             <span><strong>Sprints:</strong> {{ session.sprints|length }}</span>
-            <span><strong>FTP:</strong> {{ session.ftp | int }}W</span>
+            <span><strong>CP:</strong> {{ session.cp | int }}W</span>
             <span><strong>Weight:</strong> {{ session.weight }}kg</span>
             <span><strong>Session:</strong> {{ session_id }}</span>
         </div>
@@ -445,8 +445,7 @@
         <div class="tabs">
             <div class="tab active" data-tab="overview">📊 Overview</div>
             <div class="tab" data-tab="inspection">🔍 Inspection</div>
-            <div class="tab" data-tab="altimetria">📈 Altimetria</div>
-            <div class="tab" data-tab="altimetria-echarts">📈 Altimetria Echarts</div>
+            <div class="tab" data-tab="altimetria-d3">📈 Altimetria</div>
             <div class="tab" data-tab="map3d">🗺️ 3D Map</div>
             <div class="tab" data-tab="settings">⚙️ Settings</div>
             <div class="tab" data-tab="export">📤 Export</div>
@@ -520,34 +519,18 @@
                 <iframe src="/inspection/{{ session_id }}" style="width: 100%; height: 100%; border: none; background: white;"></iframe>
             </div>
             
-            <!-- ALTIMETRIA TAB -->
-            <div class="tab-pane full-height" id="altimetria" style="position: relative;">
-                <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria')" title="Toggle Fullscreen">
-                    <span class="fullscreen-icon">⛶</span>
-                </button>
-                <div style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
-                    <button onclick="window.open('/altimetria/{{ session_id }}', '_blank', 'width=1400,height=900')" 
-                            style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                        🔍 Apri in Nuova Finestra
-                    </button>
-                    <span style="color: #6b7280; font-size: 0.85rem;">Per confronto identico con app originale</span>
-                </div>
-                <iframe src="/altimetria/{{ session_id }}" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: white;"></iframe>
-            </div>
-            
-            <!-- ALTIMETRIA ECHARTS TAB -->
-            <div class="tab-pane full-height" id="altimetria-echarts" style="position: relative;">
-                <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria-echarts')" title="Toggle Fullscreen">
+            <!-- ALTIMETRIA (D3) TAB -->
+            <div class="tab-pane full-height" id="altimetria-d3" style="position: relative;">
+                <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria-d3')" title="Toggle Fullscreen">
                     <span class="fullscreen-icon">⛶</span>
                 </button>
                 <div style="height: 40px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding: 0 10px;">
-                    <button onclick="window.open('/altimetria-echarts/{{ session_id }}', '_blank', 'width=1400,height=900')" 
+                    <button onclick="window.open('/altimetria-d3/{{ session_id }}', '_blank', 'width=1400,height=900')" 
                             style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         🔍 Apri in Nuova Finestra
                     </button>
-                    <span style="color: #6b7280; font-size: 0.85rem;">Versione ECharts con pannello metriche laterale</span>
                 </div>
-                <iframe src="/altimetria-echarts/{{ session_id }}" style="position: absolute; top: 40px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 40px); border: none; background: white;"></iframe>
+                <iframe src="/altimetria-d3/{{ session_id }}" style="position: absolute; top: 40px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 40px); border: none; background: white;"></iframe>
             </div>
             
             <!-- 3D MAP TAB -->
@@ -602,15 +585,15 @@
                         <div class="controls-title">🚴‍♂️ Athlete Parameters</div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="ftpValue">FTP (W)</label>
-                                <input type="number" id="ftpValue" value="{{ session.ftp | int }}" min="50" max="500" step="5">
+                                <label for="cpValue">CP (W)</label>
+                                <input type="number" id="cpValue" value="{{ session.cp | int }}" min="50" max="500" step="5">
                             </div>
                             <div class="form-group">
                                 <label for="weightValue">Weight (kg)</label>
                                 <input type="number" id="weightValue" value="{{ session.weight }}" min="40" max="150" step="0.5">
                             </div>
                         </div>
-                        <button class="btn btn-primary" onclick="updateFtpWeight()">💾 Update FTP & Weight</button>
+                        <button class="btn btn-primary" onclick="updateCpWeight()">💾 Update CP & Weight</button>
                     </div>
                     
                     <div class="controls-section">
@@ -621,8 +604,8 @@
                                 <input type="number" id="effortWindowSec" value="{{ session.effort_config.window_seconds | default(60) | int }}" min="10" max="300">
                             </div>
                             <div class="form-group">
-                                <label for="effortMinFtpPct">Min FTP (%)</label>
-                                <input type="number" id="effortMinFtpPct" value="{{ session.effort_config.min_effort_intensity_ftp | default(100) | int }}" min="50" max="200">
+                                <label for="effortMinCpPct">Min CP (%)</label>
+                                <input type="number" id="effortMinCpPct" value="{{ session.effort_config.min_effort_intensity_cp | default(100) | int }}" min="50" max="200">
                             </div>
                             <div class="form-group">
                                 <label for="effortMergePct">Merge Tolerance (%)</label>
@@ -709,6 +692,15 @@
                             <p>Tabular data export for analysis in Excel/Sheets</p>
                             <button class="btn btn-success" onclick="exportCsv()">Download CSV</button>
                         </div>
+
+                        <div class="export-card" style="border: 2px solid #7c3aed; background: linear-gradient(135deg, #f5f3ff, #ede9fe);">
+                            <h3 style="color: #5b21b6;">📊 Report Interattivo HTML</h3>
+                            <p style="color: #6d28d9;">File HTML standalone con grafici D3.js interattivi, tutti gli effort e sprint con metriche complete. Apribile da chiunque, nessun server richiesto.</p>
+                            <button class="btn btn-success" onclick="exportHtmlReport()" id="exportHtmlBtn" style="background: linear-gradient(135deg, #7c3aed, #6d28d9); width: 100%;">
+                                ⬇️ Download Report HTML
+                            </button>
+                            <div id="htmlExportStatus" style="margin-top: 8px; font-size: 11px; text-align: center; min-height: 16px;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -721,7 +713,7 @@
         async function redetectEfforts() {
             const params = {
                 window_sec: document.getElementById('effortWindowSec').value,
-                min_ftp_pct: document.getElementById('effortMinFtpPct').value,
+                min_cp_pct: document.getElementById('effortMinCpPct').value,
                 merge_pct: document.getElementById('effortMergePct').value,
                 trim_win: document.getElementById('trimWin').value,
                 trim_low: document.getElementById('trimLow').value,
@@ -775,14 +767,14 @@
             }
         }
         
-        async function updateFtpWeight() {
+        async function updateCpWeight() {
             const params = {
-                ftp: parseInt(document.getElementById('ftpValue').value),
+                cp: parseInt(document.getElementById('cpValue').value),
                 weight: parseFloat(document.getElementById('weightValue').value)
             };
             
             try {
-                const response = await fetch(`/api/${sessionId}/update-ftp-weight`, {
+                const response = await fetch(`/api/${sessionId}/update-cp-weight`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(params)
@@ -886,6 +878,71 @@
         function exportJson() { window.location.href = `/export/${sessionId}/json`; }
         function exportGpx() { window.location.href = `/export/${sessionId}/gpx`; }
         function exportCsv() { window.location.href = `/export/${sessionId}/csv`; }
+
+        async function exportHtmlReport() {
+            const btn = document.getElementById('exportHtmlBtn');
+            const status = document.getElementById('htmlExportStatus');
+            btn.disabled = true;
+            btn.textContent = '⏳ Generazione report...';
+            status.textContent = '';
+            status.style.color = '#6b7280';
+            try {
+                // Default zones — identical to inspection.html defaultZones
+                const DEFAULT_ZONES = [
+                    { min: 0,   max: 60,  color: '#009e80', name: 'Z1' },
+                    { min: 60,  max: 80,  color: '#009e00', name: 'Z2' },
+                    { min: 80,  max: 90,  color: '#ffcb0e', name: 'Z3' },
+                    { min: 90,  max: 105, color: '#ff7f0e', name: 'Z4' },
+                    { min: 105, max: 135, color: '#dd0447', name: 'Z5' },
+                    { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
+                    { min: 300, max: 999, color: '#504861', name: 'Z7' },
+                ];
+
+                // Read zones from localStorage (set in Inspection tab), fall back to defaults
+                let zones = DEFAULT_ZONES;
+                try {
+                    const zonesRaw = localStorage.getItem('inspection_zones');
+                    if (zonesRaw) {
+                        const parsed = JSON.parse(zonesRaw);
+                        if (Array.isArray(parsed) && parsed.length > 0) zones = parsed;
+                    }
+                } catch(e) {}
+
+                // Read CP from localStorage (saved when user changes it in Inspection tab)
+                const cp = parseInt(localStorage.getItem('inspection_cp')) || null;
+
+                const response = await fetch(`/api/export/${sessionId}/html-report`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ zones, cp })
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const cd = response.headers.get('Content-Disposition') || '';
+                const match = cd.match(/filename="?([^"]+)"?/);
+                a.download = match ? match[1] : 'peffort_report.html';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                btn.textContent = '✅ Report scaricato!';
+                status.textContent = 'Apri il file .html in qualsiasi browser.';
+                status.style.color = '#22c55e';
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = '⬇️ Download Report HTML';
+                    status.textContent = '';
+                }, 4000);
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = '⬇️ Download Report HTML';
+                status.textContent = `❌ Errore: ${err.message}`;
+                status.style.color = '#ef4444';
+            }
+        }
 
         let map3dLoaded = false;
         let isFullscreen = false;

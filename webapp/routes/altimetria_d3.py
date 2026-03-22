@@ -5,7 +5,7 @@
 # La condivisione, distribuzione o riproduzione è severamente vietata.
 # ==============================================================================
 
-"""Altimetria ECharts route - Elevation profile visualization with ECharts.js"""
+"""Altimetria D3.js route - Elevation profile visualization with D3.js"""
 
 import logging
 import sys
@@ -13,13 +13,15 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 
+import numpy as np
+
 # Add parent directory to path for PEFFORT package imports
 _project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(_project_root))
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from starlette.templating import Jinja2Templates
-import numpy as np
 
 from utils.effort_analyzer import (
     format_time_hhmmss, format_time_mmss, get_zone_color
@@ -48,21 +50,15 @@ def convert_to_python_types(obj: Any) -> Any:
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
     elif isinstance(obj, dict):
-        return {k: convert_to_python_types(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
+        return {key: convert_to_python_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
         return [convert_to_python_types(item) for item in obj]
     return obj
 
 
-def setup_altimetria_echarts_router(sessions_dict: Dict[str, Any]):
-    """Setup the altimetria echarts router with shared sessions dictionary"""
-    global _shared_sessions
-    _shared_sessions = sessions_dict
-
-
 def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Prepare all data needed for ECharts visualization
+    Prepare all data needed for D3 visualization
     
     Returns:
         Dictionary with all chart data and configurations
@@ -70,10 +66,8 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     df = session['df']
     efforts = session['efforts']
     sprints = session['sprints']
-    ftp = session['ftp']
+    cp = session.get('cp', session.get('ftp', 250))
     weight = session['weight']
-    sprint_config_obj = session.get('sprint_config')
-    cadence_min_rpm = sprint_config_obj.cadence_min_rpm if sprint_config_obj and hasattr(sprint_config_obj, 'cadence_min_rpm') else 50
     
     power = df["power"].values
     time_sec = df["time_sec"].values
@@ -84,31 +78,9 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     grade = df["grade"].values
     cadence = df["cadence"].values
     
-    # Get torque data from file or calculate from Power/Cadence
-    if "torque" in df.columns and np.any(df["torque"].values != 0):
-        # Use existing torque data from file
-        torque = df["torque"].values
-        torque_available = True
-    elif "cadence" in df.columns:
-        # Calculate torque from Power and Cadence
-        # Formula: Torque (Nm) = (Power (W) × 60) / (2π × Cadence (RPM))
-        # This is the torque at the crank axis
-        import math
-        torque = np.zeros_like(power)
-        valid_indices = (cadence > 0) & (power > 0)
-        torque[valid_indices] = (power[valid_indices] * 60) / (2 * math.pi * cadence[valid_indices])
-        torque_available = bool(np.any(torque > 0))
-    else:
-        # Torque not available - no file data and cadence missing
-        torque = np.zeros_like(power)
-        torque_available = False
-    
-    # Sample data for performance (max 1000 points for base elevation)
-    step = max(1, len(dist_km) // 1000)
-    
     # Base elevation data
     elevation_data = []
-    for i in range(0, len(dist_km), step):
+    for i in range(len(dist_km)):
         t = time_sec[i]
         if t >= 3600:
             time_str = format_time_hhmmss(t)
@@ -127,13 +99,17 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         dt = time_sec[i] - time_sec[i-1]
         if dt > 0 and dt < 30:
             joules_cumulative[i] = joules_cumulative[i-1] + power[i] * dt
-            if power[i] >= ftp:
+            if power[i] >= cp:
                 joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1] + power[i] * dt
             else:
                 joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
         else:
             joules_cumulative[i] = joules_cumulative[i-1]
             joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
+    
+    # Initialize torque and cadence settings (used for both efforts and sprints)
+    cadence_min_rpm = 20
+    torque_available = 'torque' in df.columns
     
     # Process efforts
     efforts_data = []
@@ -151,9 +127,29 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         seg_cadence = cadence[s:e]
         
         avg_power = avg
-        color = get_zone_color(avg_power, ftp)
+        color = get_zone_color(avg_power, cp)
         
         duration = float(seg_time[-1] - seg_time[0] + 1)
+        
+        # Extended stream data for moving averages (includes buffer before/after effort)
+        # This allows 30s/60s moving averages to have proper context at effort boundaries
+        buffer_seconds = 120  # Look 120s before and after effort
+        s_ext = s
+        e_ext = e
+        # Find extended indices by time distance
+        while s_ext > 0 and (time_sec[s] - time_sec[s_ext - 1]) < buffer_seconds:
+            s_ext -= 1
+        while e_ext < len(time_sec) and (time_sec[e_ext] - time_sec[e - 1]) < buffer_seconds:
+            e_ext += 1
+        
+        seg_power_ext = power[s_ext:e_ext]
+        seg_time_ext = time_sec[s_ext:e_ext]
+        seg_hr_ext = hr[s_ext:e_ext]
+        seg_cadence_ext = cadence[s_ext:e_ext]
+        if torque_available:
+            seg_torque_ext = df["torque"].values[s_ext:e_ext]
+        else:
+            seg_torque_ext = np.zeros_like(seg_power_ext)
         elevation_gain = float(seg_alt[-1] - seg_alt[0])
         dist_tot = float(seg_dist[-1] - seg_dist[0])
         avg_speed = float(dist_tot / (duration / 3600) / 1000) if duration > 0 else 0.0
@@ -179,7 +175,6 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             best_5s_watt_kg = best_5s / weight
         
         avg_power_per_kg = float(avg_power / weight) if weight > 0 else 0.0
-        # Cadence filtering: use > 0 for all values in range, but exclude obvious noise
         valid_cadence = seg_cadence[seg_cadence > 0]
         avg_cadence = float(valid_cadence.mean()) if len(valid_cadence) > 0 else 0.0
         
@@ -194,43 +189,64 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         gradient_factor = 2 + (avg_grade / 10)
         vam_teorico = (avg_power / weight) * (gradient_factor * 100) if weight > 0 else 0
         
-        # Additional VAM calculations for climbs (avg_grade >= 4.5)
-        diff_vam = abs(vam_teorico - vam) if avg_grade >= 4.5 else 0
-        arrow = ''
-        if avg_grade >= 4.5:
-            if vam_teorico - vam > 0:
-                arrow = '⬆️'
-            elif vam_teorico - vam < 0:
-                arrow = '⬇️'
-        
-        wkg_teoric = 0
-        diff_wkg = 0
-        perc_err = 0
-        if avg_grade >= 4.5 and gradient_factor > 0:
-            wkg_teoric = vam / (gradient_factor * 100) if gradient_factor > 0 else 0
-            diff_wkg = avg_power_per_kg - wkg_teoric
-            perc_err = (diff_wkg / avg_power_per_kg * 100) if avg_power_per_kg != 0 else 0
-        
         # Line data for this effort
         line_data = []
         for i in range(len(seg_dist_km)):
             line_data.append([round(seg_dist_km[i], 2), round(seg_alt[i], 1)])
         
+        # Stream data for zoom modal (power, HR, W/kg time series) — using EXTENDED data
+        # Normalize: t=0 is the effort start (buffer has negative times)
+        effort_t0 = time_sec[s]
+        time_stream = [round(float(t - effort_t0), 2) for t in seg_time_ext]
+        power_stream = [float(p) for p in seg_power_ext]
+        hr_stream = [float(h) if h > 0 else None for h in seg_hr_ext]
+        wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power_ext]
+        
+        # Cadence and torque streams (for consistency with sprints)
+        cadence_min_rpm = 20
+        seg_cadence_ext_clean = np.where(seg_cadence_ext >= cadence_min_rpm, seg_cadence_ext, 0)
+        cadence_stream = [float(c) if c >= cadence_min_rpm else None for c in seg_cadence_ext]
+        
+        # Torque stream (extended)
+        valid_torque_idx = (seg_cadence_ext_clean > 0) & (seg_power_ext > 0)
+        seg_torque_ext[valid_torque_idx] = (seg_power_ext[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence_ext_clean[valid_torque_idx])
+        torque_stream = [float(t) if t > 0 else None for t in seg_torque_ext]
+        
+        # Speed stream (km/h) - calculated from distance changes using FULL DATA
+        dist_km_ext = dist_km[s_ext:e_ext]
+        raw_speed = [0.0]  # First value is 0
+        for i in range(1, len(dist_km_ext)):
+            dt = seg_time_ext[i] - seg_time_ext[i-1]
+            if dt > 0:
+                dist_diff_km = dist_km_ext[i] - dist_km_ext[i-1]
+                speed_kmh = (dist_diff_km / (dt / 3600))  # km/h
+                raw_speed.append(float(max(0, speed_kmh)))
+            else:
+                raw_speed.append(0.0)
+        
+        # Apply 3-point moving average to smooth out noise
+        win = min(3, len(raw_speed))
+        speed_stream = []
+        for i in range(len(raw_speed)):
+            start = max(0, i - win // 2)
+            end = min(len(raw_speed), i + win // 2 + 1)
+            speed_stream.append(float(np.mean(raw_speed[start:end])))
+        
         effort_info = {
             'id': orig_idx,
             'rank': rank_idx + 1,
-            'color': color,
             'line_data': line_data,
             'label_x': round((seg_dist_km[0] + seg_dist_km[-1]) / 2, 2),
             'label_y': round(seg_alt.max(), 1),
+            'color': color,
             'avg_power': round(avg_power, 0),
             'duration': int(duration),
-            'start_time': format_time_hhmmss(seg_time[0]),
-            'ftp_pct': round(avg_power/ftp*100, 0),
+            'start_time': format_time_hhmmss(time_sec[s]) if s < len(time_sec) else '',
+            'cp_pct': round((avg_power / cp * 100), 0),
+            'avg_power_per_kg': round(avg_power_per_kg, 2),
             'best_5s_watt': best_5s_watt,
             'best_5s_watt_kg': round(best_5s_watt_kg, 2),
-            'avg_cadence': round(avg_cadence, 0),
-            'avg_power_per_kg': round(avg_power_per_kg, 2),
+            'avg_cadence': round(avg_cadence, 0) if avg_cadence > 0 else 0,
             'avg_watts_first': round(avg_watts_first, 0),
             'avg_watts_second': round(avg_watts_second, 0),
             'watts_ratio': round(watts_ratio, 2),
@@ -242,21 +258,31 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'elevation_gain': round(elevation_gain, 1),
             'distance_tot': round(dist_tot / 1000, 2),
             'vam': round(vam, 0),
+            'vam_arrow': '⬆️' if vam_teorico - vam > 0 else ('⬇️' if vam_teorico - vam < 0 else ''),
+            'diff_vam': round(abs(vam_teorico - vam), 0) if avg_grade >= 4.5 else 0,
             'vam_teorico': round(vam_teorico, 0),
+            'wkg_teoric': round((vam / (gradient_factor * 100) if gradient_factor > 0 else 0), 2),
+            'diff_wkg': round(abs(avg_power_per_kg - (vam / (gradient_factor * 100) if gradient_factor > 0 else 0)), 2),
+            'perc_err': round(((avg_power_per_kg - (vam / (gradient_factor * 100) if gradient_factor > 0 else 0)) / avg_power_per_kg * 100) if avg_power_per_kg != 0 else 0, 1) if avg_grade >= 4.5 else 0,
             'kj': round(kj, 0),
             'kj_over_cp': round(kj_over_cp, 0),
             'kj_kg': round(kj_kg, 1),
             'kj_kg_over_cp': round(kj_kg_over_cp, 1),
             'kj_h_kg': round(kj_h_kg, 1),
             'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1),
-            'gradient_factor': round(gradient_factor, 2),
-            'diff_vam': round(diff_vam, 0),
-            'vam_arrow': arrow,
-            'wkg_teoric': round(wkg_teoric, 2),
-            'diff_wkg': round(diff_wkg, 2),
-            'perc_err': round(perc_err, 1)
+            # Stream data for zoom modal (extended with 120s buffer before/after)
+            'time_stream': time_stream,
+            'power_stream': power_stream,
+            'hr_stream': hr_stream,
+            'wkg_stream': wkg_stream,
+            'cadence_stream': cadence_stream,
+            'torque_stream': torque_stream,
+            'speed_stream': speed_stream,
+            # Track effort position: ACTUAL times relative to buffer start (not indices)
+            'stream_effort_start': 0.0,  # Effort always starts at t=0
+            'stream_effort_end':   float(time_sec[e - 1] - effort_t0 + 1),
+            'stream_effort_duration': int(duration)  # Actual effort duration (not including buffer)
         }
-        
         efforts_data.append(effort_info)
     
     # Process sprints
@@ -277,11 +303,33 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         seg_grade = grade[start:end]
         seg_cadence_raw = cadence[start:end]
         seg_cadence = np.where(seg_cadence_raw >= cadence_min_rpm, seg_cadence_raw, 0)
-        seg_torque = np.zeros_like(seg_power)
+        
+        # Handle torque
         if torque_available:
-            seg_torque = torque[start:end]
+            seg_torque = df["torque"].values[start:end]
         else:
+            seg_torque = np.zeros_like(seg_power)
             valid_torque_idx = (seg_cadence > 0) & (seg_power > 0)
+            seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence[valid_torque_idx])
+        
+        # Extended stream data for moving averages (includes buffer before/after sprint)
+        buffer_seconds = 120  # Look 120s before and after sprint
+        s_ext = start
+        e_ext = end
+        # Find extended indices by time distance
+        while s_ext > 0 and (time_sec[start] - time_sec[s_ext - 1]) < buffer_seconds:
+            s_ext -= 1
+        while e_ext < len(time_sec) and (time_sec[e_ext] - time_sec[end - 1]) < buffer_seconds:
+            e_ext += 1
+        
+        seg_power_ext = power[s_ext:e_ext]
+        seg_time_ext = time_sec[s_ext:e_ext]
+        seg_hr_ext = hr[s_ext:e_ext]
+        seg_cadence_ext = cadence[s_ext:e_ext]
+        if torque_available:
+            seg_torque_ext = df["torque"].values[s_ext:e_ext]
+        else:
+            seg_torque_ext = np.zeros_like(seg_power_ext)
             seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence[valid_torque_idx])
         
         elevation_gain = float(seg_alt[-1] - seg_alt[0]) if len(seg_alt) > 1 else 0.0
@@ -295,25 +343,25 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         max_watt = float(seg_power.max()) if len(seg_power) > 0 else 0.0
         max_grade = float(seg_grade.max()) if len(seg_grade) > 0 else 0.0
         
-        # Torque calculations
+        # Torque metrics
         valid_torque = seg_torque[seg_torque > 0]
         avg_torque = float(valid_torque.mean()) if len(valid_torque) > 0 else 0.0
         min_torque = float(valid_torque.min()) if len(valid_torque) > 0 else 0.0
         max_torque = float(valid_torque.max()) if len(valid_torque) > 0 else 0.0
         
+        # Speed (km/h, not m/s)
         v1 = v2 = 0
         if len(seg_dist_km) >= 2:
             v1 = (seg_dist_km[1] - seg_dist_km[0]) * 3600
             v2 = (seg_dist_km[-1] - seg_dist_km[-2]) * 3600
         
         avg_power_per_kg = float(avg_power / weight) if weight > 0 else 0.0
-        # Apply cadence filter threshold for sprint metrics
         valid_cadence = seg_cadence[seg_cadence > 0]
         avg_cadence = float(valid_cadence.mean()) if len(valid_cadence) > 0 else 0.0
         min_cadence = float(valid_cadence.min()) if len(valid_cadence) > 0 else 0.0
         max_cadence = float(valid_cadence.max()) if len(valid_cadence) > 0 else 0.0
         
-        # Find indices for max/min power to get cadence and torque at those points
+        # Find indices for max/min power
         max_power_idx = np.argmax(seg_power) if len(seg_power) > 0 else -1
         min_power_idx = np.argmin(seg_power) if len(seg_power) > 0 else -1
         
@@ -322,8 +370,9 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         rpm_at_min = float(round(seg_cadence[min_power_idx])) if min_power_idx >= 0 and seg_cadence[min_power_idx] > 0 else 0.0
         torque_at_min = float(round(seg_torque[min_power_idx])) if min_power_idx >= 0 and seg_torque[min_power_idx] > 0 else 0.0
         
-        # kJ calculations up to sprint start (reuse pre-computed arrays from effort section)
-        hours = time_sec[start] / 3600 if start < len(time_sec) else 0
+        # kJ calculations (use joules_cumulative[start], not end!)
+        start_time_sec = time_sec[start] if start < len(time_sec) else 0
+        hours = start_time_sec / 3600 if start_time_sec > 0 else 0
         kj = joules_cumulative[start] / 1000 if start < len(joules_cumulative) else 0
         kj_over_cp = joules_over_cp_cumulative[start] / 1000 if start < len(joules_over_cp_cumulative) else 0
         kj_kg = (kj / weight) if weight > 0 else 0
@@ -331,10 +380,49 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         kj_h_kg = (kj_kg / hours) if hours > 0 else 0
         kj_h_kg_over_cp = (kj_kg_over_cp / hours) if hours > 0 else 0
         
-        # Line data for this sprint
+        # Line data
         line_data = []
         for i in range(len(seg_dist_km)):
             line_data.append([round(seg_dist_km[i], 2), round(seg_alt[i], 1)])
+        
+        # Stream data for zoom modal (power, HR, W/kg time series) — using EXTENDED data
+        # Normalize: t=0 is the effort start (buffer has negative times)
+        effort_t0 = time_sec[start]
+        time_stream = [round(float(t - effort_t0), 2) for t in seg_time_ext]
+        stream_effort_start = 0.0
+        stream_effort_end   = float(time_sec[end - 1] - effort_t0)
+        power_stream = [float(p) for p in seg_power_ext]
+        hr_stream = [float(h) if h > 0 else None for h in seg_hr_ext]
+        wkg_stream = [float(p / weight) if weight > 0 else 0 for p in seg_power_ext]
+        
+        # Cadence and torque streams (extended)
+        seg_cadence_ext_clean = np.where(seg_cadence_ext >= cadence_min_rpm, seg_cadence_ext, 0)
+        cadence_stream = [float(c) if c >= cadence_min_rpm else None for c in seg_cadence_ext]
+        
+        # Torque stream (extended)
+        valid_torque_idx = (seg_cadence_ext_clean > 0) & (seg_power_ext > 0)
+        seg_torque_ext[valid_torque_idx] = (seg_power_ext[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence_ext_clean[valid_torque_idx])
+        torque_stream = [float(t) if t > 0 else None for t in seg_torque_ext]
+        
+        # Speed stream (km/h) - calculated from distance changes using FULL DATA
+        dist_km_ext = dist_km[s_ext:e_ext]
+        raw_speed = [0.0]  # First value is 0
+        for i in range(1, len(dist_km_ext)):
+            dt = seg_time_ext[i] - seg_time_ext[i-1]
+            if dt > 0:
+                dist_diff_km = dist_km_ext[i] - dist_km_ext[i-1]
+                speed_kmh = (dist_diff_km / (dt / 3600))  # km/h
+                raw_speed.append(float(max(0, speed_kmh)))
+            else:
+                raw_speed.append(0.0)
+        
+        # Apply 3-point moving average to smooth out noise
+        win = min(3, len(raw_speed))
+        speed_stream = []
+        for i in range(len(raw_speed)):
+            start_idx = max(0, i - win // 2)
+            end_idx = min(len(raw_speed), i + win // 2 + 1)
+            speed_stream.append(float(np.mean(raw_speed[start_idx:end_idx])))
         
         sprint_info = {
             'id': orig_idx,
@@ -371,54 +459,75 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'kj_kg': round(kj_kg, 1),
             'kj_kg_over_cp': round(kj_kg_over_cp, 1),
             'kj_h_kg': round(kj_h_kg, 1),
-            'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1)
+            'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1),
+            # Stream data for zoom modal (extended with 120s buffer before/after)
+            'time_stream': time_stream,
+            'stream_effort_start': stream_effort_start,
+            'stream_effort_end':   stream_effort_end,
+            'power_stream': power_stream,
+            'hr_stream': hr_stream,
+            'wkg_stream': wkg_stream,
+            'cadence_stream': cadence_stream,
+            'torque_stream': torque_stream,
+            'speed_stream': speed_stream,
+            # Track sprint position: ACTUAL times relative to buffer start (not indices)
+            'stream_effort_start': 0.0,
+            'stream_effort_end':   float(time_sec[end - 1] - time_sec[start]),
+            'stream_effort_duration': int(duration)     # Actual sprint duration (not including buffer)
         }
-        
         sprints_data.append(sprint_info)
     
     # Get config params
     effort_config = session['effort_config']
     sprint_config = session['sprint_config']
     
+    # Standard intensity zones (% of CP)
+    # Intensity zones are defined and stored exclusively in the Inspection tab (localStorage).
+    # The browser sends them at export time. We ship an empty list here as a safe placeholder —
+    # the real zones always come from the client via the POST body.
+    intensity_zones = []
+    
     return {
         'elevation_data': elevation_data,
         'efforts': efforts_data,
         'sprints': sprints_data,
-        'ftp': float(ftp),
+        'cp': float(cp),
         'weight': float(weight),
-        'torque_available': bool(torque_available),
+        'intensity_zones': intensity_zones,
+        'torque_available': 'torque' in df.columns,
         'config': {
             'window_sec': float(effort_config.window_seconds),
             'merge_pct': float(effort_config.merge_power_diff_percent),
-            'min_ftp_pct': float(effort_config.min_effort_intensity_ftp),
-            'trim_win': float(effort_config.trim_window_seconds),
-            'trim_low': float(effort_config.trim_low_percent),
-            'extend_win': float(effort_config.extend_window_seconds),
-            'extend_low': float(effort_config.extend_low_percent),
+            'min_cp_pct': float(effort_config.min_effort_intensity_cp),
             'sprint_window_sec': float(sprint_config.window_seconds),
             'min_sprint_power': float(sprint_config.min_power)
         }
     }
 
 
-@router.get("/altimetria-echarts/{session_id}")
-async def altimetria_echarts_view(request: Request, session_id: str):
+def setup_altimetria_d3_router(sessions_dict: Dict[str, Any]):
+    """Setup the altimetria D3 router with shared sessions dictionary"""
+    global _shared_sessions
+    _shared_sessions = sessions_dict
+
+
+@router.get("/altimetria-d3/{session_id}")
+async def altimetria_d3_view(request: Request, session_id: str):
     """
-    Generate elevation profile visualization with ECharts.js
-    
+    Generate elevation profile visualization with D3.js
+
     Args:
-        request: FastAPI Request object
         session_id: Session identifier from upload
-        
+
     Returns:
-        TemplateResponse with interactive ECharts elevation profile
+        HTMLResponse with D3.js elevation profile
     """
     # Check session exists
     if session_id not in _shared_sessions:
         raise HTTPException(status_code=404, detail="Session not found. Please upload a FIT file first.")
-    
+
     session = _shared_sessions[session_id]
-    
+
     try:
         # Prepare all chart data
         chart_data = prepare_chart_data(session)
@@ -429,18 +538,18 @@ async def altimetria_echarts_view(request: Request, session_id: str):
         # Convert to JSON for embedding in HTML
         chart_data_json = json.dumps(chart_data)
         
-        # Render template with data
-        logger.info(f"Altimetria ECharts visualization generated for session {session_id}")
-        return templates.TemplateResponse("altimetria_echarts.html", {
-            "request": request,
-            "filename": session['filename'],
-            "chart_data_json": chart_data_json,
-            "session_id": session_id
-        })
-        
+        # Return the D3 template
+        logger.info(f"Altimetria D3 visualization generated for session {session_id}")
+        return templates.TemplateResponse(
+            "altimetria_d3.html",
+            {
+                "request": request,
+                "filename": session.get('filename', 'Unknown'),
+                "chart_data_json": chart_data_json,
+                "session_id": session_id
+            }
+        )
+
     except Exception as e:
-        logger.error(f"Error generating altimetria echarts view: {e}")
-        raise HTTPException(status_code=500, detail=f"Error generating elevation profile: {str(e)}")
-
-
-
+        logger.error(f"Error generating D3 altimetria for session {session_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generating visualization: {str(e)}")

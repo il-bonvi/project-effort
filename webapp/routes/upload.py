@@ -49,10 +49,10 @@ def setup_upload_router(sessions_dict: Dict[str, Any]):
 @router.post("/upload")
 async def upload_fit(
     file: UploadFile = File(...),
-    ftp: float = Form(280),
-    weight: float = Form(70),
+    cp: float = Form(250),
+    weight: float = Form(60),
     window_sec: int = Form(60),
-    min_ftp_pct: float = Form(100),
+    min_cp_pct: float = Form(100),
     merge_pct: float = Form(15),
     trim_win: int = Form(10),
     trim_low: float = Form(85),
@@ -67,10 +67,10 @@ async def upload_fit(
 
     Args:
         file: Uploaded FIT file
-        ftp: Functional Threshold Power (W)
+        cp: Critical Power (W)
         weight: Athlete weight (kg)
         window_sec: Detection window (seconds)
-        min_ftp_pct: Minimum FTP intensity (%)
+        min_cp_pct: Minimum CP intensity (%)
         merge_pct: Merge tolerance (%)
         trim_win: Trim window (seconds)
         trim_low: Trim low threshold (%)
@@ -90,9 +90,9 @@ async def upload_fit(
         )
 
     # Validate numeric parameters to prevent abuse
-    if not (50 <= ftp <= 600):
+    if not (50 <= cp <= 600):
         raise HTTPException(
-            status_code=400, detail="FTP must be between 50 and 600 watts"
+            status_code=400, detail="CP must be between 50 and 600 watts"
         )
     if not (30 <= weight <= 200):
         raise HTTPException(
@@ -103,10 +103,10 @@ async def upload_fit(
             status_code=400,
             detail="Window seconds must be between 10 and 600"
         )
-    if not (50 <= min_ftp_pct <= 300):
+    if not (50 <= min_cp_pct <= 300):
         raise HTTPException(
             status_code=400,
-            detail="Min FTP % must be between 50 and 300"
+            detail="Min CP % must be between 50 and 300"
         )
     # Additional parameter validation to prevent parameter-abuse DoS
     if not (0 <= merge_pct <= 50):
@@ -223,7 +223,7 @@ async def upload_fit(
     # Create effort config with all parameters
     effort_config = EffortConfig(
         window_seconds=window_sec,
-        min_effort_intensity_ftp=min_ftp_pct,
+        min_effort_intensity_cp=min_cp_pct,
         merge_power_diff_percent=merge_pct,
         trim_window_seconds=trim_win,
         trim_low_percent=trim_low,
@@ -235,10 +235,10 @@ async def upload_fit(
     try:
         efforts = create_efforts(
             df=df,
-            ftp=ftp,
+            cp=cp,
             window_sec=effort_config.window_seconds,
             merge_pct=effort_config.merge_power_diff_percent,
-            min_ftp_pct=effort_config.min_effort_intensity_ftp,
+            min_cp_pct=effort_config.min_effort_intensity_cp,
             trim_win=effort_config.trim_window_seconds,
             trim_low=effort_config.trim_low_percent
         )
@@ -283,7 +283,7 @@ async def upload_fit(
         sprints = []
 
     # Calculate ride statistics
-    ride_stats = calculate_ride_stats(df, ftp)
+    ride_stats = calculate_ride_stats(df, cp)
 
     # Store session data (in memory only - no persistent disk storage)
     _shared_sessions[session_id] = {
@@ -291,7 +291,7 @@ async def upload_fit(
         'df': df,
         'efforts': efforts,
         'sprints': sprints,
-        'ftp': ftp,
+        'cp': cp,
         'weight': weight,
         'effort_config': effort_config,
         'sprint_config': sprint_config,
