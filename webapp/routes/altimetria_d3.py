@@ -58,7 +58,7 @@ def convert_to_python_types(obj: Any) -> Any:
 
 def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Prepare all data needed for D3 visualization (same as ECharts version)
+    Prepare all data needed for D3 visualization
     
     Returns:
         Dictionary with all chart data and configurations
@@ -215,40 +215,124 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         
         efforts_data.append(effort_info)
     
-    # Process sprints (simplified)
+    # Process sprints
     sprints_data = []
-    for rank_idx, sprint in enumerate(sprints):
+    sorted_sprints = sorted(enumerate(sprints), key=lambda x: x[1]['avg'], reverse=True)
+    cadence_min_rpm = 20
+    torque_available = 'torque' in df.columns
+    
+    for rank_idx, (orig_idx, sprint) in enumerate(sorted_sprints):
         start = sprint['start']
         end = sprint['end']
         avg_power = sprint['avg']
+        duration = end - start
         
         seg_power = power[start:end]
         seg_alt = alt[start:end]
         seg_dist_km = dist_km[start:end]
+        seg_dist = distance[start:end]
+        seg_hr = hr[start:end]
+        seg_grade = grade[start:end]
+        seg_cadence_raw = cadence[start:end]
+        seg_cadence = np.where(seg_cadence_raw >= cadence_min_rpm, seg_cadence_raw, 0)
         
-        duration = int(end - start)
-        elevation_gain = float(seg_alt[-1] - seg_alt[0]) if len(seg_alt) > 0 else 0
-        dist_tot = float(seg_dist_km[-1] - seg_dist_km[0]) if len(seg_dist_km) > 0 else 0
+        # Handle torque
+        if torque_available:
+            seg_torque = df["torque"].values[start:end]
+        else:
+            seg_torque = np.zeros_like(seg_power)
+            valid_torque_idx = (seg_cadence > 0) & (seg_power > 0)
+            seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence[valid_torque_idx])
+        
+        elevation_gain = float(seg_alt[-1] - seg_alt[0]) if len(seg_alt) > 1 else 0.0
+        dist_tot = float(seg_dist[-1] - seg_dist[0]) if len(seg_dist) > 1 else 0.0
         avg_grade = float((elevation_gain / dist_tot * 100) if dist_tot > 0 else 0)
         
-        # Line data for this sprint
+        valid_hr = seg_hr[seg_hr > 0]
+        min_hr = float(valid_hr.min()) if len(valid_hr) > 0 else 0.0
+        max_hr = float(valid_hr.max()) if len(valid_hr) > 0 else 0.0
+        min_watt = float(seg_power.min()) if len(seg_power) > 0 else 0.0
+        max_watt = float(seg_power.max()) if len(seg_power) > 0 else 0.0
+        max_grade = float(seg_grade.max()) if len(seg_grade) > 0 else 0.0
+        
+        # Torque metrics
+        valid_torque = seg_torque[seg_torque > 0]
+        avg_torque = float(valid_torque.mean()) if len(valid_torque) > 0 else 0.0
+        min_torque = float(valid_torque.min()) if len(valid_torque) > 0 else 0.0
+        max_torque = float(valid_torque.max()) if len(valid_torque) > 0 else 0.0
+        
+        # Speed (km/h, not m/s)
+        v1 = v2 = 0
+        if len(seg_dist_km) >= 2:
+            v1 = (seg_dist_km[1] - seg_dist_km[0]) * 3600
+            v2 = (seg_dist_km[-1] - seg_dist_km[-2]) * 3600
+        
+        avg_power_per_kg = float(avg_power / weight) if weight > 0 else 0.0
+        valid_cadence = seg_cadence[seg_cadence > 0]
+        avg_cadence = float(valid_cadence.mean()) if len(valid_cadence) > 0 else 0.0
+        min_cadence = float(valid_cadence.min()) if len(valid_cadence) > 0 else 0.0
+        max_cadence = float(valid_cadence.max()) if len(valid_cadence) > 0 else 0.0
+        
+        # Find indices for max/min power
+        max_power_idx = np.argmax(seg_power) if len(seg_power) > 0 else -1
+        min_power_idx = np.argmin(seg_power) if len(seg_power) > 0 else -1
+        
+        rpm_at_max = float(round(seg_cadence[max_power_idx])) if max_power_idx >= 0 and seg_cadence[max_power_idx] > 0 else 0.0
+        torque_at_max = float(round(seg_torque[max_power_idx])) if max_power_idx >= 0 and seg_torque[max_power_idx] > 0 else 0.0
+        rpm_at_min = float(round(seg_cadence[min_power_idx])) if min_power_idx >= 0 and seg_cadence[min_power_idx] > 0 else 0.0
+        torque_at_min = float(round(seg_torque[min_power_idx])) if min_power_idx >= 0 and seg_torque[min_power_idx] > 0 else 0.0
+        
+        # kJ calculations (use joules_cumulative[start], not end!)
+        start_time_sec = time_sec[start] if start < len(time_sec) else 0
+        hours = start_time_sec / 3600 if start_time_sec > 0 else 0
+        kj = joules_cumulative[start] / 1000 if start < len(joules_cumulative) else 0
+        kj_over_cp = joules_over_cp_cumulative[start] / 1000 if start < len(joules_over_cp_cumulative) else 0
+        kj_kg = (kj / weight) if weight > 0 else 0
+        kj_kg_over_cp = (kj_over_cp / weight) if weight > 0 else 0
+        kj_h_kg = (kj_kg / hours) if hours > 0 else 0
+        kj_h_kg_over_cp = (kj_kg_over_cp / hours) if hours > 0 else 0
+        
+        # Line data
         line_data = []
         for i in range(len(seg_dist_km)):
             line_data.append([round(seg_dist_km[i], 2), round(seg_alt[i], 1)])
         
         sprint_info = {
-            'id': rank_idx,
+            'id': orig_idx,
             'rank': rank_idx + 1,
             'line_data': line_data,
-            'label_x': round((seg_dist_km[0] + seg_dist_km[-1]) / 2, 2) if len(seg_dist_km) > 0 else 0,
-            'label_y': round(seg_alt.max(), 1) if len(seg_alt) > 0 else 0,
+            'label_x': round((seg_dist_km[0] + seg_dist_km[-1]) / 2, 2),
+            'label_y': round(seg_alt.max(), 1),
             'avg_power': round(avg_power, 0),
-            'duration': duration,
+            'duration': int(duration),
             'start_time': format_time_hhmmss(time_sec[start]) if start < len(time_sec) else '',
+            'avg_power_per_kg': round(avg_power_per_kg, 2),
+            'min_watt': round(min_watt, 0),
+            'max_watt': round(max_watt, 0),
+            'min_hr': round(min_hr, 0) if min_hr > 0 else 0,
+            'max_hr': round(max_hr, 0) if max_hr > 0 else 0,
+            'avg_cadence': round(avg_cadence, 0) if avg_cadence > 0 else 0,
+            'min_cadence': round(min_cadence, 0) if min_cadence > 0 else 0,
+            'max_cadence': round(max_cadence, 0) if max_cadence > 0 else 0,
+            'avg_torque': round(avg_torque, 0) if avg_torque > 0 else 0,
+            'min_torque': round(min_torque, 0) if min_torque > 0 else 0,
+            'max_torque': round(max_torque, 0) if max_torque > 0 else 0,
+            'rpm_at_max': rpm_at_max,
+            'torque_at_max': torque_at_max,
+            'rpm_at_min': rpm_at_min,
+            'torque_at_min': torque_at_min,
+            'v1': round(v1, 1),
+            'v2': round(v2, 1),
             'avg_grade': round(avg_grade, 1),
+            'max_grade': round(max_grade, 1),
+            'elevation_gain': round(elevation_gain, 1),
             'distance_tot': round(dist_tot / 1000, 2),
-            'max_watt': round(seg_power.max(), 0) if len(seg_power) > 0 else 0,
-            'min_watt': round(seg_power.min(), 0) if len(seg_power) > 0 else 0
+            'kj': round(kj, 0),
+            'kj_over_cp': round(kj_over_cp, 0),
+            'kj_kg': round(kj_kg, 1),
+            'kj_kg_over_cp': round(kj_kg_over_cp, 1),
+            'kj_h_kg': round(kj_h_kg, 1),
+            'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1)
         }
         
         sprints_data.append(sprint_info)
