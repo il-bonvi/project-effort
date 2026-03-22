@@ -445,46 +445,83 @@ function rectsOverlap(x1,y1,w1,h1, x2,y2,w2,h2, pad) {
     return !(x1+w1+pad < x2 || x2+w2+pad < x1 || y1+h1+pad < y2 || y2+h2+pad < y1);
 }
 
-function resolveCollisions(items) {
+// Given a pill X range [px, px+PILL_W] in g-coords, return the highest
+// terrain Y (lowest SVG Y value = top of mountain) in that span.
+// Returns the Y that the pill bottom must stay ABOVE.
+function terrainTopUnder(px, xz) {
+    const distL = xz.invert(px);
+    const distR = xz.invert(px + PILL_W);
+    const data  = chartData.elevation_data;
+    // Find index range covering [distL, distR]
+    let lo = 0, hi = data.length - 1;
+    while (lo < hi - 1 && data[lo + 1].dist < distL) lo++;
+    while (hi > lo + 1 && data[hi - 1].dist > distR) hi--;
+    let minY = Infinity; // smallest SVG Y = highest terrain
+    for (let i = lo; i <= hi; i++) {
+        const y = yScale(data[i].alt);
+        if (y < minY) minY = y;
+    }
+    return minY; // pill bottom must be < minY - gap
+}
+
+function resolveCollisions(items, xz) {
+    const TERRAIN_GAP = 8; // px clearance above terrain
+
     // Sort left → right
     items.sort((a, b) => a.anchorX - b.anchorX);
 
-    // Initial placement: centered above anchor
+    // Initial placement: 45px above anchor OR above terrain, whichever is higher
     items.forEach(item => {
+        const terrain = terrainTopUnder(item.anchorX - PILL_W / 2, xz);
+        const minYFromTerrain = terrain - PILL_H - TERRAIN_GAP; // pill top must be here or above
         item.finalX = item.anchorX - PILL_W / 2;
-        item.finalY = item.anchorY - 45;
+        item.finalY = Math.min(item.anchorY - 45, minYFromTerrain);
         item.finalY = Math.max(ANN_MIN_Y, item.finalY);
     });
 
     const placed = [];
+    const STEP_Y   = PILL_H + PILL_PAD;
+    const MAX_LVL  = 10;
+    const X_NUDGES = [15, -15, 30, -30, 50, -50];
+
+    // Check if a candidate position (tx,ty) is free of pills AND terrain
+    function ok(tx, ty) {
+        // Pill-pill collision
+        if (!placed.every(p => !rectsOverlap(tx, ty, PILL_W, PILL_H, p.finalX, p.finalY, PILL_W, PILL_H, PILL_PAD))) return false;
+        // Terrain collision: pill bottom (ty+PILL_H) must be above terrain top
+        const terrain = terrainTopUnder(tx, xz);
+        if (isFinite(terrain) && (ty + PILL_H + TERRAIN_GAP) > terrain) return false;
+        return true;
+    }
 
     for (const item of items) {
-        // Try up to 8 positions: alternate Y-shift and X-shift
         let resolved = false;
-        const ySteps  = [0, -(PILL_H + PILL_PAD), -(PILL_H + PILL_PAD)*2, -(PILL_H + PILL_PAD)*3];
-        const xShifts = [0, PILL_W + PILL_PAD, -(PILL_W + PILL_PAD)];
 
-        outer:
-        for (const xs of xShifts) {
-            for (const ys of ySteps) {
-                const tx = item.finalX + xs;
-                const ty = Math.max(ANN_MIN_Y, item.finalY + ys);
-                const ok = placed.every(p =>
-                    !rectsOverlap(tx, ty, PILL_W, PILL_H, p.finalX, p.finalY, PILL_W, PILL_H, PILL_PAD)
-                );
-                if (ok) {
-                    item.finalX = tx;
-                    item.finalY = ty;
-                    resolved = true;
-                    break outer;
+        // 1. Vertical only — move upward from initial position
+        for (let lvl = 0; lvl < MAX_LVL; lvl++) {
+            const tx = item.finalX;
+            const ty = Math.max(ANN_MIN_Y, item.finalY - lvl * STEP_Y);
+            if (ok(tx, ty)) { item.finalX = tx; item.finalY = ty; resolved = true; break; }
+        }
+
+        // 2. Small X nudge + vertical — nudge away from center of chart
+        if (!resolved) {
+            // Prefer nudging toward whichever side has more room
+            const nudges = item.anchorX < innerW / 2 ? [-15,-30,-50,15,30,50] : [15,30,50,-15,-30,-50];
+            outer:
+            for (const xs of nudges) {
+                for (let lvl = 0; lvl < MAX_LVL; lvl++) {
+                    const tx = item.finalX + xs;
+                    const ty = Math.max(ANN_MIN_Y, item.finalY - lvl * STEP_Y);
+                    if (ok(tx, ty)) { item.finalX = tx; item.finalY = ty; resolved = true; break outer; }
                 }
             }
         }
 
-        // Last resort: stack above all placed pills
+        // 3. Last resort: above everything
         if (!resolved) {
             const minY = placed.reduce((m, p) => Math.min(m, p.finalY), item.finalY);
-            item.finalY = Math.max(ANN_MIN_Y, minY - PILL_H - PILL_PAD);
+            item.finalY = Math.max(ANN_MIN_Y, minY - STEP_Y);
         }
 
         placed.push(item);
@@ -497,8 +534,7 @@ function renderAnnotations(xz) {
     annG.selectAll('*').remove();
 
     const items = buildAnnotationItems(xz);
-    console.log('renderAnnotations:', {itemCount: items.length, items});
-    const { singles } = resolveCollisions(items);
+    const { singles } = resolveCollisions(items, xz);
 
     singles.forEach(item => drawPill(item));
 }
