@@ -61,6 +61,23 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
     border-left: 4px solid #000;
     padding: 10px 13px; min-width: 230px; max-width: 270px;
     font-size: 12px; line-height: 1.6; pointer-events: none;
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.3s ease-out, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* Expansion from annotation in chart */
+#popup-card.expandFrom {
+    opacity: 0;
+    transform: scale(0.4);
+}
+#popup-card.expandFrom.expanded {
+    opacity: 1;
+    transform: scale(1);
+}
+/* Expansion from center (sidebar) */
+#popup-card.expandCenter.expanded {
+    opacity: 1;
+    transform: scale(1);
 }
 #popup-card .pc-header {
     font-size: 13px; font-weight: 700; margin-bottom: 6px;
@@ -234,14 +251,14 @@ const yAxisG   = g.append('g').attr('class','y-axis');
 const clipG    = g.append('g').attr('clip-path','url(#chartClip)');
 const elevG    = clipG.append('g').attr('class','elev-layer');
 const segsG    = clipG.append('g').attr('class','segs-layer');
+// Invisible overlay for mouse tracking (MUST be before annG/crossG so it doesn't cover them)
+const overlay  = g.append('rect').attr('width',innerW).attr('height',innerH).attr('fill','none').style('pointer-events','all');
 // Annotations NOT clipped — can go into ann space
 const annG     = g.append('g').attr('class','ann-layer');
 // Crosshair
 const crossG   = g.append('g').attr('class','cross-layer').style('pointer-events','none');
 const crossV   = crossG.append('line').attr('class','crosshair').attr('y1',0).attr('y2',innerH).style('display','none');
 const crossH   = crossG.append('line').attr('class','crosshair').attr('x1',0).attr('x2',innerW).style('display','none');
-// Invisible overlay for mouse tracking
-const overlay  = g.append('rect').attr('width',innerW).attr('height',innerH).attr('fill','none').style('pointer-events','all');
 
 // Axis labels
 g.append('text').attr('class','axis-name')
@@ -472,12 +489,14 @@ function renderAnnotations(xz) {
     annG.selectAll('*').remove();
 
     const items = buildAnnotationItems(xz);
+    console.log('renderAnnotations:', {itemCount: items.length, items});
     const { singles } = resolveCollisions(items);
 
     singles.forEach(item => drawPill(item));
 }
 
 function drawPill(item) {
+    console.log('drawPill called:', item.id);
     const isActive = activeId === item.id;
     const pg = annG.append('g')
         .attr('class', `ann-pill${isActive ? ' active' : ''}`)
@@ -485,7 +504,11 @@ function drawPill(item) {
         .style('cursor','pointer')
         .on('click', function(ev) {
             ev.stopPropagation();
-            togglePin(item.id, item.obj, item.type);
+            // Convert SVG coordinates to screen coordinates
+            const pillScreenX = MARGIN.left + item.finalX;
+            const pillScreenY = ROOT_Y + item.finalY;
+            console.log('drawPill click:', {MARGIN, ROOT_Y, finalX: item.finalX, finalY: item.finalY, pillScreenX, pillScreenY});
+            togglePin(item.id, item.obj, item.type, pillScreenX, pillScreenY);
         })
         .on('mouseenter', () => highlightId(item.id))
         .on('mouseleave', () => { if (!activeId) clearHighlight(); });
@@ -525,37 +548,74 @@ function drawPill(item) {
 // ════════════════════════════════════════════════════════════════
 // PIN / POPUP CARD — shows full metrics on click (same data as sidebar)
 // ════════════════════════════════════════════════════════════════
-function togglePin(id, obj, type) {
+let popupOriginX = 0, popupOriginY = 0; // for animation origin
+
+function togglePin(id, obj, type, pillX, pillY) {
+    console.log('togglePin called:', {id, type, pillX, pillY, activeId});
     if (activeId === id) {
         activeId = null;
-        popupCard.style.display = 'none';
+        popupCard.classList.remove('expanded');
+        setTimeout(() => { popupCard.style.display = 'none'; }, 400);
         clearHighlight();
         renderAnnotations(getXZ());
     } else {
         activeId = id;
         highlightId(id);
-        showPopupCard(obj, type);
+        showPopupCard(obj, type, pillX, pillY);
         renderAnnotations(getXZ());
     }
 }
 
-function showPopupCard(obj, type) {
+function showPopupCard(obj, type, pillX = null, pillY = null) {
     popupCard.style.borderLeftColor = type === 'effort' ? obj.color : '#000';
     popupCard.innerHTML = type === 'effort' ? buildEffortCard(obj) : buildSprintCard(obj);
+    popupCard.classList.remove('expanded', 'expandFrom', 'expandCenter');
     popupCard.style.display = 'block';
 
-    // Position: try to place near chart center top
-    positionPopup();
+    // Position and animation mode
+    if (pillX !== null && pillY !== null) {
+        // Expanding from annotation in chart
+        popupOriginX = pillX;
+        popupOriginY = pillY;
+        popupCard.classList.add('expandFrom');
+        positionPopup(pillX, pillY);
+    } else {
+        // Expanding from center (sidebar)
+        popupOriginX = MARGIN.left + innerW / 2;
+        popupOriginY = MARGIN.top + 50;
+        popupCard.classList.add('expandCenter');
+        const pw = popupCard.offsetWidth || 250;
+        const ph = popupCard.offsetHeight || 300;
+        const px = MARGIN.left + innerW / 2 - pw / 2;
+        const py = MARGIN.top + 10;
+        popupCard.style.left = px + 'px';
+        popupCard.style.top = py + 'px';
+        popupCard.style.transformOrigin = (popupOriginX - px) + 'px ' + (popupOriginY - py) + 'px';
+    }
+    
+    // Trigger animation with proper timing
+    setTimeout(() => { 
+        popupCard.classList.add('expanded'); 
+    }, 10);
 }
 
-function positionPopup() {
+function positionPopup(pillX, pillY) {
     const pw = popupCard.offsetWidth || 250;
     const ph = popupCard.offsetHeight || 300;
-    let px = MARGIN.left + innerW / 2 - pw / 2;
-    let py = MARGIN.top + 10;
+    
+    // Position popup to expand from the pill location
+    // Center the popup around the pill for nice expansion
+    let px = pillX - pw / 2 + 35;  // Center on pill (pill center is at pillX)
+    let py = pillY - ph / 2 + 15;  // Center vertically on pill
+    
+    // Clamp to viewport with some padding
     px = Math.max(4, Math.min(px, W - MARGIN.right - 350 - pw - 8));
+    py = Math.max(MARGIN.top + 5, Math.min(py, H - MARGIN.bottom - ph - 8));
+    
     popupCard.style.left = px + 'px';
     popupCard.style.top  = py + 'px';
+    // Set transform origin to the pill location (for expansion effect)
+    popupCard.style.transformOrigin = (pillX - px) + 'px ' + (pillY - py) + 'px';
 }
 
 // ── Effort card HTML — exact replica of ECharts sidebar card ────
@@ -863,7 +923,7 @@ function buildSidebar() {
 
         card.addEventListener('mouseenter', () => { card.classList.add('highlighted'); highlightId(id); });
         card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (!activeId) clearHighlight(); });
-        card.addEventListener('click',      () => togglePin(id, effort, 'effort'));
+        card.addEventListener('click',      () => togglePin(id, effort, 'effort', null, null));
 
         const signErr  = effort.perc_err > 0 ? '+' : '';
         const signDwkg = effort.diff_wkg > 0 ? '+' : '';
@@ -956,7 +1016,7 @@ function buildSidebar() {
 
         card.addEventListener('mouseenter', () => { card.classList.add('highlighted'); highlightId(id); });
         card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (!activeId) clearHighlight(); });
-        card.addEventListener('click',      () => togglePin(id, sprint, 'sprint'));
+        card.addEventListener('click',      () => togglePin(id, sprint, 'sprint', null, null));
 
         card.innerHTML = `
             <div class="card-header">
