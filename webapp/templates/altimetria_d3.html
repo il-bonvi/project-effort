@@ -1291,7 +1291,7 @@ function buildSidebar() {
         card.dataset.sid = id;
 
         card.addEventListener('mouseenter', () => { card.classList.add('highlighted'); highlightId(id); });
-        card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (!activeId) clearHighlight(); });
+        card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (activeId) highlightId(activeId); else clearHighlight(); });
         card.addEventListener('click',      () => togglePin(id, effort, 'effort'));
 
         const signErr  = effort.perc_err > 0 ? '+' : '';
@@ -1343,7 +1343,7 @@ function buildSidebar() {
         card.dataset.sid = id;
 
         card.addEventListener('mouseenter', () => { card.classList.add('highlighted'); highlightId(id); });
-        card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (!activeId) clearHighlight(); });
+        card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (activeId) highlightId(activeId); else clearHighlight(); });
         card.addEventListener('click',      () => togglePin(id, sprint, 'sprint'));
 
         card.innerHTML = `
