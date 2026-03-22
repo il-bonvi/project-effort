@@ -565,7 +565,17 @@
     <div id="mainChart" style="width: 100%; height: 800px; border-radius: 6px; border: 1px solid #d1d5db; background: #ffffff;"></div>
 
     <div style="margin: 20px 0;">
-        <h3 style="font-size: 1.2rem; color: #374151; margin-bottom: 10px;">💪 Efforts Detected</h3>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+            <h3 style="font-size: 1.2rem; color: #374151;">💪 Efforts Detected</h3>
+            <button id="addEffortBtn" style="
+                background: linear-gradient(135deg, #22c55e, #16a34a);
+                color: white; border: none; border-radius: 6px;
+                padding: 5px 12px; font-size: 0.82rem; font-weight: 600;
+                cursor: pointer; display: flex; align-items: center; gap: 5px;
+                transition: all 0.2s;">
+                ＋ Aggiungi Effort
+            </button>
+        </div>
         <div class="legend" id="legend"></div>
     </div>
 
@@ -692,6 +702,7 @@
         <div class="tip">• <strong>Zoom:</strong> Rotella del mouse per zoomare</div>
         <div class="tip">• <strong>Drag & Drop:</strong> Clic destro sui punti START/END per modificare gli intervalli</div>
         <div class="tip">• <strong>Elimina Effort:</strong> Clicca il bottone '×' nella legenda</div>
+        <div class="tip">• <strong>Aggiungi Effort:</strong> Clicca '＋ Aggiungi Effort' — crea un nuovo effort nell'area visibile, poi trascina START/END per posizionarlo</div>
     </div>
 
     <script>
@@ -844,11 +855,13 @@
                 };
             }
 
+            const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6'];
+
             const deletedEfforts = new Set();
             const deletedSprints = new Set();
             const legendDiv = document.getElementById('legend');
 
-            effortsData.forEach((effort, idx) => {
+            function addEffortCard(effort, idx) {
                 const item = document.createElement('div');
                 item.className = 'legend-item';
                 item.id = `effort-${idx}`;
@@ -858,7 +871,7 @@
                         <div class="legend-color" style="background: ${effort.color};"></div>
                         <div>
                             <strong>${effort.label}</strong><br>
-                            <span style="color: #9ca3b8;">
+                            <span style="color: #9ca3b8;" id="effort-info-${idx}">
                                 ${effort.start.toFixed(0)}s - ${effort.end.toFixed(0)}s | ${(effort.end - effort.start).toFixed(0)}s | ${effort.avg_power.toFixed(0)}W
                             </span>
                         </div>
@@ -867,8 +880,7 @@
                 `;
                 legendDiv.appendChild(item);
 
-                const deleteBtn = item.querySelector('.delete-btn');
-                deleteBtn.addEventListener('click', function(e) {
+                item.querySelector('.delete-btn').addEventListener('click', function(e) {
                     e.preventDefault();
                     const effortIdx = parseInt(this.dataset.effortIdx);
                     if (deletedEfforts.has(effortIdx)) {
@@ -880,6 +892,58 @@
                     }
                     rebuildChart();
                 });
+            }
+
+            effortsData.forEach((effort, idx) => { addEffortCard(effort, idx); });
+
+            document.getElementById('addEffortBtn').addEventListener('click', function() {
+                // Get current visible range from chart dataZoom
+                const chartOption = myChart.getOption();
+                const zoom = chartOption.dataZoom ? chartOption.dataZoom[0] : null;
+                const totalDuration = timeAxis[timeAxis.length - 1];
+
+                let visStart, visEnd;
+                if (zoom) {
+                    visStart = totalDuration * (zoom.start / 100);
+                    visEnd   = totalDuration * (zoom.end   / 100);
+                } else {
+                    visStart = 0;
+                    visEnd   = totalDuration;
+                }
+
+                // Place new effort in the middle third of the visible window
+                const span    = visEnd - visStart;
+                const newStart = visStart + span / 3;
+                const newEnd   = visStart + (span * 2) / 3;
+
+                // Calculate avg power for the new range
+                const startSample = timeAxis.findIndex(t => t >= newStart);
+                const endSample   = timeAxis.findIndex(t => t >= newEnd);
+                const slice = powerData.slice(
+                    Math.max(0, startSample),
+                    Math.max(1, endSample)
+                );
+                const avgPow = slice.length > 0
+                    ? slice.reduce((a, b) => a + b, 0) / slice.length
+                    : 0;
+
+                const newIdx = effortsData.length;
+                const newEffort = {
+                    id: newIdx,
+                    start: newStart,
+                    end: newEnd,
+                    avg_power: avgPow,
+                    color: colors[newIdx % colors.length],
+                    label: `Effort ${newIdx + 1}`
+                };
+
+                effortsData.push(newEffort);
+                addEffortCard(newEffort, newIdx);
+                rebuildChart();
+
+                // Scroll to the new card
+                document.getElementById(`effort-${newIdx}`)
+                    .scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
 
             const sprintsLegendDiv = document.getElementById('sprintsLegend');
@@ -1653,6 +1717,16 @@
                     if (newTime < item.end - 5) item.start = newTime;
                 } else {
                     if (newTime > item.start + 5) item.end = newTime;
+                }
+
+                // Recalculate avg_power for the updated range
+                if (draggingState.type === 'effort') {
+                    const s = timeAxis.findIndex(t => t >= item.start);
+                    const e2 = timeAxis.findIndex(t => t >= item.end);
+                    const slice = powerData.slice(Math.max(0, s), Math.max(1, e2));
+                    if (slice.length > 0) {
+                        item.avg_power = slice.reduce((a, b) => a + b, 0) / slice.length;
+                    }
                 }
                 
                 rebuildChart();
