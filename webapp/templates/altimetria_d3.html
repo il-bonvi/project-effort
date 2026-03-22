@@ -46,6 +46,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 
 /* ── Annotations ── */
 .ann-leader { stroke: #b0b0b0; stroke-width: 0.8; stroke-dasharray: 3,2; fill: none; pointer-events: none; }
+.popup-leader { stroke: #6b7280; stroke-width: 1.5; stroke-dasharray: 5,3; fill: none; pointer-events: none; }
 
 .ann-pill { cursor: pointer; }
 .ann-pill rect { transition: stroke-width 0.12s; }
@@ -53,33 +54,48 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 
 .ann-cluster { cursor: pointer; }
 
-/* expanded popup card — animates from pill geometry */
+/* ── Expanded popup card — wide, above chart, morphs from pill ── */
 #popup-card {
     position: absolute;
     z-index: 200;
     background: #fff;
-    border-left: 4px solid #000;
-    padding: 10px 13px;
-    width: 255px;
-    font-size: 12px; line-height: 1.6;
+    border-top: 4px solid #000;          /* accent on top instead of left */
+    border-radius: 10px;
+    box-shadow: 0 10px 36px rgba(0,0,0,0.22);
+    padding: 10px 14px 12px;
+    width: 560px;                         /* wide horizontal layout */
+    font-size: 11.5px; line-height: 1.55;
     pointer-events: none;
+    opacity: 0;                           /* hidden — no display:none */
     overflow: hidden;
-    /* Invisible by default — NO display:none */
-    opacity: 0;
-    pointer-events: none;
 }
-#popup-card.shown {
-    pointer-events: auto;
+#popup-card.shown { pointer-events: auto; }
+
+/* 3-column grid layout inside card */
+#popup-card .pc-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0 12px;
 }
+#popup-card .pc-col { min-width: 0; }
 #popup-card .pc-header {
-    font-size: 13px; font-weight: 700; margin-bottom: 6px;
+    font-size: 13px; font-weight: 700; margin-bottom: 8px;
     display: flex; justify-content: space-between; align-items: center;
+    grid-column: 1 / -1;                 /* header spans all columns */
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 6px;
 }
-#popup-card .pc-section { border-top: 1px solid #e5e7eb; padding-top: 6px; margin-top: 6px; }
-#popup-card .pc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 3px; }
-#popup-card .pc-metric { display: flex; justify-content: space-between; font-size: 11px; }
-#popup-card .pc-label { color: #6b7280; }
-#popup-card .pc-value { font-weight: 600; color: #111827; }
+#popup-card .pc-section {
+    border-top: 1px solid #f0f0f0;
+    padding-top: 4px; margin-top: 4px;
+}
+#popup-card .pc-row { display: contents; } /* rows become grid children */
+#popup-card .pc-metric {
+    display: flex; justify-content: space-between;
+    font-size: 11px; padding: 1px 0;
+}
+#popup-card .pc-label { color: #6b7280; margin-right: 4px; white-space: nowrap; }
+#popup-card .pc-value { font-weight: 600; color: #111827; text-align: right; }
 
 /* ── Tooltip (hover) ── */
 #tooltip {
@@ -489,22 +505,21 @@ function renderAnnotations(xz) {
 
 function drawPill(item) {
     const isActive = activeId === item.id;
-
-    // Store pill geometry in registry for popup animation origin
+    // Register pill geometry for popup animation
     pillRegistry[item.id] = {
-        x: MARGIN.left + item.finalX,          // left edge in #chart px
-        y: ROOT_Y      + item.finalY,           // top edge in #chart px
-        cx: MARGIN.left + item.finalX + PILL_W / 2,  // center x
-        cy: ROOT_Y      + item.finalY + PILL_H / 2,  // center y
+        x:  MARGIN.left + item.finalX,
+        y:  ROOT_Y      + item.finalY,
+        cx: MARGIN.left + item.finalX + PILL_W / 2,
+        cy: ROOT_Y      + item.finalY + PILL_H / 2,
+        anchorX: item.anchorX,   // g-space coords pointing to trace
+        anchorY: item.anchorY,
         color: item.color
     };
-
     const pg = annG.append('g')
         .attr('class', `ann-pill${isActive ? ' active' : ''}`)
         .attr('data-id', item.id)
         .style('cursor', isActive ? 'default' : 'pointer')
-        // Hide the pill rect/text when active (card replaces it visually)
-        .style('opacity', isActive ? 0 : 1)
+        .style('opacity', isActive ? 0 : 1)  // hide pill when expanded
         .on('click', function(ev) {
             ev.stopPropagation();
             togglePin(item.id, item.obj, item.type);
@@ -545,144 +560,165 @@ function drawPill(item) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// PIN / POPUP CARD — card morphs from pill geometry
+// PIN / POPUP CARD — morphs from pill, positions above chart area
 // ════════════════════════════════════════════════════════════════
-const pillRegistry = {}; // id → {x,y,cx,cy,color}
+const pillRegistry = {}; // id → {x,y,cx,cy,color}  (set in drawPill)
+const CARD_W = 560;      // matches CSS width
+const SIDEBAR_W = 352;
+
+// SVG leader line from card to trace anchor
+let _popupLeader = null;
+function removeLeader() {
+    if (_popupLeader) { _popupLeader.remove(); _popupLeader = null; }
+}
 
 function togglePin(id, obj, type) {
     if (activeId === id) {
-        // Collapse back to pill
         collapsePopup(id);
         return;
     }
-    // Collapse any open popup instantly
+    // Instantly hide existing (no cross-fade when switching)
     if (activeId) {
         popupCard.style.transition = 'none';
         popupCard.style.opacity = '0';
         popupCard.classList.remove('shown');
+        removeLeader();
     }
     activeId = id;
     highlightId(id);
-    renderAnnotations(getXZ()); // redraws → fills pillRegistry
+    renderAnnotations(getXZ()); // redraws pills → fills pillRegistry
     expandPopup(id, obj, type);
 }
 
 function expandPopup(id, obj, type) {
-    const pill = pillRegistry[id];
+    const pill  = pillRegistry[id];
     const color = type === 'effort' ? obj.color : '#000';
-    const CARD_W = 255;
-    const SIDEBAR_W = 352;
-    const chartW = document.getElementById('chart').offsetWidth;
-    const chartH = document.getElementById('chart').offsetHeight;
 
-    // ── Fill content ──────────────────────────────────────────────
-    popupCard.style.borderLeftColor = color;
+    // Fill content
+    popupCard.style.borderTopColor = color;
     popupCard.innerHTML = type === 'effort' ? buildEffortCard(obj) : buildSprintCard(obj);
 
-    // ── Measure final card height (render off-screen at full size) ─
-    popupCard.style.transition = 'none';
-    popupCard.style.width      = CARD_W + 'px';
-    popupCard.style.height     = 'auto';
-    popupCard.style.opacity    = '0';
-    popupCard.style.transform  = 'none';
-    popupCard.style.borderRadius = '10px';
-    popupCard.style.boxShadow  = '0 8px 28px rgba(0,0,0,0.20)';
-    // Position off-screen to measure
-    popupCard.style.left = '-9999px';
-    popupCard.style.top  = '-9999px';
-    void popupCard.offsetHeight; // force layout
-    const CARD_H = popupCard.offsetHeight;
+    // Measure card height: place off-screen at full width, no transform
+    popupCard.style.cssText = `
+        position:absolute; left:-9999px; top:-9999px;
+        width:${CARD_W}px; opacity:0; transform:none;
+        border-top:4px solid ${color}; border-radius:10px;
+        padding:10px 14px 12px; font-size:11.5px; line-height:1.55;
+        box-shadow:0 10px 36px rgba(0,0,0,0.22); background:#fff;
+        overflow:visible; z-index:200; pointer-events:none;
+    `;
+    void popupCard.offsetHeight;
+    const CARD_H = popupCard.scrollHeight + 4;
 
-    // ── Compute final position: above pill, clamped inside chart ──
-    let pill_cx, pill_y;
+    // Pill center — origin of the animation
+    let pill_cx, pill_top;
     if (pill) {
-        pill_cx = pill.cx;
-        pill_y  = pill.y;
+        pill_cx  = pill.cx;
+        pill_top = pill.y;
     } else {
-        // Sidebar click fallback: use segment midpoint
         const xz = getXZ();
         const mid = obj.line_data[Math.floor(obj.line_data.length / 2)];
-        pill_cx = MARGIN.left + xz(mid[0]);
-        pill_y  = ROOT_Y + yScale(mid[1]);
+        pill_cx  = MARGIN.left + xz(mid[0]);
+        pill_top = ROOT_Y + yScale(mid[1]);
     }
 
+    // Final card position: centered on pill_cx, ABOVE the pill
+    // Place it in the annotation space (above innerH area)
+    const GAP = 10; // gap between card bottom and pill top
     let finalLeft = pill_cx - CARD_W / 2;
-    let finalTop  = pill_y - CARD_H - 10; // above pill
+    let finalTop  = pill_top - CARD_H - GAP;
 
-    // Clamp: don't go below pill, don't exit chart left/right/bottom
-    if (finalTop < 4) finalTop = pill_y + PILL_H + 10;
+    // Clamp horizontally (avoid sidebar)
+    const chartW = document.getElementById('chart').offsetWidth;
     finalLeft = Math.max(4, Math.min(finalLeft, chartW - SIDEBAR_W - CARD_W - 4));
-    finalTop  = Math.max(4, Math.min(finalTop,  chartH - CARD_H - 4));
 
-    // ── Start state = pill geometry ───────────────────────────────
-    const startLeft = pill ? pill.x  : finalLeft;
-    const startTop  = pill ? pill.y  : finalTop;
-    const startW    = PILL_W;
-    const startH    = PILL_H;
-    const scaleX    = startW / CARD_W;
-    const scaleY    = startH / CARD_H;
+    // If card would go above the chart div top, push down (below pill)
+    if (finalTop < 2) {
+        finalTop = pill_top + PILL_H + GAP;
+    }
+    // Clamp vertically
+    const chartH = document.getElementById('chart').offsetHeight;
+    finalTop = Math.max(2, Math.min(finalTop, chartH - CARD_H - 4));
 
-    // Place card at FINAL position, transform it to look like the pill
-    popupCard.style.left   = finalLeft + 'px';
-    popupCard.style.top    = finalTop  + 'px';
-    // transform-origin: the point that stays fixed = pill center relative to card
+    // Leader line: from card bottom-center to trace anchor point
+    // anchorX/Y are in g-transform space (stored by drawPill)
+    const leaderX1 = (finalLeft + CARD_W / 2) - MARGIN.left;   // card bottom-center in g-space x
+    const leaderY1 = (finalTop  + CARD_H)     - ROOT_Y;         // card bottom in g-space y
+    const leaderX2 = pill ? pill.anchorX : (pill_cx - MARGIN.left);
+    const leaderY2 = pill ? pill.anchorY : (pill_top - ROOT_Y);
+    removeLeader();
+    _popupLeader = annG.insert('line', ':first-child')
+        .attr('class', 'popup-leader')
+        .attr('x1', leaderX1).attr('y1', leaderY1)
+        .attr('x2', leaderX2).attr('y2', leaderY2);
+
+    // START state: card looks like the pill (tiny, at pill position, pill color)
+    const scaleX = PILL_W / CARD_W;
+    const scaleY = PILL_H / CARD_H;
+    const dx = (pill ? pill.x : finalLeft) - finalLeft;
+    const dy = pill_top - finalTop;
+    // transform-origin = pill center relative to card
     const toX = pill_cx - finalLeft;
-    const toY = (pill ? (pill.cy - finalTop) : 0);
-    popupCard.style.transformOrigin = `${toX}px ${toY}px`;
-    // Initial transform: scale down to pill size, positioned at pill
-    const dx = startLeft - finalLeft;
-    const dy = startTop  - finalTop;
-    popupCard.style.transform  = `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`;
-    popupCard.style.borderRadius = '5px';
-    popupCard.style.background   = color;
-    popupCard.style.opacity    = '1';
+    const toY = pill_top - finalTop + PILL_H / 2;
+
+    popupCard.style.cssText = `
+        position:absolute;
+        left:${finalLeft}px; top:${finalTop}px;
+        width:${CARD_W}px;
+        border-top:4px solid ${color}; border-radius:5px;
+        padding:10px 14px 12px; font-size:11.5px; line-height:1.55;
+        background:${color};
+        box-shadow:none;
+        opacity:1;
+        overflow:visible;
+        z-index:200;
+        pointer-events:none;
+        transform-origin:${toX}px ${toY}px;
+        transform:translate(${dx}px,${dy}px) scale(${scaleX},${scaleY});
+        transition:none;
+    `;
     popupCard.classList.add('shown');
+    void popupCard.offsetHeight; // flush — browser registers start state
 
-    void popupCard.offsetHeight; // flush
-
-    // ── Animate to final state ────────────────────────────────────
+    // ANIMATE to final state
     popupCard.style.transition = [
-        'transform 0.32s cubic-bezier(0.34, 1.2, 0.64, 1)',
-        'background 0.25s ease',
-        'border-radius 0.25s ease',
-        'box-shadow 0.25s ease',
-        'opacity 0.15s ease'
-    ].join(', ');
+        'transform 0.32s cubic-bezier(0.34,1.15,0.64,1)',
+        'background 0.22s ease',
+        'border-radius 0.22s ease',
+        'box-shadow 0.22s ease'
+    ].join(',');
     popupCard.style.transform    = 'translate(0,0) scale(1)';
     popupCard.style.background   = '#fff';
     popupCard.style.borderRadius = '10px';
-    popupCard.style.boxShadow    = '0 8px 28px rgba(0,0,0,0.20)';
+    popupCard.style.boxShadow    = '0 10px 36px rgba(0,0,0,0.22)';
 }
 
 function collapsePopup(id) {
-    const pill = pillRegistry[id];
-    const CARD_W = 255;
-    const finalLeft = parseFloat(popupCard.style.left);
-    const finalTop  = parseFloat(popupCard.style.top);
-    const CARD_H    = popupCard.offsetHeight;
-    const color     = popupCard.style.borderLeftColor;
+    const pill     = pillRegistry[id];
+    const color    = popupCard.style.borderTopColor || '#374151';
+    const card_L   = parseFloat(popupCard.style.left);
+    const card_T   = parseFloat(popupCard.style.top);
+    const CARD_H   = popupCard.offsetHeight;
+    const pill_cx  = pill ? pill.cx : card_L + CARD_W / 2;
+    const pill_top = pill ? pill.y  : card_T;
 
-    let pill_cx = pill ? pill.cx : finalLeft + CARD_W/2;
-    let pill_y  = pill ? pill.y  : finalTop;
+    const scaleX = PILL_W / CARD_W;
+    const scaleY = PILL_H / CARD_H;
+    const dx = (pill ? pill.x : card_L) - card_L;
+    const dy = pill_top - card_T;
+    const toX = pill_cx - card_L;
+    const toY = pill_top - card_T + PILL_H / 2;
 
-    const startW  = PILL_W;
-    const startH  = PILL_H;
-    const scaleX  = startW / CARD_W;
-    const scaleY  = startH / CARD_H;
-    const dx = (pill ? pill.x : finalLeft) - finalLeft;
-    const dy = (pill ? pill.y : finalTop)  - finalTop;
-
-    const toX = pill_cx - finalLeft;
-    const toY = pill ? (pill.cy - finalTop) : 0;
+    removeLeader();
     popupCard.style.transformOrigin = `${toX}px ${toY}px`;
     popupCard.style.transition = [
-        'transform 0.25s cubic-bezier(0.4, 0, 0.6, 1)',
-        'background 0.2s ease',
-        'border-radius 0.2s ease',
-        'box-shadow 0.2s ease',
-        'opacity 0.2s ease'
-    ].join(', ');
-    popupCard.style.transform    = `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`;
+        'transform 0.22s cubic-bezier(0.4,0,0.6,1)',
+        'background 0.18s ease',
+        'border-radius 0.18s ease',
+        'box-shadow 0.18s ease',
+        'opacity 0.15s ease'
+    ].join(',');
+    popupCard.style.transform    = `translate(${dx}px,${dy}px) scale(${scaleX},${scaleY})`;
     popupCard.style.background   = color;
     popupCard.style.borderRadius = '5px';
     popupCard.style.boxShadow    = 'none';
@@ -692,172 +728,94 @@ function collapsePopup(id) {
     clearHighlight();
     setTimeout(() => {
         popupCard.classList.remove('shown');
-        popupCard.style.transform = 'none';
-        renderAnnotations(getXZ()); // restore pill visibility
-    }, 260);
+        popupCard.style.cssText = 'position:absolute;opacity:0;left:-9999px;top:-9999px;z-index:200;';
+        renderAnnotations(getXZ()); // restore pill opacity
+    }, 240);
 }
 
 function positionPopup() {
-    // on resize: just close, user can re-click
     if (activeId) collapsePopup(activeId);
 }
 
-// ── Effort card HTML — exact replica of ECharts sidebar card ────
+// ── Effort card — 3-column horizontal layout ────────────────────
 function buildEffortCard(e) {
-    const signErr = e.perc_err > 0 ? '+' : '';
+    const signErr  = e.perc_err > 0 ? '+' : '';
     const signDwkg = e.diff_wkg > 0 ? '+' : '';
-    let html = `
+    const vamExtra = e.avg_grade >= 4.5
+        ? `<div class="pc-metric"><span class="pc-label">VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>
+           <div class="pc-metric"><span class="pc-label">W/kg Teor.</span><span class="pc-value">${e.wkg_teoric}</span></div>
+           <div class="pc-metric"><span class="pc-label">Diff W/kg</span><span class="pc-value">${signDwkg}${e.diff_wkg}</span></div>
+           <div class="pc-metric"><span class="pc-label">Err %</span><span class="pc-value">${signErr}${e.perc_err}%</span></div>`
+        : `<div class="pc-metric"><span class="pc-label">VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>`;
+    return `
     <div class="pc-header">
-        <span>E#${e.id + 1}</span>
-        <span style="color:${e.color}">${e.avg_power}W (${e.ftp_pct}%)</span>
+        <span>E#${e.id + 1} &nbsp;<span style="font-weight:400;font-size:11px;color:#6b7280">${e.start_time} · ${e.duration}s · ${e.distance_tot} km · ${e.elevation_gain}m ↑</span></span>
+        <span style="color:${e.color};font-size:15px">${e.avg_power}W <span style="font-size:11px;font-weight:400">(${e.ftp_pct}%)</span></span>
     </div>
-    <div class="pc-row">
-        <div class="pc-metric"><span class="pc-label">🕒 Start</span><span class="pc-value">${e.start_time}</span></div>
-        <div class="pc-metric"><span class="pc-label">⏱️ Duration</span><span class="pc-value">${e.duration}s</span></div>
-    </div>
-    <div class="pc-row">
-        <div class="pc-metric"><span class="pc-label">📏 Distance</span><span class="pc-value">${e.distance_tot} km</span></div>
-        <div class="pc-metric"><span class="pc-label">🏔️ Elevation</span><span class="pc-value">${e.elevation_gain} m</span></div>
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
+    <div class="pc-cols">
+        <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">⚡ Avg Power</span><span class="pc-value">${e.avg_power}W</span></div>
             <div class="pc-metric"><span class="pc-label">⚖️ W/kg</span><span class="pc-value">${e.avg_power_per_kg}</span></div>
-        </div>
-        <div class="pc-row">
-            <div class="pc-metric"><span class="pc-label">5" Peak</span><span class="pc-value">${e.best_5s_watt}W</span></div>
-            <div class="pc-metric"><span class="pc-label">5" W/kg</span><span class="pc-value">${e.best_5s_watt_kg}</span></div>
-        </div>
-        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">5″ Peak</span><span class="pc-value">${e.best_5s_watt}W · ${e.best_5s_watt_kg} W/kg</span></div>
             <div class="pc-metric"><span class="pc-label">🌀 Cadence</span><span class="pc-value">${e.avg_cadence} rpm</span></div>
-            <div class="pc-metric"><span class="pc-label">🔀 1st/2nd</span><span class="pc-value">${e.avg_watts_first}/${e.avg_watts_second}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔀 1st/2nd</span><span class="pc-value">${e.avg_watts_first}/${e.avg_watts_second} · ${e.watts_ratio}</span></div>
         </div>
-        <div class="pc-row">
-            <div class="pc-metric"><span class="pc-label">Ratio</span><span class="pc-value">${e.watts_ratio}</span></div>
-        </div>
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
+        <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">❤️ HR Avg</span><span class="pc-value">${e.avg_hr > 0 ? e.avg_hr+' bpm' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">❤️ HR Max</span><span class="pc-value">${e.max_hr > 0 ? e.max_hr+' bpm' : '-'}</span></div>
-        </div>
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
             <div class="pc-metric"><span class="pc-label">🚴 Speed</span><span class="pc-value">${e.avg_speed} km/h</span></div>
-            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${e.avg_grade}%</span></div>
+            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${e.avg_grade}% · max ${e.max_grade}%</span></div>
+            <div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h</span></div>
+            ${vamExtra}
         </div>
-        <div class="pc-row">
-            <div class="pc-metric"><span class="pc-label">Grade Max</span><span class="pc-value">${e.max_grade}%</span></div>
-        </div>
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
-            <div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h${e.avg_grade >= 4.5 ? ' '+e.vam_arrow+' '+e.diff_vam+' m/h' : ''}</span></div>
-            <div class="pc-metric"><span class="pc-label">VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>
-        </div>`;
-    if (e.avg_grade >= 4.5) {
-        html += `
-        <div class="pc-row">
-            <div class="pc-metric"><span class="pc-label">W/kg Teor.</span><span class="pc-value">${e.wkg_teoric}</span></div>
-            <div class="pc-metric"><span class="pc-label">Diff W/kg</span><span class="pc-value">${signDwkg}${e.diff_wkg}</span></div>
-        </div>
-        <div class="pc-row">
-            <div class="pc-metric"><span class="pc-label">Err %</span><span class="pc-value">${signErr}${e.perc_err}%</span></div>
-        </div>`;
-    }
-    html += `</div>
-    <div class="pc-section">
-        <div class="pc-row">
+        <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${e.kj} kJ</span></div>
             <div class="pc-metric"><span class="pc-label">kJ &gt; CP</span><span class="pc-value">${e.kj_over_cp} kJ</span></div>
-        </div>
-        <div class="pc-row">
             <div class="pc-metric"><span class="pc-label">💪 kJ/kg</span><span class="pc-value">${e.kj_kg}</span></div>
             <div class="pc-metric"><span class="pc-label">kJ/kg &gt; CP</span><span class="pc-value">${e.kj_kg_over_cp}</span></div>
-        </div>
-        <div class="pc-row">
             <div class="pc-metric"><span class="pc-label">🔥 kJ/h/kg</span><span class="pc-value">${e.kj_h_kg}</span></div>
             <div class="pc-metric"><span class="pc-label">kJ/h/kg &gt; CP</span><span class="pc-value">${e.kj_h_kg_over_cp}</span></div>
         </div>
     </div>`;
-    return html;
 }
 
-// ── Sprint card HTML — exact replica ────────────────────────────
+// ── Sprint card — 3-column horizontal layout ───────────────────
 function buildSprintCard(s) {
     const torqAvail = chartData.torque_available;
-    let html = `
+    const torqRows = torqAvail ? `
+        <div class="pc-metric"><span class="pc-label">⚙️ Avg Torque</span><span class="pc-value">${s.avg_torque > 0 ? s.avg_torque+' Nm' : '-'}</span></div>
+        <div class="pc-metric"><span class="pc-label">⚙️ Min/Max Torque</span><span class="pc-value">${s.min_torque > 0 ? s.min_torque : '-'} / ${s.max_torque > 0 ? s.max_torque : '-'} Nm</span></div>` : '';
+    return `
     <div class="pc-header">
-        <span>S#${s.rank}</span>
-        <span style="color:#000">${s.avg_power}W</span>
+        <span>S#${s.rank} &nbsp;<span style="font-weight:400;font-size:11px;color:#6b7280">${s.start_time} · ${s.duration}s · ${s.distance_tot} km · ${s.elevation_gain}m ↑</span></span>
+        <span style="font-size:15px">${s.avg_power}W</span>
     </div>
-    <div class="pc-row">
-        <div class="pc-metric"><span class="pc-label">⏱️ Duration</span><span class="pc-value">${s.duration}s</span></div>
-        <div class="pc-metric"><span class="pc-label">📏 Distance</span><span class="pc-value">${s.distance_tot} km</span></div>
-    </div>
-    <div class="pc-row">
-        <div class="pc-metric"><span class="pc-label">🏔️ Elevation</span><span class="pc-value">${s.elevation_gain} m</span></div>
-        <div class="pc-metric"><span class="pc-label">🕒 Start</span><span class="pc-value">${s.start_time}</span></div>
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
+    <div class="pc-cols">
+        <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">⚡ Avg Power</span><span class="pc-value">${s.avg_power}W</span></div>
             <div class="pc-metric"><span class="pc-label">⚖️ W/kg</span><span class="pc-value">${s.avg_power_per_kg}</span></div>
-        </div>
-        <div class="pc-row">
             <div class="pc-metric"><span class="pc-label">⚡ Max</span><span class="pc-value">${s.max_watt}W${s.rpm_at_max > 0 ? ' @ '+s.rpm_at_max+' rpm' : ''}</span></div>
             <div class="pc-metric"><span class="pc-label">⚡ Min</span><span class="pc-value">${s.min_watt}W${s.rpm_at_min > 0 ? ' @ '+s.rpm_at_min+' rpm' : ''}</span></div>
         </div>
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
+        <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">🌀 Avg Cad.</span><span class="pc-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
-            ${torqAvail ? `<div class="pc-metric"><span class="pc-label">⚙️ Avg Torque</span><span class="pc-value">${s.avg_torque > 0 ? s.avg_torque+' Nm' : '-'}</span></div>` : ''}
-        </div>
-        <div class="pc-row">
-            <div class="pc-metric"><span class="pc-label">🌀 Min/Max Cad.</span><span class="pc-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
-            ${torqAvail ? `<div class="pc-metric"><span class="pc-label">⚙️ Min/Max Torque</span><span class="pc-value">${s.min_torque > 0 ? s.min_torque : '-'} / ${s.max_torque > 0 ? s.max_torque : '-'} Nm</span></div>` : ''}
-        </div>
-        ${torqAvail && (s.torque_at_max > 0 || s.torque_at_min > 0) ? `
-        <div class="pc-row">
-            <div class="pc-metric"><span class="pc-label">⚙️ @ Max Power</span><span class="pc-value">${s.torque_at_max > 0 ? s.torque_at_max+' Nm' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">⚙️ @ Min Power</span><span class="pc-value">${s.torque_at_min > 0 ? s.torque_at_min+' Nm' : '-'}</span></div>
-        </div>` : ''}
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
+            <div class="pc-metric"><span class="pc-label">🌀 Min/Max</span><span class="pc-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
+            ${torqRows}
             <div class="pc-metric"><span class="pc-label">❤️ HR Max</span><span class="pc-value">${s.max_hr > 0 ? s.max_hr+' bpm' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">❤️ HR Min</span><span class="pc-value">${s.min_hr > 0 ? s.min_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${s.avg_grade}% · max ${s.max_grade}%</span></div>
         </div>
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
+        <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">➡️ Speed Start</span><span class="pc-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">➡️ Speed End</span><span class="pc-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
-        </div>
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
-            <div class="pc-metric"><span class="pc-label">📏 Grade Avg</span><span class="pc-value">${s.avg_grade}%</span></div>
-            <div class="pc-metric"><span class="pc-label">📏 Grade Max</span><span class="pc-value">${s.max_grade}%</span></div>
-        </div>
-    </div>
-    <div class="pc-section">
-        <div class="pc-row">
             <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${s.kj} kJ</span></div>
             <div class="pc-metric"><span class="pc-label">kJ &gt; CP</span><span class="pc-value">${s.kj_over_cp} kJ</span></div>
-        </div>
-        <div class="pc-row">
             <div class="pc-metric"><span class="pc-label">💪 kJ/kg</span><span class="pc-value">${s.kj_kg}</span></div>
             <div class="pc-metric"><span class="pc-label">kJ/kg &gt; CP</span><span class="pc-value">${s.kj_kg_over_cp}</span></div>
-        </div>
-        <div class="pc-row">
             <div class="pc-metric"><span class="pc-label">🔥 kJ/h/kg</span><span class="pc-value">${s.kj_h_kg}</span></div>
             <div class="pc-metric"><span class="pc-label">kJ/h/kg &gt; CP</span><span class="pc-value">${s.kj_h_kg_over_cp}</span></div>
         </div>
     </div>`;
-    return html;
 }
 
 // ════════════════════════════════════════════════════════════════
