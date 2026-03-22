@@ -420,6 +420,13 @@ function format_time_mmss(seconds) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function fmtDur(seconds) {
+    const s = Math.round(seconds);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m > 0 ? `${m}m${r}s` : `${s}s`;
+}
+
 let W, H, innerW, innerH;
 function updateDims() {
     W = Math.max(chartEl.clientWidth,  400);
@@ -599,7 +606,7 @@ function buildAnnotationItems(xz) {
             id: `e-${effort.id}`, type: 'effort', obj: effort,
             anchorX: ax, anchorY: ay,
             label: `E#${effort.id + 1}`,
-            sub:   `${effort.duration}s  ${effort.avg_power}W`,
+            sub:   `${fmtDur(effort.duration)}  ${effort.avg_power}W`,
             color: effort.color,
         });
     });
@@ -613,7 +620,7 @@ function buildAnnotationItems(xz) {
             id: `s-${idx}`, type: 'sprint', obj: sprint,
             anchorX: ax, anchorY: ay,
             label: `S#${sprint.rank}`,
-            sub:   `${sprint.duration}s  ${sprint.avg_power}W`,
+            sub:   `${fmtDur(sprint.duration)}  ${sprint.avg_power}W`,
             color: '#000000',
         });
     });
@@ -1101,7 +1108,7 @@ function buildEffortCard(e) {
     return `
     <div class="pc-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
-            <span>E#${e.id + 1} <span style="font-weight:400;font-size:10px;color:#9ca3af">Rank #${e.rank}</span> &nbsp;<span style="font-weight:400;font-size:10.5px;color:#6b7280">${e.start_time} · ${e.duration}s · ${e.distance_tot} km · ${e.elevation_gain}m ↑</span></span>
+            <span>E#${e.id + 1} <span style="font-weight:400;font-size:10px;color:#9ca3af">Rank #${e.rank}</span> &nbsp;<span style="font-weight:400;font-size:10.5px;color:#6b7280">${e.start_time} · ${fmtDur(e.duration)} · ${e.distance_tot} km · ${e.elevation_gain}m ↑</span></span>
             <div style="color:${e.color};font-size:15px;margin-top: 4px;">${e.avg_power}W <span style="font-size:11px;font-weight:400">(${e.cp_pct}%)</span></div>
         </div>
         <button class="zoom-stream-btn" onclick="openStreamModal('e-${e.id}', '${e.id}', 'effort')">📊 Stream</button>
@@ -1142,7 +1149,7 @@ function buildSprintCard(s) {
     return `
     <div class="pc-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
-            <span>S#${s.rank} &nbsp;<span style="font-weight:400;font-size:11px;color:#6b7280">${s.start_time} · ${s.duration}s · ${s.distance_tot} km · ${s.elevation_gain}m ↑</span></span>
+            <span>S#${s.rank} &nbsp;<span style="font-weight:400;font-size:11px;color:#6b7280">${s.start_time} · ${fmtDur(s.duration)} · ${s.distance_tot} km · ${s.elevation_gain}m ↑</span></span>
             <div style="font-size:15px;margin-top: 4px;">${s.avg_power}W</div>
         </div>
         <button class="zoom-stream-btn" onclick="openStreamModal('s-${s.id}', '${s.id}', 'sprint')">📊 Stream</button>
@@ -1181,7 +1188,7 @@ function buildSprintCard(s) {
 function buildEffortTooltip(e) {
     let html = `<strong>E#${e.id + 1}</strong> (Rank #${e.rank})<br/>`;
     html += `⚡ ${e.avg_power} W | 5"🔺${e.best_5s_watt} W 🌀 ${e.avg_cadence} rpm<br/>`;
-    html += `⏱️ ${e.duration}s | 🕒 ${e.start_time} | ${e.cp_pct}%<br/>`;
+    html += `⏱️ ${fmtDur(e.duration)} | 🕒 ${e.start_time} | ${e.cp_pct}%<br/>`;
     html += `⚖️ ${e.avg_power_per_kg} W/kg | 5"🔺${e.best_5s_watt_kg} W/kg<br/>`;
     html += `🔀 ${e.avg_watts_first} W | ${e.avg_watts_second} W | ${e.watts_ratio}<br/>`;
     if (e.avg_hr > 0) html += `❤️ ∅${e.avg_hr} bpm | 🔺${e.max_hr} bpm<br/>`;
@@ -1201,7 +1208,7 @@ function buildEffortTooltip(e) {
 
 function buildSprintTooltip(s) {
     let html = `<strong>S#${s.rank}</strong><br/>`;
-    html += `#${s.rank}    ∅${s.avg_cadence} rpm | ∅${s.avg_torque} Nm | ${s.duration} s<br/>`;
+    html += `#${s.rank}    ∅${s.avg_cadence} rpm | ∅${s.avg_torque} Nm | ${fmtDur(s.duration)}<br/>`;
     html += `⚡ 🔺${s.max_watt} W at ${s.rpm_at_max} rpm @ ${s.torque_at_max} Nm<br/>`;
     html += `⚡ 🔻${s.min_watt} W at ${s.rpm_at_min} rpm @ ${s.torque_at_min} Nm<br/>`;
     html += `🌀 🔺${s.max_cadence} rpm | 🔻${s.min_cadence} rpm<br/>`;
@@ -1404,7 +1411,7 @@ function buildSidebar() {
                 <span style="color:${effort.color}">${effort.avg_power}W (${effort.cp_pct}%)</span>
             </div>
             <div class="eg">
-                <span class="a">🕒 Start</span><span class="b">${effort.start_time}</span><span class="c">⏱️ Dur.</span><span class="d">${effort.duration}s</span>
+                <span class="a">🕒 Start</span><span class="b">${effort.start_time}</span><span class="c">⏱️ Dur.</span><span class="d">${fmtDur(effort.duration)}</span>
                 <span class="a">📏 Dist.</span><span class="b">${effort.distance_tot} km</span><span class="c">🏔️ Elev.</span><span class="d">${effort.elevation_gain} m</span>
                 <div class="sep"></div>
                 <span class="a">⚡ Avg</span><span class="b">${effort.avg_power}W</span><span class="c">5″🔺 Peak</span><span class="d">${effort.best_5s_watt}W</span>
@@ -1453,7 +1460,7 @@ function buildSidebar() {
                 <span style="color:#000000">${sprint.avg_power}W</span>
             </div>
             <div class="card-row">
-                <div class="card-metric"><span class="metric-label">⏱️ Duration</span><span class="metric-value">${sprint.duration}s</span></div>
+                <div class="card-metric"><span class="metric-label">⏱️ Duration</span><span class="metric-value">${fmtDur(sprint.duration)}</span></div>
                 <div class="card-metric"><span class="metric-label">📏 Distance</span><span class="metric-value">${sprint.distance_tot} km</span></div>
             </div>
             <div class="card-row">
@@ -1721,39 +1728,13 @@ function calculateMovingAverage(data, windowSize) {
 // ── Time-based moving average ────────────────────────────────────────────
 function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
     const result = [];
-    const n = timeData.length;
-    if (n === 0) {
-        return result;
-    }
-
-    let left = 0;
-    let right = 0;
-    let sum = 0;
-
-    for (let i = 0; i < n; i++) {
-        const c = timeData[i];
-        const halfWindow = windowSeconds / 2;
-        const lo = c - halfWindow;
-        const hi = c + halfWindow;
-
-        // Move left pointer to first index within [lo, hi]
-        while (left < n && timeData[left] < lo) {
-            sum -= powerData[left];
-            left++;
+    for (let i = 0; i < timeData.length; i++) {
+        const c = timeData[i], lo = c - windowSeconds/2, hi = c + windowSeconds/2;
+        let sum = 0, cnt = 0;
+        for (let j = 0; j < timeData.length; j++) {
+            if (timeData[j] >= lo && timeData[j] <= hi) { sum += powerData[j]; cnt++; }
         }
-
-        // Move right pointer to one past last index within [lo, hi]
-        while (right < n && timeData[right] <= hi) {
-            sum += powerData[right];
-            right++;
-        }
-
-        const count = right - left;
-        if (count > 0) {
-            result.push(sum / count);
-        } else {
-            result.push(powerData[i]);
-        }
+        result.push(cnt ? sum/cnt : powerData[i]);
     }
     return result;
 }
