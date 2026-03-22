@@ -89,7 +89,7 @@ async def inspection_view(session_id: str, request: Request):
         df=session['df'],
         efforts=session['efforts'],
         sprints=session.get('sprints', []),
-        cp=session['cp'],
+        cp=session.get('cp', session.get('ftp', 280)),
         weight=session['weight'],
         stats=session.get('stats', {}),
         session_id=session_id,

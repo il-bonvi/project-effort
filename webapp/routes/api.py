@@ -178,14 +178,7 @@ async def get_session_status(session_id: str):
         "total_records": len(session['df']),
         "total_efforts": len(session['efforts']),
         "total_sprints": len(session.get('sprints', [])),
-        "cp": session['cp'],
-        "weight": session['weight']
-    }
-
-
-# =============================================================================
-# CP/WEIGHT UPDATE ENDPOINT
-# =============================================================================
+        "cp": session.get('cp', 280),
 
 class UpdateCpWeightRequest(BaseModel):
     cp: int
@@ -609,7 +602,7 @@ async def redetect_efforts_impl(
 
     session = _shared_sessions[session_id]
     df = session['df']
-    cp = session['cp']
+    cp = session.get('cp', 280)
 
     try:
         efforts = create_efforts(
@@ -957,7 +950,7 @@ async def export_json_data(session_id: str):
         "session_info": {
             "session_id": session_id,
             "filename": session['filename'],
-            "cp": session['cp'],
+            "cp": session.get('cp', 280),
             "weight": session['weight']
         },
         "ride_statistics": session.get('stats', {}),
