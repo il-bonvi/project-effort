@@ -53,31 +53,23 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 
 .ann-cluster { cursor: pointer; }
 
-/* expanded popup card — HTML overlay */
+/* expanded popup card — animates from pill geometry */
 #popup-card {
-    position: absolute; display: none; z-index: 200;
-    background: #fff; border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+    position: absolute;
+    z-index: 200;
+    background: #fff;
     border-left: 4px solid #000;
-    padding: 10px 13px; min-width: 230px; max-width: 270px;
-    font-size: 12px; line-height: 1.6; pointer-events: none;
+    padding: 10px 13px;
+    width: 255px;
+    font-size: 12px; line-height: 1.6;
+    pointer-events: none;
+    overflow: hidden;
+    /* Invisible by default — NO display:none */
     opacity: 0;
-    transform: scale(0.85);
-    transition: opacity 0.3s ease-out, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
 }
-/* Expansion from annotation in chart */
-#popup-card.expandFrom {
-    opacity: 0;
-    transform: scale(0.4);
-}
-#popup-card.expandFrom.expanded {
-    opacity: 1;
-    transform: scale(1);
-}
-/* Expansion from center (sidebar) */
-#popup-card.expandCenter.expanded {
-    opacity: 1;
-    transform: scale(1);
+#popup-card.shown {
+    pointer-events: auto;
 }
 #popup-card .pc-header {
     font-size: 13px; font-weight: 700; margin-bottom: 6px;
@@ -496,21 +488,28 @@ function renderAnnotations(xz) {
 }
 
 function drawPill(item) {
-    console.log('drawPill called:', item.id);
     const isActive = activeId === item.id;
+
+    // Store pill geometry in registry for popup animation origin
+    pillRegistry[item.id] = {
+        x: MARGIN.left + item.finalX,          // left edge in #chart px
+        y: ROOT_Y      + item.finalY,           // top edge in #chart px
+        cx: MARGIN.left + item.finalX + PILL_W / 2,  // center x
+        cy: ROOT_Y      + item.finalY + PILL_H / 2,  // center y
+        color: item.color
+    };
+
     const pg = annG.append('g')
         .attr('class', `ann-pill${isActive ? ' active' : ''}`)
         .attr('data-id', item.id)
-        .style('cursor','pointer')
+        .style('cursor', isActive ? 'default' : 'pointer')
+        // Hide the pill rect/text when active (card replaces it visually)
+        .style('opacity', isActive ? 0 : 1)
         .on('click', function(ev) {
             ev.stopPropagation();
-            // Convert SVG coordinates to screen coordinates
-            const pillScreenX = MARGIN.left + item.finalX;
-            const pillScreenY = ROOT_Y + item.finalY;
-            console.log('drawPill click:', {MARGIN, ROOT_Y, finalX: item.finalX, finalY: item.finalY, pillScreenX, pillScreenY});
-            togglePin(item.id, item.obj, item.type, pillScreenX, pillScreenY);
+            togglePin(item.id, item.obj, item.type);
         })
-        .on('mouseenter', () => highlightId(item.id))
+        .on('mouseenter', () => { if (!isActive) highlightId(item.id); })
         .on('mouseleave', () => { if (!activeId) clearHighlight(); });
 
     // Leader line from anchor to pill bottom-center
@@ -546,76 +545,161 @@ function drawPill(item) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// PIN / POPUP CARD — shows full metrics on click (same data as sidebar)
+// PIN / POPUP CARD — card morphs from pill geometry
 // ════════════════════════════════════════════════════════════════
-let popupOriginX = 0, popupOriginY = 0; // for animation origin
+const pillRegistry = {}; // id → {x,y,cx,cy,color}
 
-function togglePin(id, obj, type, pillX, pillY) {
-    console.log('togglePin called:', {id, type, pillX, pillY, activeId});
+function togglePin(id, obj, type) {
     if (activeId === id) {
-        activeId = null;
-        popupCard.classList.remove('expanded');
-        setTimeout(() => { popupCard.style.display = 'none'; }, 400);
-        clearHighlight();
-        renderAnnotations(getXZ());
-    } else {
-        activeId = id;
-        highlightId(id);
-        showPopupCard(obj, type, pillX, pillY);
-        renderAnnotations(getXZ());
+        // Collapse back to pill
+        collapsePopup(id);
+        return;
     }
+    // Collapse any open popup instantly
+    if (activeId) {
+        popupCard.style.transition = 'none';
+        popupCard.style.opacity = '0';
+        popupCard.classList.remove('shown');
+    }
+    activeId = id;
+    highlightId(id);
+    renderAnnotations(getXZ()); // redraws → fills pillRegistry
+    expandPopup(id, obj, type);
 }
 
-function showPopupCard(obj, type, pillX = null, pillY = null) {
-    popupCard.style.borderLeftColor = type === 'effort' ? obj.color : '#000';
+function expandPopup(id, obj, type) {
+    const pill = pillRegistry[id];
+    const color = type === 'effort' ? obj.color : '#000';
+    const CARD_W = 255;
+    const SIDEBAR_W = 352;
+    const chartW = document.getElementById('chart').offsetWidth;
+    const chartH = document.getElementById('chart').offsetHeight;
+
+    // ── Fill content ──────────────────────────────────────────────
+    popupCard.style.borderLeftColor = color;
     popupCard.innerHTML = type === 'effort' ? buildEffortCard(obj) : buildSprintCard(obj);
-    popupCard.classList.remove('expanded', 'expandFrom', 'expandCenter');
-    popupCard.style.display = 'block';
 
-    // Position and animation mode
-    if (pillX !== null && pillY !== null) {
-        // Expanding from annotation in chart
-        popupOriginX = pillX;
-        popupOriginY = pillY;
-        popupCard.classList.add('expandFrom');
-        positionPopup(pillX, pillY);
+    // ── Measure final card height (render off-screen at full size) ─
+    popupCard.style.transition = 'none';
+    popupCard.style.width      = CARD_W + 'px';
+    popupCard.style.height     = 'auto';
+    popupCard.style.opacity    = '0';
+    popupCard.style.transform  = 'none';
+    popupCard.style.borderRadius = '10px';
+    popupCard.style.boxShadow  = '0 8px 28px rgba(0,0,0,0.20)';
+    // Position off-screen to measure
+    popupCard.style.left = '-9999px';
+    popupCard.style.top  = '-9999px';
+    void popupCard.offsetHeight; // force layout
+    const CARD_H = popupCard.offsetHeight;
+
+    // ── Compute final position: above pill, clamped inside chart ──
+    let pill_cx, pill_y;
+    if (pill) {
+        pill_cx = pill.cx;
+        pill_y  = pill.y;
     } else {
-        // Expanding from center (sidebar)
-        popupOriginX = MARGIN.left + innerW / 2;
-        popupOriginY = MARGIN.top + 50;
-        popupCard.classList.add('expandCenter');
-        const pw = popupCard.offsetWidth || 250;
-        const ph = popupCard.offsetHeight || 300;
-        const px = MARGIN.left + innerW / 2 - pw / 2;
-        const py = MARGIN.top + 10;
-        popupCard.style.left = px + 'px';
-        popupCard.style.top = py + 'px';
-        popupCard.style.transformOrigin = (popupOriginX - px) + 'px ' + (popupOriginY - py) + 'px';
+        // Sidebar click fallback: use segment midpoint
+        const xz = getXZ();
+        const mid = obj.line_data[Math.floor(obj.line_data.length / 2)];
+        pill_cx = MARGIN.left + xz(mid[0]);
+        pill_y  = ROOT_Y + yScale(mid[1]);
     }
-    
-    // Trigger animation with proper timing
-    setTimeout(() => { 
-        popupCard.classList.add('expanded'); 
-    }, 10);
+
+    let finalLeft = pill_cx - CARD_W / 2;
+    let finalTop  = pill_y - CARD_H - 10; // above pill
+
+    // Clamp: don't go below pill, don't exit chart left/right/bottom
+    if (finalTop < 4) finalTop = pill_y + PILL_H + 10;
+    finalLeft = Math.max(4, Math.min(finalLeft, chartW - SIDEBAR_W - CARD_W - 4));
+    finalTop  = Math.max(4, Math.min(finalTop,  chartH - CARD_H - 4));
+
+    // ── Start state = pill geometry ───────────────────────────────
+    const startLeft = pill ? pill.x  : finalLeft;
+    const startTop  = pill ? pill.y  : finalTop;
+    const startW    = PILL_W;
+    const startH    = PILL_H;
+    const scaleX    = startW / CARD_W;
+    const scaleY    = startH / CARD_H;
+
+    // Place card at FINAL position, transform it to look like the pill
+    popupCard.style.left   = finalLeft + 'px';
+    popupCard.style.top    = finalTop  + 'px';
+    // transform-origin: the point that stays fixed = pill center relative to card
+    const toX = pill_cx - finalLeft;
+    const toY = (pill ? (pill.cy - finalTop) : 0);
+    popupCard.style.transformOrigin = `${toX}px ${toY}px`;
+    // Initial transform: scale down to pill size, positioned at pill
+    const dx = startLeft - finalLeft;
+    const dy = startTop  - finalTop;
+    popupCard.style.transform  = `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`;
+    popupCard.style.borderRadius = '5px';
+    popupCard.style.background   = color;
+    popupCard.style.opacity    = '1';
+    popupCard.classList.add('shown');
+
+    void popupCard.offsetHeight; // flush
+
+    // ── Animate to final state ────────────────────────────────────
+    popupCard.style.transition = [
+        'transform 0.32s cubic-bezier(0.34, 1.2, 0.64, 1)',
+        'background 0.25s ease',
+        'border-radius 0.25s ease',
+        'box-shadow 0.25s ease',
+        'opacity 0.15s ease'
+    ].join(', ');
+    popupCard.style.transform    = 'translate(0,0) scale(1)';
+    popupCard.style.background   = '#fff';
+    popupCard.style.borderRadius = '10px';
+    popupCard.style.boxShadow    = '0 8px 28px rgba(0,0,0,0.20)';
 }
 
-function positionPopup(pillX, pillY) {
-    const pw = popupCard.offsetWidth || 250;
-    const ph = popupCard.offsetHeight || 300;
-    
-    // Position popup to expand from the pill location
-    // Center the popup around the pill for nice expansion
-    let px = pillX - pw / 2 + 35;  // Center on pill (pill center is at pillX)
-    let py = pillY - ph / 2 + 15;  // Center vertically on pill
-    
-    // Clamp to viewport with some padding
-    px = Math.max(4, Math.min(px, W - MARGIN.right - 350 - pw - 8));
-    py = Math.max(MARGIN.top + 5, Math.min(py, H - MARGIN.bottom - ph - 8));
-    
-    popupCard.style.left = px + 'px';
-    popupCard.style.top  = py + 'px';
-    // Set transform origin to the pill location (for expansion effect)
-    popupCard.style.transformOrigin = (pillX - px) + 'px ' + (pillY - py) + 'px';
+function collapsePopup(id) {
+    const pill = pillRegistry[id];
+    const CARD_W = 255;
+    const finalLeft = parseFloat(popupCard.style.left);
+    const finalTop  = parseFloat(popupCard.style.top);
+    const CARD_H    = popupCard.offsetHeight;
+    const color     = popupCard.style.borderLeftColor;
+
+    let pill_cx = pill ? pill.cx : finalLeft + CARD_W/2;
+    let pill_y  = pill ? pill.y  : finalTop;
+
+    const startW  = PILL_W;
+    const startH  = PILL_H;
+    const scaleX  = startW / CARD_W;
+    const scaleY  = startH / CARD_H;
+    const dx = (pill ? pill.x : finalLeft) - finalLeft;
+    const dy = (pill ? pill.y : finalTop)  - finalTop;
+
+    const toX = pill_cx - finalLeft;
+    const toY = pill ? (pill.cy - finalTop) : 0;
+    popupCard.style.transformOrigin = `${toX}px ${toY}px`;
+    popupCard.style.transition = [
+        'transform 0.25s cubic-bezier(0.4, 0, 0.6, 1)',
+        'background 0.2s ease',
+        'border-radius 0.2s ease',
+        'box-shadow 0.2s ease',
+        'opacity 0.2s ease'
+    ].join(', ');
+    popupCard.style.transform    = `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`;
+    popupCard.style.background   = color;
+    popupCard.style.borderRadius = '5px';
+    popupCard.style.boxShadow    = 'none';
+    popupCard.style.opacity      = '0';
+
+    activeId = null;
+    clearHighlight();
+    setTimeout(() => {
+        popupCard.classList.remove('shown');
+        popupCard.style.transform = 'none';
+        renderAnnotations(getXZ()); // restore pill visibility
+    }, 260);
+}
+
+function positionPopup() {
+    // on resize: just close, user can re-click
+    if (activeId) collapsePopup(activeId);
 }
 
 // ── Effort card HTML — exact replica of ECharts sidebar card ────
@@ -857,12 +941,7 @@ overlay
         hideTooltip();
     })
     .on('click', function() {
-        if (activeId) {
-            activeId = null;
-            popupCard.style.display = 'none';
-            clearHighlight();
-            renderAnnotations(getXZ());
-        }
+        if (activeId) collapsePopup(activeId);
     });
 
 // ════════════════════════════════════════════════════════════════
@@ -923,7 +1002,7 @@ function buildSidebar() {
 
         card.addEventListener('mouseenter', () => { card.classList.add('highlighted'); highlightId(id); });
         card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (!activeId) clearHighlight(); });
-        card.addEventListener('click',      () => togglePin(id, effort, 'effort', null, null));
+        card.addEventListener('click',      () => togglePin(id, effort, 'effort'));
 
         const signErr  = effort.perc_err > 0 ? '+' : '';
         const signDwkg = effort.diff_wkg > 0 ? '+' : '';
@@ -1016,7 +1095,7 @@ function buildSidebar() {
 
         card.addEventListener('mouseenter', () => { card.classList.add('highlighted'); highlightId(id); });
         card.addEventListener('mouseleave', () => { card.classList.remove('highlighted'); if (!activeId) clearHighlight(); });
-        card.addEventListener('click',      () => togglePin(id, sprint, 'sprint', null, null));
+        card.addEventListener('click',      () => togglePin(id, sprint, 'sprint'));
 
         card.innerHTML = `
             <div class="card-header">
@@ -1129,7 +1208,7 @@ requestAnimationFrame(function() {
 window.addEventListener('resize', function() {
     applyDims();
     fullRender();
-    if (popupCard.style.display !== 'none') positionPopup();
+    positionPopup();
 });
 </script>
 {% endraw %}
