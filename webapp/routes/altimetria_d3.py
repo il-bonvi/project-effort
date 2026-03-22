@@ -197,6 +197,26 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             seg_torque[valid_torque_idx] = (seg_power[valid_torque_idx] * 60) / (2 * np.pi * seg_cadence_clean[valid_torque_idx])
         torque_stream = [float(t) if t > 0 else None for t in seg_torque]
         
+        # Speed stream (km/h) - calculated from distance changes using segment-relative distances
+        raw_speed = [0.0]  # First value is 0
+        for i in range(1, len(seg_dist_km)):
+            dt = seg_time[i] - seg_time[i-1]
+            if dt > 0:
+                # seg_dist_km is already segment-relative, in km
+                dist_diff_km = seg_dist_km[i] - seg_dist_km[i-1]
+                speed_kmh = (dist_diff_km / (dt / 3600))  # km/h
+                raw_speed.append(float(max(0, speed_kmh)))
+            else:
+                raw_speed.append(0.0)
+        
+        # Apply 3-point moving average to smooth out noise
+        win = min(3, len(raw_speed))
+        speed_stream = []
+        for i in range(len(raw_speed)):
+            start = max(0, i - win // 2)
+            end = min(len(raw_speed), i + win // 2 + 1)
+            speed_stream.append(float(np.mean(raw_speed[start:end])))
+        
         effort_info = {
             'id': orig_idx,
             'rank': rank_idx + 1,
@@ -241,7 +261,8 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'hr_stream': hr_stream,
             'wkg_stream': wkg_stream,
             'cadence_stream': cadence_stream,
-            'torque_stream': torque_stream
+            'torque_stream': torque_stream,
+            'speed_stream': speed_stream
         }
         
         efforts_data.append(effort_info)
@@ -335,6 +356,26 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         cadence_stream = [float(c) if c >= cadence_min_rpm else None for c in seg_cadence]
         torque_stream = [float(t) if t > 0 else None for t in seg_torque]
         
+        # Speed stream (km/h) - calculated from distance changes using segment-relative distances
+        raw_speed = [0.0]  # First value is 0
+        for i in range(1, len(seg_dist_km)):
+            dt = seg_time[i] - seg_time[i-1]
+            if dt > 0:
+                # seg_dist_km is already segment-relative, in km
+                dist_diff_km = seg_dist_km[i] - seg_dist_km[i-1]
+                speed_kmh = (dist_diff_km / (dt / 3600))  # km/h
+                raw_speed.append(float(max(0, speed_kmh)))
+            else:
+                raw_speed.append(0.0)
+        
+        # Apply 3-point moving average to smooth out noise
+        win = min(3, len(raw_speed))
+        speed_stream = []
+        for i in range(len(raw_speed)):
+            start = max(0, i - win // 2)
+            end = min(len(raw_speed), i + win // 2 + 1)
+            speed_stream.append(float(np.mean(raw_speed[start:end])))
+        
         sprint_info = {
             'id': orig_idx,
             'rank': rank_idx + 1,
@@ -377,7 +418,8 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'hr_stream': hr_stream,
             'wkg_stream': wkg_stream,
             'cadence_stream': cadence_stream,
-            'torque_stream': torque_stream
+            'torque_stream': torque_stream,
+            'speed_stream': speed_stream
         }
         
         sprints_data.append(sprint_info)

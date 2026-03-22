@@ -1490,6 +1490,7 @@ function openStreamModal(elemId, dataId, type) {
         wkgStream: data.wkg_stream,
         cadenceStream: data.cadence_stream || null,
         torqueStream: data.torque_stream || null,
+        speedStream: data.speed_stream || null,
     };
     
     // Update modal title
@@ -1904,6 +1905,7 @@ function buildSprintStreamCharts() {
     const maxT   = d3.max(timeS);
     const maxP   = d3.max(powS) * 1.12;
 
+    const spdS  = streamModalData.speedStream;
     const validCad = cadS ? cadS.filter(v=>v&&v>0) : [];
     const validTor = torS ? torS.filter(v=>v&&v>0) : [];
     const maxCad   = validCad.length ? d3.max(validCad)*1.1 : 200;
@@ -1980,6 +1982,8 @@ function buildSprintStreamCharts() {
         .attr('stroke','#94a3b8').attr('stroke-width',1).attr('stroke-dasharray','4,2').style('display','none');
     const cd0 = pg0.append('circle').attr('r',4)
         .attr('fill','#3b82f6').attr('stroke','white').attr('stroke-width',2).style('display','none');
+    const cd0spd = pg0.append('circle').attr('r',4)
+        .attr('fill','#a855f7').attr('stroke','white').attr('stroke-width',2).style('display','none');
 
     // ── Panel 1: Cadence + Torque dual axis ──────────────────────
     const ty1 = panelH + GAP;
@@ -2015,6 +2019,20 @@ function buildSprintStreamCharts() {
             .attr('text-anchor','middle').attr('fill','#f59e0b').attr('font-size',10).attr('font-weight',600).text('Nm');
     }
 
+    // Speed: secondary right axis on power panel
+    const validSpd = spdS ? spdS.filter(v=>v>0) : [];
+    const maxSpd = validSpd.length ? d3.max(validSpd)*1.1 : 60;
+    const minSpd = validSpd.length ? d3.min(validSpd)*0.92 : 0;
+    const ySpd = validSpd.length ? d3.scaleLinear().domain([minSpd, maxSpd]).range([panelH,0]) : null;
+    if (ySpd) {
+        const yAx0R = pg0.append('g').attr('transform',`translate(${innerW},0)`)
+            .call(d3.axisRight(ySpd).ticks(5).tickFormat(d=>d).tickSize(0));
+        yAx0R.select('.domain').attr('stroke','#cbd5e1');
+        yAx0R.selectAll('text').attr('fill','#a855f7').attr('font-size',9).attr('x',5);
+        pg0.append('text').attr('transform','rotate(90)').attr('x',panelH/2).attr('y',-innerW-50)
+            .attr('text-anchor','middle').attr('fill','#a855f7').attr('font-size',10).attr('font-weight',600).text('km/h');
+    }
+
     // Title badge
     const badgeW = yTor ? 148 : 88;
     pg1.append('rect').attr('x',8).attr('y',6).attr('width',badgeW).attr('height',18)
@@ -2046,6 +2064,15 @@ function buildSprintStreamCharts() {
             dg0.append('path').datum(powPts)
                 .attr('fill','none').attr('stroke','#3b82f6').attr('stroke-width',2)
                 .attr('d', d3.line().x(d=>xS(d.t)).y(d=>yPow(d.p)).curve(d3.curveMonotoneX));
+        }
+        if (spdS && ySpd) {
+            const spdPts = timeS.map((t,i)=>({t,p:spdS[i]})).filter(d=>d.t>=domain[0]&&d.t<=domain[1]&&d.p>0);
+            if (spdPts.length>1) {
+                dg0.append('path').datum(spdPts)
+                    .attr('fill','none').attr('stroke','#a855f7').attr('stroke-width',1.8)
+                    .attr('stroke-dasharray','5,2')
+                    .attr('d', d3.line().x(d=>xS(d.t)).y(d=>ySpd(d.p)).curve(d3.curveMonotoneX));
+            }
         }
 
         // Cadence + Torque panel
@@ -2105,6 +2132,8 @@ function buildSprintStreamCharts() {
             // Power crosshair
             cv0.style('display',null).attr('x1',mx).attr('x2',mx);
             cd0.style('display',null).attr('cx',mx).attr('cy',yPow(powS[ci]||0));
+            if (ySpd && spdS && spdS[ci]>0) cd0spd.style('display',null).attr('cx',mx).attr('cy',ySpd(spdS[ci]));
+            else cd0spd.style('display','none');
             // Cad/tor crosshair
             if (my > ty1) {
                 cv1.style('display',null).attr('x1',mx).attr('x2',mx);
@@ -2120,6 +2149,7 @@ function buildSprintStreamCharts() {
             const tStr=m>0?`${m}m${s}s`:`${Math.round(ts)}s`;
             let html=`<span style="color:#e2e8f0;font-weight:700;font-size:12px">${tStr}</span><br/>`;
             html+=`<span style="color:#93c5fd">⚡ ${Math.round(powS[ci]||0)} W</span>`;
+            if (spdS && spdS[ci]>0) html+=`  <span style="color:#d8b4fe">🚴 ${spdS[ci].toFixed(1)} km/h</span>`;
             if (cadS && cadS[ci]>0) html+=`  <span style="color:#6ee7b7">🌀 ${Math.round(cadS[ci])} rpm</span>`;
             if (torS && torS[ci]>0) html+=`<br/><span style="color:#fcd34d">⚙️ ${Math.round(torS[ci])} Nm</span>`;
             ttEl.innerHTML=html;
@@ -2129,7 +2159,7 @@ function buildSprintStreamCharts() {
             ttEl.style.top=Math.max(8,MT+my-50)+'px';
         })
         .on('mouseleave', function() {
-            [cv0,cv1,cd0,cd1cad].forEach(c=>c&&c.style('display','none'));
+            [cv0,cv1,cd0,cd0spd,cd1cad].forEach(c=>c&&c.style('display','none'));
             if (cd1tor) cd1tor.style('display','none');
             ttEl.style.display='none';
         });
