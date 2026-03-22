@@ -39,7 +39,8 @@ html, body {
 .sprint-seg.highlighted { stroke-width: 8; opacity: 1; filter: drop-shadow(0 0 5px rgba(0,0,0,0.6)); }
 
 /* short sprint markers */
-.sprint-marker { fill: #000; }
+.sprint-marker { fill: #000; transition: opacity 0.15s; }
+.sprint-marker.dimmed { opacity: 0.08; }
 
 /* grid + axes */
 .grid-line { stroke: #f0f0f0; stroke-width: 0.8; }
@@ -368,6 +369,7 @@ function renderSegments(xz) {
             [first, last].forEach(pt => {
                 segsG.append('circle')
                     .attr('class','sprint-marker')
+                    .attr('data-id', `s-${idx}`)
                     .attr('cx', xz(pt[0])).attr('cy', yScale(pt[1]))
                     .attr('r', 3);
             });
@@ -1104,6 +1106,7 @@ overlay
 // ════════════════════════════════════════════════════════════════
 function highlightId(id) {
     d3.selectAll('.effort-seg, .sprint-seg').classed('dimmed', true).classed('highlighted', false);
+    d3.selectAll('.sprint-marker').classed('dimmed', true);
     d3.selectAll(`[data-id="${id}"]`).classed('dimmed', false).classed('highlighted', true);
 
     document.querySelectorAll('.effort-card, .sprint-card').forEach(c => c.classList.remove('highlighted'));
@@ -1112,6 +1115,7 @@ function highlightId(id) {
 }
 function clearHighlight() {
     d3.selectAll('.effort-seg, .sprint-seg').classed('dimmed', false).classed('highlighted', false);
+    d3.selectAll('.sprint-marker').classed('dimmed', false);
     document.querySelectorAll('.effort-card, .sprint-card').forEach(c => c.classList.remove('highlighted'));
 }
 
