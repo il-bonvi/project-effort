@@ -263,7 +263,6 @@ def generate_inspection_data(
         'num_efforts': len(efforts_data),
         'num_sprints': len(sprints_data),
         'cp': int(cp),
-        'ftp': int(cp),
         'weight': int(weight),
         'session_id': session_id,
         'stats_html': stats_html,
@@ -272,7 +271,6 @@ def generate_inspection_data(
         'efforts_data_json': efforts_data_json,
         'sprints_data_json': sprints_data_json,
         'cp_json': cp_json,
-        'ftp_json': cp_json,
     }
 
 
