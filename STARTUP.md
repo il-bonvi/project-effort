@@ -3,14 +3,16 @@
 ## ⚡ Quick Start
 
 ### Avvio Rapido (Riga Singola)
-```bash
-cd webapp && python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
-```
+
+**Da PowerShell dalla root del progetto:**
 ```powershell
-cd webapp; python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
+& .\.venv\Scripts\Activate.ps1; cd webapp; python -m uvicorn app:app --reload --host 0.0.0.0 --port 8001
+
+senza venv
+cd webapp; python -m uvicorn app:app --reload --host 0.0.0.0 --port 8001
 ```
 
-**Poi apri il browser su**: http://localhost:8000
+**Poi apri il browser su**: http://localhost:8001
 
 ---
 
@@ -23,7 +25,19 @@ cd webapp; python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 cd C:\Users\bonvi\Documents\GitHub\project-effort
 ```
 
-### 2️⃣ Avvia il Server
+### 2️⃣ Attiva la Virtual Environment
+
+**IMPORTANTE: Devi attivare la venv PRIMA di avviare il server**
+```powershell
+& .\.venv\Scripts\Activate.ps1
+```
+
+Dovresti vedere il prompt cambiarsi in:
+```
+(.venv) PS C:\Users\bonvi\Documents\GitHub\project-effort>
+```
+
+### 3️⃣ Avvia il Server
 
 **Opzione A: Con Auto-Reload (CONSIGLIATO per development)**
 ```powershell
@@ -37,7 +51,7 @@ cd webapp
 python -m uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-### 3️⃣ Controlla che Funzioni
+### 4️⃣ Controlla che Funzioni
 
 Vedrai output come:
 ```
@@ -45,7 +59,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 INFO:     Application startup complete
 ```
 
-### 4️⃣ Apri il Browser
+### 5️⃣ Apri il Browser
 
 Vai a: **http://localhost:8000**
 

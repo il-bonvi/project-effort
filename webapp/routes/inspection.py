@@ -89,7 +89,7 @@ async def inspection_view(session_id: str, request: Request):
         df=session['df'],
         efforts=session['efforts'],
         sprints=session.get('sprints', []),
-        ftp=session['ftp'],
+        cp=session.get('cp', session.get('ftp', 250)),
         weight=session['weight'],
         stats=session.get('stats', {}),
         session_id=session_id,
@@ -110,7 +110,7 @@ def generate_inspection_data(
     df,
     efforts: List[Tuple[int, int, float]],
     sprints: List[Dict[str, Any]],
-    ftp: float,
+    cp: float,
     weight: float,
     stats: Dict[str, Any],
     session_id: str,
@@ -123,7 +123,7 @@ def generate_inspection_data(
         df: Pandas DataFrame with FIT data (time_sec, power columns required)
         efforts: List of effort tuples (start_idx, end_idx, avg_power)
         sprints: List of sprint dictionaries
-        ftp: Critical Power in watts
+        cp: Critical Power in watts
         weight: Body weight in kilograms
         stats: Dictionary of ride statistics
         session_id: Session ID for API calls
@@ -253,7 +253,7 @@ def generate_inspection_data(
     power_data_json = json.dumps(power_data)
     efforts_data_json = json.dumps(efforts_data)
     sprints_data_json = json.dumps(sprints_data)
-    ftp_json = json.dumps(ftp)
+    cp_json = json.dumps(cp)
 
     # Escape filename for safe HTML rendering
     safe_filename = escape(filename)
@@ -262,7 +262,7 @@ def generate_inspection_data(
         'safe_filename': safe_filename,
         'num_efforts': len(efforts_data),
         'num_sprints': len(sprints_data),
-        'ftp': int(ftp),
+        'cp': int(cp),
         'weight': int(weight),
         'session_id': session_id,
         'stats_html': stats_html,
@@ -270,7 +270,7 @@ def generate_inspection_data(
         'power_data_json': power_data_json,
         'efforts_data_json': efforts_data_json,
         'sprints_data_json': sprints_data_json,
-        'ftp_json': ftp_json,
+        'cp_json': cp_json,
     }
 
 

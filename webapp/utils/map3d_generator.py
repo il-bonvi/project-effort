@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]], 
-                         sprints: List[Dict[str, Any]], ftp: float, weight: float, session_id: str = '') -> str:
+                         sprints: List[Dict[str, Any]], cp: float, weight: float, session_id: str = '') -> str:
     """
     Genera HTML interattivo per visualizzare traccia 3D con MapTiler GL JS.
     
@@ -38,7 +38,7 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         df: DataFrame con dati attività (lat, lon, alt, power, etc)
         efforts: Lista efforts (start, end, avg_power)
         sprints: Lista sprints (start, end, avg_power)
-        ftp: Functional Threshold Power
+        cp: Critical Power
         weight: Peso atleta
         
     Returns:
@@ -115,7 +115,7 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         # ===== STEP 6: Efforts Data Calculation (Using Core Module) =====
         # Prepare data for core processing - pass both full and filtered arrays
         efforts_data_json = prepare_efforts_data(
-            df, efforts, sprints, ftp, weight, geojson_data, 
+            df, efforts, sprints, cp, weight, geojson_data, 
             orig_indices, alt_values_full, dist_km_values_full,
             alt_values_filtered, dist_km_values_filtered
         )

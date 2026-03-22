@@ -10,6 +10,8 @@ API ROUTES - RESTful endpoints for effort/sprint manipulation and data export
 """
 
 import sys
+import re
+import html as html_module
 import json
 import logging
 import csv
@@ -22,7 +24,7 @@ from io import StringIO, BytesIO
 _project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(_project_root))
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -127,7 +129,7 @@ async def get_session_data(session_id: str):
         session = _shared_sessions[session_id]
         df = session.get('df')
         efforts = session.get('efforts', [])
-        ftp = session.get('ftp', 280)
+        cp = session.get('cp', 250)
 
         if df is None or df.empty:
             raise HTTPException(status_code=400, detail="No FIT data available")
@@ -150,7 +152,7 @@ async def get_session_data(session_id: str):
                 'power': power
             },
             'efforts': efforts_data,
-            'ftp': float(ftp)
+            'cp': float(cp)
         }
     except Exception as e:
         logger.error(f"Error getting session data: {e}")
@@ -176,27 +178,23 @@ async def get_session_status(session_id: str):
         "total_records": len(session['df']),
         "total_efforts": len(session['efforts']),
         "total_sprints": len(session.get('sprints', [])),
-        "ftp": session['ftp'],
-        "weight": session['weight']
+        "cp": session.get('cp', 250),
+        "weight": session.get('weight', 60)
     }
 
 
-# =============================================================================
-# CP/WEIGHT UPDATE ENDPOINT
-# =============================================================================
-
-class UpdateFtpWeightRequest(BaseModel):
-    ftp: int
+class UpdateCpWeightRequest(BaseModel):
+    cp: int
     weight: float
 
-@router.post("/{session_id}/update-ftp-weight")
-async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
+@router.post("/{session_id}/update-cp-weight")
+async def update_cp_weight(session_id: str, request: UpdateCpWeightRequest):
     """
     Update CP and weight values for a session
 
     Args:
         session_id: Session ID
-        request: UpdateFtpWeightRequest with ftp and weight values
+        request: UpdateCpWeightRequest with cp and weight values
 
     Returns:
         JSON confirmation
@@ -207,20 +205,20 @@ async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
     session = _shared_sessions[session_id]
 
     # Validate inputs
-    if not (50 <= request.ftp <= 500):
+    if not (50 <= request.cp <= 500):
         raise HTTPException(status_code=400, detail="CP must be between 50 and 500 watts")
 
     if not (40 <= request.weight <= 150):
         raise HTTPException(status_code=400, detail="Weight must be between 40 and 150 kg")
 
     # Update session values
-    session['ftp'] = request.ftp
+    session['cp'] = request.cp
     session['weight'] = request.weight
 
     # Recalculate stats if CP changed
     if 'stats' in session:
         from utils.metrics import calculate_ride_stats
-        session['stats'] = calculate_ride_stats(session['df'], request.ftp)
+        session['stats'] = calculate_ride_stats(session['df'], request.cp)
 
     # Re-detect efforts with new CP
     if 'effort_config' in session:
@@ -230,10 +228,10 @@ async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
         
         efforts = create_efforts(
             df=df,
-            ftp=request.ftp,
+            cp=request.cp,
             window_sec=config.window_seconds,
             merge_pct=config.merge_power_diff_percent,
-            min_ftp_pct=config.min_effort_intensity_ftp,
+            min_cp_pct=config.min_effort_intensity_cp,
             trim_win=config.trim_window_seconds,
             trim_low=config.trim_low_percent
         )
@@ -251,12 +249,12 @@ async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
         efforts = split_included(df=df, efforts=efforts)
         session['efforts'] = efforts
 
-    logger.info(f"Updated session {session_id}: CP={request.ftp}W, Weight={request.weight}kg")
+    logger.info(f"Updated session {session_id}: CP={request.cp}W, Weight={request.weight}kg")
 
     return {
         "status": "success",
-        "message": f"CP updated to {request.ftp}W, Weight updated to {request.weight}kg",
-        "ftp": request.ftp,
+        "message": f"CP updated to {request.cp}W, Weight updated to {request.weight}kg",
+        "cp": request.cp,
         "weight": request.weight
     }
 
@@ -592,7 +590,7 @@ async def import_modifications(session_id: str, modifications: Dict[str, Any]):
 async def redetect_efforts_impl(
     session_id: str,
     window_sec: int = 60,
-    min_ftp_pct: float = 100,
+    min_cp_pct: float = 100,
     merge_pct: float = 15,
     trim_win: int = 10,
     trim_low: float = 85,
@@ -607,15 +605,15 @@ async def redetect_efforts_impl(
 
     session = _shared_sessions[session_id]
     df = session['df']
-    ftp = session['ftp']
+    cp = session.get('cp', 250)
 
     try:
         efforts = create_efforts(
             df=df,
-            ftp=ftp,
+            cp=cp,
             window_sec=window_sec,
             merge_pct=merge_pct,
-            min_ftp_pct=min_ftp_pct,
+            min_cp_pct=min_cp_pct,
             trim_win=trim_win,
             trim_low=trim_low
         )
@@ -637,7 +635,7 @@ async def redetect_efforts_impl(
         if 'effort_config' not in session:
             session['effort_config'] = EffortConfig()
         session['effort_config'].window_seconds = window_sec
-        session['effort_config'].min_effort_intensity_ftp = min_ftp_pct
+        session['effort_config'].min_effort_intensity_cp = min_cp_pct
         session['effort_config'].merge_power_diff_percent = merge_pct
         session['effort_config'].trim_window_seconds = trim_win
         session['effort_config'].trim_low_percent = trim_low
@@ -650,7 +648,7 @@ async def redetect_efforts_impl(
             "total_efforts": len(efforts),
             "parameters": {
                 "window_sec": window_sec,
-                "min_ftp_pct": min_ftp_pct,
+                "min_cp_pct": min_cp_pct,
                 "merge_pct": merge_pct,
                 "trim_win": trim_win,
                 "trim_low": trim_low,
@@ -722,7 +720,7 @@ async def redetect_efforts_json(session_id: str, params: Dict[str, Any]):
     return await redetect_efforts_impl(
         session_id=session_id,
         window_sec=int(params.get('window_sec', 60)),
-        min_ftp_pct=float(params.get('min_ftp_pct', 100)),
+        min_cp_pct=float(params.get('min_cp_pct', params.get('min_ftp_pct', 100))),
         merge_pct=float(params.get('merge_pct', 15)),
         trim_win=int(params.get('trim_win', 10)),
         trim_low=float(params.get('trim_low', 85)),
@@ -955,7 +953,7 @@ async def export_json_data(session_id: str):
         "session_info": {
             "session_id": session_id,
             "filename": session['filename'],
-            "ftp": session['ftp'],
+            "cp": session.get('cp', 250),
             "weight": session['weight']
         },
         "ride_statistics": session.get('stats', {}),
@@ -964,7 +962,7 @@ async def export_json_data(session_id: str):
         "detection_parameters": {
             "effort_config": {
                 "window_seconds": session.get('effort_config', EffortConfig()).window_seconds,
-                "min_ftp_pct": session.get('effort_config', EffortConfig()).min_effort_intensity_ftp,
+                "min_cp_pct": session.get('effort_config', EffortConfig()).min_effort_intensity_cp,
                 "merge_pct": session.get('effort_config', EffortConfig()).merge_power_diff_percent,
                 "trim_window": session.get('effort_config', EffortConfig()).trim_window_seconds,
                 "extend_window": session.get('effort_config', EffortConfig()).extend_window_seconds
@@ -1288,7 +1286,7 @@ async def export_modifications(session_id: str):
 
 
 @router.api_route("/export/{session_id}/html-report", methods=["GET", "POST"])
-async def export_html_report(session_id: str, request=None):
+async def export_html_report(session_id: str, request: Request = None):
     """
     Export a fully standalone interactive HTML report identical to the Altimetria D3 tab.
     All data is embedded — no server needed to open it.
@@ -1304,7 +1302,6 @@ async def export_html_report(session_id: str, request=None):
 
     try:
         from routes.altimetria_d3 import prepare_chart_data, convert_to_python_types
-        import re
 
         # Default zones — identical to inspection.html defaultZones.
         # Used whenever the browser does not send valid custom zones.
@@ -1337,12 +1334,13 @@ async def export_html_report(session_id: str, request=None):
 
         chart_data_json = json.dumps(chart_data)
         filename = session.get('filename', 'Activity')
+        filename_escaped = html_module.escape(filename)
 
         # Read template and substitute Jinja2 placeholders with real values
         template_path = Path(__file__).resolve().parent.parent / "templates" / "altimetria_d3.html"
         html = template_path.read_text(encoding='utf-8')
 
-        html = html.replace('{{ filename }}', filename)
+        html = html.replace('{{ filename }}', filename_escaped)
         html = html.replace('{{ chart_data_json | safe }}', chart_data_json)
 
         # Remove the storage listener (irrelevant in a standalone file)
@@ -1386,7 +1384,7 @@ async def export_html_report(session_id: str, request=None):
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     border-bottom: 1px solid #334155;
 ">
-    <span>🚴 <strong style="color:#60a5fa">PEFFORT Report</strong> — {filename}</span>
+    <span>🚴 <strong style="color:#60a5fa">PEFFORT Report</strong> — {filename_escaped}</span>
     <span style="color:#475569">Exported interactive report · bFactor</span>
 </div>
 <style>
@@ -1396,7 +1394,7 @@ async def export_html_report(session_id: str, request=None):
 """
         html = html.replace('<body>', '<body>' + export_banner, 1)
 
-        safe_name = filename.replace('.fit', '').replace(' ', '_')
+        safe_name = re.sub(r'[^\w.\-]', '_', filename.replace('.fit', '')).strip('_') or 'report'
         return StreamingResponse(
             BytesIO(html.encode('utf-8')),
             media_type="text/html",

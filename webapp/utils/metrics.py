@@ -31,20 +31,20 @@ def calculate_normalized_power(power_data: List[float]) -> float:
     return float(np_value)
 
 
-def calculate_intensity_factor(np_value: float, ftp: float) -> float:
-    """Calculate Intensity Factor (IF) = NP / FTP"""
-    if ftp <= 0:
+def calculate_intensity_factor(np_value: float, cp: float) -> float:
+    """Calculate Intensity Factor (IF) = NP / CP"""
+    if cp <= 0:
         return 0.0
-    return np_value / ftp
+    return np_value / cp
 
 
-def calculate_tss(np_value: float, ftp: float, duration_hours: float) -> float:
+def calculate_tss(np_value: float, cp: float, duration_hours: float) -> float:
     """Calculate Training Stress Score (TSS)"""
-    if ftp <= 0 or duration_hours <= 0:
+    if cp <= 0 or duration_hours <= 0:
         return 0.0
 
-    if_value = calculate_intensity_factor(np_value, ftp)
-    tss = (duration_hours * np_value * if_value) / (ftp * 36) * 100
+    if_value = calculate_intensity_factor(np_value, cp)
+    tss = (duration_hours * np_value * if_value) / (cp * 36) * 100
 
     return float(tss)
 
@@ -56,7 +56,7 @@ def calculate_variability_index(np_value: float, avg_power: float) -> float:
     return np_value / avg_power
 
 
-def calculate_ride_stats(df: pd.DataFrame, ftp: float) -> Dict[str, Any]:
+def calculate_ride_stats(df: pd.DataFrame, cp: float) -> Dict[str, Any]:
     """Calculate comprehensive ride statistics"""
     power_data = df['power'].tolist()
     duration_sec = df['time_sec'].iloc[-1] - df['time_sec'].iloc[0] if len(df) > 0 else 0
@@ -68,8 +68,8 @@ def calculate_ride_stats(df: pd.DataFrame, ftp: float) -> Dict[str, Any]:
 
     # Advanced metrics
     np_value = calculate_normalized_power(power_data)
-    if_value = calculate_intensity_factor(np_value, ftp)
-    tss = calculate_tss(np_value, ftp, duration_hours)
+    if_value = calculate_intensity_factor(np_value, cp)
+    tss = calculate_tss(np_value, cp, duration_hours)
     vi = calculate_variability_index(np_value, avg_power)
 
     # Distance and elevation
