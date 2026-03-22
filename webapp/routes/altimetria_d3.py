@@ -227,7 +227,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'avg_power': round(avg_power, 0),
             'duration': int(duration),
             'start_time': format_time_hhmmss(time_sec[s]) if s < len(time_sec) else '',
-            'ftp_pct': round((avg_power / ftp * 100), 0),
+            'cp_pct': round((avg_power / ftp * 100), 0),
             'avg_power_per_kg': round(avg_power_per_kg, 2),
             'best_5s_watt': best_5s_watt,
             'best_5s_watt_kg': round(best_5s_watt_kg, 2),
@@ -443,14 +443,14 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         'elevation_data': elevation_data,
         'efforts': efforts_data,
         'sprints': sprints_data,
-        'ftp': float(ftp),
+        'cp': float(ftp),
         'weight': float(weight),
         'intensity_zones': intensity_zones,
         'torque_available': 'torque' in df.columns,
         'config': {
             'window_sec': float(effort_config.window_seconds),
             'merge_pct': float(effort_config.merge_power_diff_percent),
-            'min_ftp_pct': float(effort_config.min_effort_intensity_ftp),
+            'min_cp_pct': float(effort_config.min_effort_intensity_ftp),
             'sprint_window_sec': float(sprint_config.window_seconds),
             'min_sprint_power': float(sprint_config.min_power)
         }

@@ -434,7 +434,7 @@
             <span><strong>File:</strong> {{ session.filename }}</span>
             <span><strong>Efforts:</strong> {{ session.efforts|length }}</span>
             <span><strong>Sprints:</strong> {{ session.sprints|length }}</span>
-            <span><strong>FTP:</strong> {{ session.ftp | int }}W</span>
+            <span><strong>CP:</strong> {{ session.ftp | int }}W</span>
             <span><strong>Weight:</strong> {{ session.weight }}kg</span>
             <span><strong>Session:</strong> {{ session_id }}</span>
         </div>
@@ -445,9 +445,7 @@
         <div class="tabs">
             <div class="tab active" data-tab="overview">📊 Overview</div>
             <div class="tab" data-tab="inspection">🔍 Inspection</div>
-            <div class="tab" data-tab="altimetria">📈 Altimetria</div>
-            <div class="tab" data-tab="altimetria-echarts">📈 Altimetria Echarts</div>
-            <div class="tab" data-tab="altimetria-d3">📈 Altimetria Pro</div>
+            <div class="tab" data-tab="altimetria-d3">📈 Altimetria</div>
             <div class="tab" data-tab="map3d">🗺️ 3D Map</div>
             <div class="tab" data-tab="settings">⚙️ Settings</div>
             <div class="tab" data-tab="export">📤 Export</div>
@@ -521,37 +519,7 @@
                 <iframe src="/inspection/{{ session_id }}" style="width: 100%; height: 100%; border: none; background: white;"></iframe>
             </div>
             
-            <!-- ALTIMETRIA TAB -->
-            <div class="tab-pane full-height" id="altimetria" style="position: relative;">
-                <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria')" title="Toggle Fullscreen">
-                    <span class="fullscreen-icon">⛶</span>
-                </button>
-                <div style="padding: 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10;">
-                    <button onclick="window.open('/altimetria/{{ session_id }}', '_blank', 'width=1400,height=900')" 
-                            style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                        🔍 Apri in Nuova Finestra
-                    </button>
-                    <span style="color: #6b7280; font-size: 0.85rem;">Per confronto identico con app originale</span>
-                </div>
-                <iframe src="/altimetria/{{ session_id }}" style="position: absolute; top: 50px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 50px); border: none; background: white;"></iframe>
-            </div>
-            
-            <!-- ALTIMETRIA ECHARTS TAB -->
-            <div class="tab-pane full-height" id="altimetria-echarts" style="position: relative;">
-                <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria-echarts')" title="Toggle Fullscreen">
-                    <span class="fullscreen-icon">⛶</span>
-                </button>
-                <div style="height: 40px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; align-items: center; position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding: 0 10px;">
-                    <button onclick="window.open('/altimetria-echarts/{{ session_id }}', '_blank', 'width=1400,height=900')" 
-                            style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                        🔍 Apri in Nuova Finestra
-                    </button>
-                    <span style="color: #6b7280; font-size: 0.85rem;">Versione ECharts con pannello metriche laterale</span>
-                </div>
-                <iframe src="/altimetria-echarts/{{ session_id }}" style="position: absolute; top: 40px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 40px); border: none; background: white;"></iframe>
-            </div>
-            
-            <!-- ALTIMETRIA PRO (D3) TAB -->
+            <!-- ALTIMETRIA (D3) TAB -->
             <div class="tab-pane full-height" id="altimetria-d3" style="position: relative;">
                 <button class="fullscreen-btn" onclick="toggleFullscreen('altimetria-d3')" title="Toggle Fullscreen">
                     <span class="fullscreen-icon">⛶</span>
@@ -561,7 +529,6 @@
                             style="padding: 8px 16px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         🔍 Apri in Nuova Finestra
                     </button>
-                    <span style="color: #6b7280; font-size: 0.85rem;">Versione D3.js con renderizzazione avanzata</span>
                 </div>
                 <iframe src="/altimetria-d3/{{ session_id }}" style="position: absolute; top: 40px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - 40px); border: none; background: white;"></iframe>
             </div>
@@ -618,15 +585,15 @@
                         <div class="controls-title">🚴‍♂️ Athlete Parameters</div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="ftpValue">FTP (W)</label>
-                                <input type="number" id="ftpValue" value="{{ session.ftp | int }}" min="50" max="500" step="5">
+                                <label for="cpValue">CP (W)</label>
+                                <input type="number" id="cpValue" value="{{ session.ftp | int }}" min="50" max="500" step="5">
                             </div>
                             <div class="form-group">
                                 <label for="weightValue">Weight (kg)</label>
                                 <input type="number" id="weightValue" value="{{ session.weight }}" min="40" max="150" step="0.5">
                             </div>
                         </div>
-                        <button class="btn btn-primary" onclick="updateFtpWeight()">💾 Update FTP & Weight</button>
+                        <button class="btn btn-primary" onclick="updateCpWeight()">💾 Update CP & Weight</button>
                     </div>
                     
                     <div class="controls-section">
@@ -637,8 +604,8 @@
                                 <input type="number" id="effortWindowSec" value="{{ session.effort_config.window_seconds | default(60) | int }}" min="10" max="300">
                             </div>
                             <div class="form-group">
-                                <label for="effortMinFtpPct">Min FTP (%)</label>
-                                <input type="number" id="effortMinFtpPct" value="{{ session.effort_config.min_effort_intensity_ftp | default(100) | int }}" min="50" max="200">
+                                <label for="effortMinCpPct">Min CP (%)</label>
+                                <input type="number" id="effortMinCpPct" value="{{ session.effort_config.min_effort_intensity_ftp | default(100) | int }}" min="50" max="200">
                             </div>
                             <div class="form-group">
                                 <label for="effortMergePct">Merge Tolerance (%)</label>
@@ -737,7 +704,7 @@
         async function redetectEfforts() {
             const params = {
                 window_sec: document.getElementById('effortWindowSec').value,
-                min_ftp_pct: document.getElementById('effortMinFtpPct').value,
+                min_cp_pct: document.getElementById('effortMinCpPct').value,
                 merge_pct: document.getElementById('effortMergePct').value,
                 trim_win: document.getElementById('trimWin').value,
                 trim_low: document.getElementById('trimLow').value,
@@ -791,9 +758,9 @@
             }
         }
         
-        async function updateFtpWeight() {
+        async function updateCpWeight() {
             const params = {
-                ftp: parseInt(document.getElementById('ftpValue').value),
+                ftp: parseInt(document.getElementById('cpValue').value),
                 weight: parseFloat(document.getElementById('weightValue').value)
             };
             

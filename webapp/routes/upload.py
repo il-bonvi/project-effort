@@ -67,10 +67,10 @@ async def upload_fit(
 
     Args:
         file: Uploaded FIT file
-        ftp: Functional Threshold Power (W)
+        ftp: Critical Power (W)
         weight: Athlete weight (kg)
         window_sec: Detection window (seconds)
-        min_ftp_pct: Minimum FTP intensity (%)
+        min_ftp_pct: Minimum CP intensity (%)
         merge_pct: Merge tolerance (%)
         trim_win: Trim window (seconds)
         trim_low: Trim low threshold (%)
@@ -92,7 +92,7 @@ async def upload_fit(
     # Validate numeric parameters to prevent abuse
     if not (50 <= ftp <= 600):
         raise HTTPException(
-            status_code=400, detail="FTP must be between 50 and 600 watts"
+            status_code=400, detail="CP must be between 50 and 600 watts"
         )
     if not (30 <= weight <= 200):
         raise HTTPException(
@@ -106,7 +106,7 @@ async def upload_fit(
     if not (50 <= min_ftp_pct <= 300):
         raise HTTPException(
             status_code=400,
-            detail="Min FTP % must be between 50 and 300"
+            detail="Min CP % must be between 50 and 300"
         )
     # Additional parameter validation to prevent parameter-abuse DoS
     if not (0 <= merge_pct <= 50):

@@ -976,7 +976,7 @@ function buildEffortCard(e) {
     <div class="pc-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
             <span>E#${e.id + 1} <span style="font-weight:400;font-size:10px;color:#9ca3af">Rank #${e.rank}</span> &nbsp;<span style="font-weight:400;font-size:10.5px;color:#6b7280">${e.start_time} · ${e.duration}s · ${e.distance_tot} km · ${e.elevation_gain}m ↑</span></span>
-            <div style="color:${e.color};font-size:15px;margin-top: 4px;">${e.avg_power}W <span style="font-size:11px;font-weight:400">(${e.ftp_pct}%)</span></div>
+            <div style="color:${e.color};font-size:15px;margin-top: 4px;">${e.avg_power}W <span style="font-size:11px;font-weight:400">(${e.cp_pct}%)</span></div>
         </div>
         <button class="zoom-stream-btn" onclick="openStreamModal('e-${e.id}', '${e.id}', 'effort')">📊 Stream</button>
     </div>
@@ -1055,7 +1055,7 @@ function buildSprintCard(s) {
 function buildEffortTooltip(e) {
     let html = `<strong>E#${e.id + 1}</strong> (Rank #${e.rank})<br/>`;
     html += `⚡ ${e.avg_power} W | 5"🔺${e.best_5s_watt} W 🌀 ${e.avg_cadence} rpm<br/>`;
-    html += `⏱️ ${e.duration}s | 🕒 ${e.start_time} | ${e.ftp_pct}%<br/>`;
+    html += `⏱️ ${e.duration}s | 🕒 ${e.start_time} | ${e.cp_pct}%<br/>`;
     html += `⚖️ ${e.avg_power_per_kg} W/kg | 5"🔺${e.best_5s_watt_kg} W/kg<br/>`;
     html += `🔀 ${e.avg_watts_first} W | ${e.avg_watts_second} W | ${e.watts_ratio}<br/>`;
     if (e.avg_hr > 0) html += `❤️ ∅${e.avg_hr} bpm | 🔺${e.max_hr} bpm<br/>`;
@@ -1248,8 +1248,8 @@ function buildSidebar() {
     // Config section
     document.getElementById('config-section').innerHTML = `
         <strong>Configuration</strong><br/>
-        FTP: ${chartData.ftp}W | Weight: ${chartData.weight}kg<br/>
-        Efforts: WIN ${chartData.config.window_sec}s | MRG ${chartData.config.merge_pct}% | MIN ${chartData.config.min_ftp_pct}%<br/>
+        CP: ${chartData.cp}W | Weight: ${chartData.weight}kg<br/>
+        Efforts: WIN ${chartData.config.window_sec}s | MRG ${chartData.config.merge_pct}% | MIN ${chartData.config.min_cp_pct}%<br/>
         Sprints: WIN ${chartData.config.sprint_window_sec}s | MIN ${chartData.config.min_sprint_power}W<br/>
         <strong>Y-axis:</strong> ${yMin}m - ${yMax}m (range: ${yMax - yMin}m)
     `;
@@ -1273,7 +1273,7 @@ function buildSidebar() {
         card.innerHTML = `
             <div class="card-header">
                 <span>E#${effort.id + 1} <span style="font-size:0.73rem;font-weight:400;color:#9ca3af">Rank #${effort.rank}</span></span>
-                <span style="color:${effort.color}">${effort.avg_power}W (${effort.ftp_pct}%)</span>
+                <span style="color:${effort.color}">${effort.avg_power}W (${effort.cp_pct}%)</span>
             </div>
             <div class="eg">
                 <span class="a">🕒 Start</span><span class="b">${effort.start_time}</span><span class="c">⏱️ Dur.</span><span class="d">${effort.duration}s</span>
@@ -1579,7 +1579,7 @@ function buildStreamChartsD3() {
         return;
     }
 
-    const ftp   = chartData.ftp;
+    const cp   = chartData.cp;
     const zones = getIntensityZones();
     const timeS = streamModalData.timeStream;
     const powS  = streamModalData.powerStream;
@@ -1603,7 +1603,7 @@ function buildStreamChartsD3() {
 
     // zone color lookup
     function zoneColor(w) {
-        const pct = w / ftp * 100;
+        const pct = w / cp * 100;
         for (const z of zones) if (pct >= z.min && (z.max===999||pct<z.max)) return z.color;
         return '#6b7280';
     }
@@ -1653,8 +1653,8 @@ function buildStreamChartsD3() {
 
         // Zone background bands
         zones.forEach(z => {
-            const minW = (z.min/100)*ftp;
-            const maxW = z.max===999 ? maxP : (z.max/100)*ftp;
+            const minW = (z.min/100)*cp;
+            const maxW = z.max===999 ? maxP : (z.max/100)*cp;
             pg.append('rect').attr('x',0).attr('width',innerW)
                 .attr('y', yS(maxW)).attr('height', Math.max(0, yS(minW)-yS(maxW)))
                 .attr('fill', z.color).attr('opacity', 0.11);
@@ -1686,14 +1686,14 @@ function buildStreamChartsD3() {
                 .attr('text-anchor','middle').attr('fill','#ef4444').attr('font-size',9).text('bpm');
         }
 
-        // FTP line
+        // CP line
         pg.append('line').attr('x1',0).attr('x2',innerW)
-            .attr('y1',yS(ftp)).attr('y2',yS(ftp))
+            .attr('y1',yS(cp)).attr('y2',yS(cp))
             .attr('stroke','#f59e0b').attr('stroke-width',1)
             .attr('stroke-dasharray','5,3').attr('opacity',0.9);
-        pg.append('text').attr('x',innerW-3).attr('y',yS(ftp)-3)
+        pg.append('text').attr('x',innerW-3).attr('y',yS(cp)-3)
             .attr('text-anchor','end').attr('fill','#f59e0b').attr('font-size',8.5)
-            .text(`FTP ${ftp}W`);
+            .text(`CP ${cp}W`);
 
         // Title
         pg.append('text').attr('x',6).attr('y',13)
@@ -1744,8 +1744,8 @@ function buildStreamChartsD3() {
 
             // Draw colored zone bands (horizontal strips) clipped to the curve area
             zones.forEach((z, zi) => {
-                const minW = (z.min/100)*ftp;
-                const maxW = z.max===999 ? maxP*1.5 : (z.max/100)*ftp;
+                const minW = (z.min/100)*cp;
+                const maxW = z.max===999 ? maxP*1.5 : (z.max/100)*cp;
                 dg.append('rect')
                     .attr('x', 0).attr('width', innerW)
                     .attr('y', yS(maxW))
@@ -1866,7 +1866,7 @@ function buildStreamChartsD3() {
         .attr('fill','#93c5fd').attr('opacity',0.55)
         .attr('d', d3.area().x(d=>xFull(d.t)).y0(BRUSH_H-2).y1(d=>ovYS(d.p)).curve(d3.curveMonotoneX));
     brushG.append('line').attr('x1',0).attr('x2',innerW)
-        .attr('y1',ovYS(ftp)).attr('y2',ovYS(ftp))
+        .attr('y1',ovYS(cp)).attr('y2',ovYS(cp))
         .attr('stroke','#f59e0b').attr('stroke-width',0.8).attr('stroke-dasharray','3,2');
 
     const brush = d3.brushX().extent([[0,0],[innerW,BRUSH_H]])

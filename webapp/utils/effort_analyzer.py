@@ -173,7 +173,7 @@ def get_zone_color(avg_power: float, ftp: float) -> str:
     
     Args:
         avg_power: Potenza media [W]
-        ftp: Functional Threshold Power [W]
+        ftp: Critical Power [W]
         
     Returns:
         Colore hex della zona
@@ -191,7 +191,7 @@ def get_zone_color(avg_power: float, ftp: float) -> str:
         if perc < th:
             return color
     
-    # Valori > 999% FTP usano default
+    # Valori > 999% CP usano default
     return ZONE_DEFAULT[1]
 
 
@@ -256,11 +256,11 @@ def trim_segment(power: np.ndarray, start: int, end: int, trim_win: int, trim_pc
 
 def create_efforts(df: pd.DataFrame, ftp: float, window_sec: int = 60, merge_pct: float = 15, 
                    min_ftp_pct: float = 100, trim_win: int = 10, trim_low: float = 85) -> List[Tuple[int, int, float]]:
-    """Crea finestre, merge, trim, filtro FTP.
+    """Crea finestre, merge, trim, filtro CP.
     
     Args:
         df: DataFrame con dati potenza
-        ftp: Functional Threshold Power [W]
+        ftp: Critical Power [W]
         window_sec: Dimensione finestra [s]
         merge_pct: Threshold merge [%]
         min_ftp_pct: Minima intensità [%FTP]

@@ -115,7 +115,7 @@ class LocalModificationsRequest(BaseModel):
 @router.get("/session-data/{session_id}")
 async def get_session_data(session_id: str):
     """
-    Get FIT data for inspection chart (time_sec, power, efforts, ftp)
+    Get FIT data for inspection chart (time_sec, power, efforts, cp)
 
     Returns:
         JSON with time_sec, power arrays and effort list
@@ -163,7 +163,7 @@ async def get_session_status(session_id: str):
     Get current session status and effort/sprint counts
 
     Returns:
-        JSON with session_id, filename, record count, effort/sprint counts, FTP, weight
+        JSON with session_id, filename, record count, effort/sprint counts, CP, weight
     """
     if session_id not in _shared_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -182,7 +182,7 @@ async def get_session_status(session_id: str):
 
 
 # =============================================================================
-# FTP/WEIGHT UPDATE ENDPOINT
+# CP/WEIGHT UPDATE ENDPOINT
 # =============================================================================
 
 class UpdateFtpWeightRequest(BaseModel):
@@ -192,7 +192,7 @@ class UpdateFtpWeightRequest(BaseModel):
 @router.post("/{session_id}/update-ftp-weight")
 async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
     """
-    Update FTP and weight values for a session
+    Update CP and weight values for a session
 
     Args:
         session_id: Session ID
@@ -208,7 +208,7 @@ async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
 
     # Validate inputs
     if not (50 <= request.ftp <= 500):
-        raise HTTPException(status_code=400, detail="FTP must be between 50 and 500 watts")
+        raise HTTPException(status_code=400, detail="CP must be between 50 and 500 watts")
 
     if not (40 <= request.weight <= 150):
         raise HTTPException(status_code=400, detail="Weight must be between 40 and 150 kg")
@@ -217,12 +217,12 @@ async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
     session['ftp'] = request.ftp
     session['weight'] = request.weight
 
-    # Recalculate stats if FTP changed
+    # Recalculate stats if CP changed
     if 'stats' in session:
         from utils.metrics import calculate_ride_stats
         session['stats'] = calculate_ride_stats(session['df'], request.ftp)
 
-    # Re-detect efforts with new FTP
+    # Re-detect efforts with new CP
     if 'effort_config' in session:
         from utils.effort_analyzer import create_efforts, merge_extend, split_included
         df = session['df']
@@ -251,11 +251,11 @@ async def update_ftp_weight(session_id: str, request: UpdateFtpWeightRequest):
         efforts = split_included(df=df, efforts=efforts)
         session['efforts'] = efforts
 
-    logger.info(f"Updated session {session_id}: FTP={request.ftp}W, Weight={request.weight}kg")
+    logger.info(f"Updated session {session_id}: CP={request.ftp}W, Weight={request.weight}kg")
 
     return {
         "status": "success",
-        "message": f"FTP updated to {request.ftp}W, Weight updated to {request.weight}kg",
+        "message": f"CP updated to {request.ftp}W, Weight updated to {request.weight}kg",
         "ftp": request.ftp,
         "weight": request.weight
     }

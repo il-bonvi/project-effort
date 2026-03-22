@@ -123,7 +123,7 @@ def generate_inspection_data(
         df: Pandas DataFrame with FIT data (time_sec, power columns required)
         efforts: List of effort tuples (start_idx, end_idx, avg_power)
         sprints: List of sprint dictionaries
-        ftp: Functional Threshold Power in watts
+        ftp: Critical Power in watts
         weight: Body weight in kilograms
         stats: Dictionary of ride statistics
         session_id: Session ID for API calls
