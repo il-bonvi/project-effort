@@ -45,15 +45,12 @@ function applyChartVisibilityFilters() {
         const isSprint = segment && segment.type === 'sprint';
         const shouldShow = isSprint ? showSprints : showEfforts;
 
-        if (shouldShow) {
-            series.data = segment.distance.map((dist, idx) => [dist, segment.altitude[idx]]);
-            series.lineStyle = series.lineStyle || {};
-            series.lineStyle.opacity = 1;
-        } else {
-            series.data = [];
-            series.lineStyle = series.lineStyle || {};
-            series.lineStyle.opacity = 0;
-        }
+        series.lineStyle = series.lineStyle || {};
+        series.itemStyle = series.itemStyle || {};
+        series.lineStyle.width = shouldShow ? 3 : 0;
+        series.lineStyle.opacity = shouldShow ? 1 : 0;
+        series.itemStyle.opacity = shouldShow ? 1 : 0;
+        series.silent = !shouldShow;
     });
 
     elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
@@ -708,19 +705,35 @@ function highlightEffortInChart(idx) {
         } else {
             // Effort lines
             const effortIdx = i - 1;
-            if (effortIdx === idx) {
+            const segment = elevationData.efforts[effortIdx];
+            const isSprint = segment && segment.type === 'sprint';
+            const shouldShow = isSprint ? showSprints : showEfforts;
+
+            if (!shouldShow) {
+                series.lineStyle.width = 0;
+                series.lineStyle.opacity = 0;
+                series.itemStyle = series.itemStyle || {};
+                series.itemStyle.opacity = 0;
+                series.silent = true;
+            } else if (effortIdx === idx) {
                 // Selected effort - make it thicker but not too much
                 series.lineStyle.width = 4;
                 series.lineStyle.opacity = 1;
+                series.itemStyle = series.itemStyle || {};
+                series.itemStyle.opacity = 1;
+                series.silent = false;
             } else {
                 // Other efforts - keep them visible but slightly faded
                 series.lineStyle.width = 2;
                 series.lineStyle.opacity = 0.6;
+                series.itemStyle = series.itemStyle || {};
+                series.itemStyle.opacity = 1;
+                series.silent = false;
             }
         }
     });
-    
-    elevationChartInstance.setOption(option);
+
+    elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
 }
 
 function resetChartHighlight() {
@@ -729,17 +742,24 @@ function resetChartHighlight() {
     // Reset all series to default state
     const option = elevationChartInstance.getOption();
     
-    option.series.forEach((series) => {
-        if (series.name === 'Altitudine') {
+    option.series.forEach((series, i) => {
+        if (i === 0 || series.name === 'Altitudine') {
             series.lineStyle.width = 1;
             series.lineStyle.opacity = 1;
         } else {
-            series.lineStyle.width = 3;
-            series.lineStyle.opacity = 1;
+            const effortIdx = i - 1;
+            const segment = elevationData.efforts[effortIdx];
+            const isSprint = segment && segment.type === 'sprint';
+            const shouldShow = isSprint ? showSprints : showEfforts;
+            series.itemStyle = series.itemStyle || {};
+            series.lineStyle.width = shouldShow ? 3 : 0;
+            series.lineStyle.opacity = shouldShow ? 1 : 0;
+            series.itemStyle.opacity = shouldShow ? 1 : 0;
+            series.silent = !shouldShow;
         }
     });
-    
-    elevationChartInstance.setOption(option);
+
+    elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
 }
 
 let isResizing = false;
