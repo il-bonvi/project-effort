@@ -7,7 +7,8 @@
     <script src='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js'></script>
     <link href='https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css' rel='stylesheet' />
     <script src='https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js'></script>
-    <link href='/static/css/map3d.css' rel='stylesheet' />
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js'></script>
+    <link href='/static/css/map3d.css?v=20260329b' rel='stylesheet' />
 </head>
 <body>
     <div id='hover-tooltip'></div>
@@ -21,16 +22,38 @@
         <div id='sidebar-content'></div>
     </div>
 
+    <div id="streamModalOverlay" class="stream-modal-overlay"></div>
+    <div id="streamModal" class="stream-modal">
+        <div class="stream-modal-header">
+            <h2 id="streamModalTitle">Stream Zoom</h2>
+            <button class="stream-modal-close" id="streamModalCloseBtn">✕</button>
+        </div>
+        <div class="stream-control-panel" id="streamControlPanel">
+            <div class="stream-control-group">
+                <label for="avg30sStreamSlider">Avg 1:</label>
+                <input type="range" id="avg30sStreamSlider" min="5" max="120" value="30">
+                <span class="value-display" id="avg30sStreamValue">30s</span>
+            </div>
+            <div class="stream-control-group">
+                <label for="avg60sStreamSlider">Avg 2:</label>
+                <input type="range" id="avg60sStreamSlider" min="10" max="240" value="60">
+                <span class="value-display" id="avg60sStreamValue">60s</span>
+            </div>
+        </div>
+        <div class="stream-charts-container">
+            <div id="streamChart1" class="stream-chart"></div>
+            <div id="streamChart2" class="stream-chart"></div>
+            <div id="streamChart3" class="stream-chart"></div>
+            <div id="streamUnifiedChart"></div>
+        </div>
+    </div>
+
     <div class='controls'>
         <select id='styleSelect'>
-            <option value='0'>Outdoor</option>
+            <option value='0'>Topo</option>
             <option value='1'>Streets</option>
-            <option value='2'>Topo</option>
-            <option value='3'>Bright</option>
-            <option value='4'>Dark</option>
-            <option value='5'>Winter</option>
-            <option value='6'>Satellite</option>
-            <option value='7'>Hybrid</option>
+            <option value='2'>Bright</option>
+            <option value='3'>Hybrid</option>
         </select>
         <button class='control-btn' id='toggleEfforts' onclick='toggleEfforts()'>👊 Efforts: ON</button>
         <button class='control-btn' id='toggleSprints' onclick='toggleSprints()'>🏃 Sprints: ON</button>
@@ -40,6 +63,7 @@
     <script>
         // Variables for map3d.js
         let efforts_data_json = {{ efforts_data_json | safe }};
+        const chart_data_json = {{ chart_data_json | safe }};
         const geojson_str = {{ geojson_str | safe }};
         const elevation_data_json = {{ elevation_data_json | safe }};
         const maptiler_key = '{{ maptiler_key }}';
@@ -57,6 +81,6 @@
             }
         });
     </script>
-    <script src='/static/js/map3d.js'></script>
+    <script src='/static/js/map3d.js?v=20260329b'></script>
 </body>
 </html>

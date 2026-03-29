@@ -299,6 +299,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         seg_alt = alt[start:end]
         seg_dist_km = dist_km[start:end]
         seg_dist = distance[start:end]
+        seg_time = time_sec[start:end]
         seg_hr = hr[start:end]
         seg_grade = grade[start:end]
         seg_cadence_raw = cadence[start:end]
@@ -349,11 +350,34 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         min_torque = float(valid_torque.min()) if len(valid_torque) > 0 else 0.0
         max_torque = float(valid_torque.max()) if len(valid_torque) > 0 else 0.0
         
-        # Speed (km/h, not m/s)
-        v1 = v2 = 0
-        if len(seg_dist_km) >= 2:
-            v1 = (seg_dist_km[1] - seg_dist_km[0]) * 3600
-            v2 = (seg_dist_km[-1] - seg_dist_km[-2]) * 3600
+        # Speed start/end (km/h) based on real delta-time, robust to non-1s sampling
+        v1 = v2 = 0.0
+        if len(seg_dist_km) >= 2 and len(seg_time) >= 2:
+            edge_window_s = 3.0
+            inst_speeds = []
+            for i in range(1, len(seg_dist_km)):
+                dt = float(seg_time[i] - seg_time[i - 1])
+                if dt <= 0:
+                    continue
+                dkm = float(seg_dist_km[i] - seg_dist_km[i - 1])
+                # Ignore backwards/noise spikes from GPS drift in edge speed estimate
+                if dkm < 0:
+                    continue
+                speed_kmh = dkm / (dt / 3600.0)
+                if 0 <= speed_kmh <= 130:
+                    inst_speeds.append((i, speed_kmh))
+
+            if inst_speeds:
+                start_candidates = [s for i, s in inst_speeds if (seg_time[i] - seg_time[0]) <= edge_window_s]
+                end_candidates = [s for i, s in inst_speeds if (seg_time[-1] - seg_time[i]) <= edge_window_s]
+
+                if not start_candidates:
+                    start_candidates = [s for _, s in inst_speeds[:3]]
+                if not end_candidates:
+                    end_candidates = [s for _, s in inst_speeds[-3:]]
+
+                v1 = float(np.mean(start_candidates)) if start_candidates else 0.0
+                v2 = float(np.mean(end_candidates)) if end_candidates else 0.0
         
         avg_power_per_kg = float(avg_power / weight) if weight > 0 else 0.0
         valid_cadence = seg_cadence[seg_cadence > 0]

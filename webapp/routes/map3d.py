@@ -9,6 +9,7 @@
 
 import logging
 import sys
+import json
 from pathlib import Path
 from typing import Dict, Any
 
@@ -20,6 +21,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
 from utils.map3d_generator import generate_3d_map_html
+from routes.altimetria_d3 import prepare_chart_data, convert_to_python_types
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,12 @@ async def map3d_view(session_id: str):
         )
 
     try:
+        try:
+            map3d_chart_data_json = json.dumps(convert_to_python_types(prepare_chart_data(session)))
+        except Exception as chart_err:
+            logger.warning(f"Unable to prepare Altimetria chart data for Map3D session {session_id}: {chart_err}")
+            map3d_chart_data_json = '{}'
+
         # Generate 3D map HTML using the same function as desktop app
         html_content = generate_3d_map_html(
             df=df,
@@ -75,6 +83,7 @@ async def map3d_view(session_id: str):
             sprints=sprints,
             cp=cp,
             weight=weight,
+            chart_data_json=map3d_chart_data_json,
             session_id=session_id
         )
 

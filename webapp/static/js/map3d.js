@@ -1,11 +1,7 @@
 const styles = [
-    { key: 'outdoor', name: 'Outdoor', url: `https://api.maptiler.com/maps/outdoor-v2/style.json?key=${maptiler_key}` },
-    { key: 'streets', name: 'Streets', url: `https://api.maptiler.com/maps/streets-v2/style.json?key=${maptiler_key}` },
     { key: 'topo', name: 'Topo', url: `https://api.maptiler.com/maps/topo-v2/style.json?key=${maptiler_key}` },
+    { key: 'streets', name: 'Streets', url: `https://api.maptiler.com/maps/streets-v2/style.json?key=${maptiler_key}` },
     { key: 'bright', name: 'Bright', url: `https://api.maptiler.com/maps/bright-v2/style.json?key=${maptiler_key}` },
-    { key: 'dark', name: 'Dark', url: `https://api.maptiler.com/maps/darkmatter/style.json?key=${maptiler_key}` },
-    { key: 'winter', name: 'Winter', url: `https://api.maptiler.com/maps/winter/style.json?key=${maptiler_key}` },
-    { key: 'satellite', name: 'Satellite', url: `https://api.maptiler.com/maps/satellite/style.json?key=${maptiler_key}` },
     { key: 'hybrid', name: 'Hybrid', url: `https://api.maptiler.com/maps/hybrid/style.json?key=${maptiler_key}` }
 ];
 let currentStyleIndex = 0;
@@ -34,144 +30,187 @@ let lastAltimetryUpdate = 0;
 let effortMarkers = [];  // Store effort marker references
 let showEfforts = true;  // Toggle for efforts visibility
 let showSprints = true;  // Toggle for sprints visibility
+const chartData = chart_data_json || { efforts: [], sprints: [], cp: 0, weight: 0, intensity_zones: [], torque_available: false };
 
-function openEffortSidebar(idx) {
-    const effort = currentEfforts[idx];
-    
-    let hrHtml = effort.max_hr > 0 ? `
-        <div class="sidebar-section">
-            <div class="sidebar-title">❤️ FREQUENZA CARDIACA</div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Media</span>
-                <span class="sidebar-value">${effort.avg_hr.toFixed(0)} bpm</span>
+function applyChartVisibilityFilters() {
+    if (!elevationChartInstance) return;
+
+    const option = elevationChartInstance.getOption();
+    if (!option.series || option.series.length <= 1) return;
+
+    option.series.forEach((series, i) => {
+        if (i === 0) return; // Base altitude series
+
+        const segment = elevationData.efforts[i - 1];
+        const isSprint = segment && segment.type === 'sprint';
+        const shouldShow = isSprint ? showSprints : showEfforts;
+
+        if (shouldShow) {
+            series.data = segment.distance.map((dist, idx) => [dist, segment.altitude[idx]]);
+            series.lineStyle = series.lineStyle || {};
+            series.lineStyle.opacity = 1;
+        } else {
+            series.data = [];
+            series.lineStyle = series.lineStyle || {};
+            series.lineStyle.opacity = 0;
+        }
+    });
+
+    elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
+}
+
+function format_time_mmss(seconds) {
+    if (!seconds || seconds < 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function fmtDur(seconds) {
+    const s = Math.round(seconds || 0);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m > 0 ? `${m}m${r}s` : `${s}s`;
+}
+
+function findSelectedSegment(markerItem) {
+    if (!markerItem) return null;
+
+    if (markerItem.type === 'sprint') {
+        const sprint = chartData.sprints.find((s) => String(s.id) === String(markerItem.id));
+        return sprint ? { data: sprint, type: 'sprint' } : null;
+    }
+
+    const effort = chartData.efforts.find((e) => String(e.id) === String(markerItem.id));
+    if (effort) return { data: effort, type: 'effort' };
+
+    const sprintFallback = chartData.sprints.find((s) => String(s.id) === String(markerItem.id));
+    if (sprintFallback) return { data: sprintFallback, type: 'sprint' };
+
+    // Last fallback: if payload lacks type but keeps sprint color convention.
+    if (markerItem.color === '#000000') {
+        const byDistance = chartData.sprints.find((s) => {
+            const start = Number(markerItem.distance?.[0] ?? markerItem.start ?? 0);
+            const end = Number(markerItem.distance?.[markerItem.distance.length - 1] ?? markerItem.end ?? start);
+            const sStart = Number(s.line_data?.[0]?.[0] ?? 0);
+            const sEnd = Number(s.line_data?.[s.line_data.length - 1]?.[0] ?? sStart);
+            return Math.abs(start - sStart) < 0.05 && Math.abs(end - sEnd) < 0.05;
+        });
+        if (byDistance) return { data: byDistance, type: 'sprint' };
+    }
+
+    return null;
+}
+
+function buildEffortSidebarCard(e) {
+    const signErr = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
+    const signDwkg = e.diff_wkg > 0 ? '+' : '';
+    const showVamTeor = e.avg_grade >= 4.5;
+    const vamSection = `
+        <div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${showVamTeor ? `${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h` : `${e.vam} m/h`}</span></div>
+        <div class="metric-row"><span class="metric-label">🧮 VAM Teor.</span><span class="metric-value">${showVamTeor ? `${e.vam_teorico} m/h` : '-'}</span></div>
+        <div class="metric-row"><span class="metric-label">🧮 W/kg Teor.</span><span class="metric-value">${showVamTeor ? `${e.wkg_teoric} · Δ${signDwkg}${e.diff_wkg}` : '-'}</span></div>
+        <div class="metric-row"><span class="metric-label">Err %</span><span class="metric-value">${showVamTeor ? `${signErr}${Math.abs(e.perc_err)}%` : '-'}</span></div>
+    `;
+
+    return `
+        <div class="selected-header">
+            <div>
+                <div class="selected-title">E#${e.id + 1} · Rank #${e.rank}</div>
+                <div class="selected-subtitle-line">${e.start_time}</div>
+                <div class="selected-subtitle-line">${fmtDur(e.duration)} · ${e.distance_tot} km · ${e.elevation_gain}m ↑</div>
+                <div class="selected-power" style="color:${e.color}">${e.avg_power}W <span>(${e.cp_pct}%)</span></div>
             </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Massima</span>
-                <span class="sidebar-value">${effort.max_hr.toFixed(0)} bpm</span>
-            </div>
+            <button class="stream-btn" onclick="openStreamModal('e-${e.id}','${e.id}','effort')">📊 Stream</button>
         </div>
-    ` : '';
-    
-    let vamHtml = effort.avg_grade >= 4.5 ? `
-        <div class="sidebar-row">
-            <span class="sidebar-label">Teorico</span>
-            <span class="sidebar-value">${effort.vam_teorico.toFixed(0)} m/h</span>
-        </div>
-    ` : '';
-    
-    const html = `
-        <div class="sidebar-section">
-            <div class="sidebar-title">⚡ POTENZA & RELATIVA & CADENZA & HR - Effort #${idx + 1}</div>
-            <div style="color: #60a5fa; font-size: 11px; margin-bottom: 8px; font-weight: 600;">Potenza</div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Media</span>
-                <span class="sidebar-value">${effort.avg.toFixed(0)} W</span>
+        <div class="selected-grid">
+            <div class="metric-col">
+                <div class="metric-row"><span class="metric-label">⚡ Avg</span><span class="metric-value">${e.avg_power}W</span></div>
+                <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${e.avg_power_per_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">5″🔺 Peak</span><span class="metric-value">${e.best_5s_watt}W · ${e.best_5s_watt_kg} W/kg</span></div>
+                <div class="metric-row"><span class="metric-label">🌀 Cadence</span><span class="metric-value">${e.avg_cadence} rpm</span></div>
+                <div class="metric-row"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${e.avg_watts_first}/${e.avg_watts_second} · ${e.watts_ratio}</span></div>
             </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Best 5s</span>
-                <span class="sidebar-value">${effort.best_5s} W</span>
+            <div class="metric-col">
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${e.avg_hr > 0 ? `${e.avg_hr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🔺 HR Max</span><span class="metric-value">${e.max_hr > 0 ? `${e.max_hr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${e.avg_speed} km/h</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${e.avg_grade}% · 🔺${e.max_grade}%</span></div>
+                ${vamSection}
             </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">1ª metà</span>
-                <span class="sidebar-value">${effort.watts_first.toFixed(0)} W</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">2ª metà</span>
-                <span class="sidebar-value">${effort.watts_second.toFixed(0)} W</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Rapporto</span>
-                <span class="sidebar-value">${effort.watts_ratio.toFixed(2)}</span>
-            </div>
-            
-            <div style="color: #60a5fa; font-size: 11px; margin-top: 12px; margin-bottom: 8px; font-weight: 600;">Potenza Relativa</div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Media</span>
-                <span class="sidebar-value">${effort.w_kg.toFixed(2)} W/kg</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Best 5s</span>
-                <span class="sidebar-value">${effort.best_5s_watt_kg.toFixed(2)} W/kg</span>
-            </div>
-            
-            <div style="color: #60a5fa; font-size: 11px; margin-top: 12px; margin-bottom: 8px; font-weight: 600;">Cadenza & HR</div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">🌀 Cadenza</span>
-                <span class="sidebar-value">${effort.avg_cadence.toFixed(0)} rpm</span>
-            </div>
-            ${hrHtml}
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-title">⏱️ TEMPO & DISTANZA & ALTIMETRIA & VAM</div>
-            <div style="color: #60a5fa; font-size: 11px; margin-bottom: 8px; font-weight: 600;">Tempo & Distanza</div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Durata</span>
-                <span class="sidebar-value">${effort.duration}s</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Distanza</span>
-                <span class="sidebar-value">${effort.distance_km.toFixed(2)} km</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Velocità</span>
-                <span class="sidebar-value">${effort.avg_speed.toFixed(1)} km/h</span>
-            </div>
-            
-            <div style="color: #60a5fa; font-size: 11px; margin-top: 12px; margin-bottom: 8px; font-weight: 600;">Altimetria</div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Guadagno</span>
-                <span class="sidebar-value">${effort.elevation.toFixed(0)} m</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Media</span>
-                <span class="sidebar-value">${effort.avg_grade.toFixed(1)}%</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Massima</span>
-                <span class="sidebar-value">${effort.max_grade.toFixed(1)}%</span>
-            </div>
-            
-            <div style="color: #60a5fa; font-size: 11px; margin-top: 12px; margin-bottom: 8px; font-weight: 600;">VAM</div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Effettivo</span>
-                <span class="sidebar-value">${effort.vam.toFixed(0)} m/h</span>
-            </div>
-            ${vamHtml}
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-title">🔋 LAVORO & 🔥 DENSITÀ ORARIA</div>
-            <div style="color: #60a5fa; font-size: 11px; margin-bottom: 8px; font-weight: 600;">Lavoro (kJ)</div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Totale</span>
-                <span class="sidebar-value">${effort.kj.toFixed(0)} kJ</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Sopra CP</span>
-                <span class="sidebar-value">${effort.kj_over_cp.toFixed(0)} kJ</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Per kg</span>
-                <span class="sidebar-value">${effort.kj_kg.toFixed(1)} kJ/kg</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Per kg > CP</span>
-                <span class="sidebar-value">${effort.kj_kg_over_cp.toFixed(1)} kJ/kg</span>
-            </div>
-            
-            <div style="color: #60a5fa; font-size: 11px; margin-top: 12px; margin-bottom: 8px; font-weight: 600;">Densità Oraria (kJ/h/kg)</div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Totale</span>
-                <span class="sidebar-value">${effort.kj_h_kg.toFixed(1)} kJ/h/kg</span>
-            </div>
-            <div class="sidebar-row">
-                <span class="sidebar-label">Sopra CP</span>
-                <span class="sidebar-value">${effort.kj_h_kg_over_cp.toFixed(1)} kJ/h/kg</span>
+            <div class="metric-col">
+                <div class="metric-row"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${e.kj} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">kJ &gt; CP</span><span class="metric-value">${e.kj_over_cp} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${e.kj_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/kg &gt; CP</span><span class="metric-value">${e.kj_kg_over_cp}</span></div>
+                <div class="metric-row"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${e.kj_h_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/h/kg &gt; CP</span><span class="metric-value">${e.kj_h_kg_over_cp}</span></div>
             </div>
         </div>
     `;
-    
+}
+
+function buildSprintSidebarCard(s) {
+    const torqAvail = chartData.torque_available;
+    const torqRows = torqAvail
+        ? `
+            <div class="metric-row"><span class="metric-label">⚙️ Avg Torque</span><span class="metric-value">${s.avg_torque > 0 ? `${s.avg_torque} Nm` : '-'}</span></div>
+            <div class="metric-row"><span class="metric-label">⚙️ Min/Max Torque</span><span class="metric-value">${s.min_torque > 0 ? s.min_torque : '-'} / ${s.max_torque > 0 ? s.max_torque : '-'} Nm</span></div>
+        `
+        : '';
+
+    return `
+        <div class="selected-header">
+            <div>
+                <div class="selected-title">S#${s.rank}</div>
+                <div class="selected-subtitle-line">${s.start_time}</div>
+                <div class="selected-subtitle-line">${fmtDur(s.duration)} · ${s.distance_tot} km · ${s.elevation_gain}m ↑</div>
+                <div class="selected-power">${s.avg_power}W</div>
+            </div>
+            <button class="stream-btn" onclick="openStreamModal('s-${s.id}','${s.id}','sprint')">📊 Stream</button>
+        </div>
+        <div class="selected-grid">
+            <div class="metric-col">
+                <div class="metric-row"><span class="metric-label">⚡ Avg Power</span><span class="metric-value">${s.avg_power}W</span></div>
+                <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${s.avg_power_per_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Max</span><span class="metric-value">${s.max_watt}W${s.rpm_at_max > 0 ? ` @ ${s.rpm_at_max} rpm` : ''}</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Min</span><span class="metric-value">${s.min_watt}W${s.rpm_at_min > 0 ? ` @ ${s.rpm_at_min} rpm` : ''}</span></div>
+            </div>
+            <div class="metric-col">
+                <div class="metric-row"><span class="metric-label">🌀 Avg Cad.</span><span class="metric-value">${s.avg_cadence > 0 ? `${s.avg_cadence} rpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🌀 Min/Max</span><span class="metric-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
+                ${torqRows}
+                <div class="metric-row"><span class="metric-label">❤️ HR Max</span><span class="metric-value">${s.max_hr > 0 ? `${s.max_hr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR Min</span><span class="metric-value">${s.min_hr > 0 ? `${s.min_hr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${s.avg_grade}% · max ${s.max_grade}%</span></div>
+            </div>
+            <div class="metric-col">
+                <div class="metric-row"><span class="metric-label">➡️ Speed Start</span><span class="metric-value">${s.v1 > 0 ? `${s.v1} km/h` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">➡️ Speed End</span><span class="metric-value">${s.v2 > 0 ? `${s.v2} km/h` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${s.kj} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">kJ &gt; CP</span><span class="metric-value">${s.kj_over_cp} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${s.kj_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/kg &gt; CP</span><span class="metric-value">${s.kj_kg_over_cp}</span></div>
+                <div class="metric-row"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${s.kj_h_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/h/kg &gt; CP</span><span class="metric-value">${s.kj_h_kg_over_cp}</span></div>
+            </div>
+        </div>
+    `;
+}
+
+function openEffortSidebar(idx) {
+    const markerItem = currentEfforts[idx];
+    const selected = findSelectedSegment(markerItem);
+
+    if (!selected) {
+        document.getElementById('sidebar-content').innerHTML = '<div class="sidebar-empty">Nessun dettaglio disponibile per il segmento selezionato.</div>';
+        return;
+    }
+
+    const html = selected.type === 'effort'
+        ? buildEffortSidebarCard(selected.data)
+        : buildSprintSidebarCard(selected.data);
+
     document.getElementById('sidebar-content').innerHTML = html;
     
     highlightEffortInChart(idx);
@@ -196,8 +235,8 @@ function openEffortSidebar(idx) {
         'source': layerId,
         'paint': {
             'line-color': effort_data.color,
-            'line-width': 6,
-            'line-opacity': 0.8
+            'line-width': 8,
+            'line-opacity': 1
         }
     });
 }
@@ -266,7 +305,7 @@ function drawFullElevationChart() {
     // Add effort lines
     elevationData.efforts.forEach((effort, idx) => {
         seriesData.push({
-            name: `Effort #${idx + 1}`,
+            name: `${effort.type === 'sprint' ? 'Sprint' : 'Effort'} #${idx + 1}`,
             data: effort.distance.map((dist, i) => [dist, effort.altitude[i]]),
             type: 'line',
             smooth: false,
@@ -356,6 +395,7 @@ function drawFullElevationChart() {
     };
 
     elevationChartInstance.setOption(option);
+    applyChartVisibilityFilters();
     
     // Always clean up old listeners
     const chartContainer = document.getElementById('elevation-chart');
@@ -752,12 +792,41 @@ function addOverlays() {
     } else {
         map.getSource('traccia').setData(tracceGeoJSON);
     }
+    if (!map.getLayer('traccia-line-casing')) {
+        map.addLayer({
+            'id': 'traccia-line-casing',
+            'type': 'line',
+            'source': 'traccia',
+            'paint': {
+                'line-color': 'rgba(15, 23, 42, 0.95)',
+                'line-width': 10,
+                'line-opacity': 0.9
+            }
+        });
+    }
     if (!map.getLayer('traccia-line')) {
         map.addLayer({
             'id': 'traccia-line',
             'type': 'line',
             'source': 'traccia',
-            'paint': { 'line-color': '#FFB500', 'line-width': 4, 'line-opacity': 0.9 }
+            'paint': {
+                'line-color': '#ffd54a',
+                'line-width': 5,
+                'line-opacity': 0.98
+            }
+        });
+    }
+    if (!map.getLayer('traccia-line-glow')) {
+        map.addLayer({
+            'id': 'traccia-line-glow',
+            'type': 'line',
+            'source': 'traccia',
+            'paint': {
+                'line-color': '#fff2a8',
+                'line-width': 8,
+                'line-opacity': 0.3,
+                'line-blur': 1.2
+            }
         });
     }
 }
@@ -829,8 +898,9 @@ function updateEffortVisibility() {
     }
     
     efforts.forEach(function(effort, idx) {
-        // Check visibility based on effort type
-        const isSprint = effort.type === 'sprint';
+        // Check visibility based on resolved segment type
+        const selected = findSelectedSegment(effort);
+        const isSprint = selected ? selected.type === 'sprint' : effort.type === 'sprint';
         if ((isSprint && !showSprints) || (!isSprint && !showEfforts)) {
             return; // Skip this effort/sprint if not visible
         }
@@ -855,16 +925,26 @@ function updateEffortVisibility() {
         el.style.fontSize = '14px';
         el.style.fontWeight = 'bold';
         el.style.color = 'white';
-        el.innerHTML = (idx + 1);
+        el.innerHTML = String(isSprint
+            ? (selected?.data?.rank ?? (idx + 1))
+            : ((selected?.data?.id ?? effort.id ?? idx) + 1));
+
+        const popupTitle = isSprint
+            ? `Sprint #${selected?.data?.rank ?? (idx + 1)}`
+            : `Effort #${(selected?.data?.id ?? effort.id ?? idx) + 1}`;
+        const popupPower = Number(selected?.data?.avg_power ?? effort.avg ?? 0);
+        const popupCad = Number(selected?.data?.avg_cadence ?? effort.avg_cadence ?? 0);
+        const popupDur = Number(selected?.data?.duration ?? effort.duration ?? 0);
+        const popupSpeed = Number(selected?.data?.avg_speed ?? effort.avg_speed ?? 0);
         
         const marker = new maplibregl.Marker({ element: el })
             .setLngLat([coordStart[0], coordStart[1]])
             .setPopup(new maplibregl.Popup({ anchor: 'top', offset: [0, 15], maxWidth: 250 }).setHTML(`
                 <div style="padding: 10px; font-size: 12px; color: #9ca3af; background: rgba(15,23,42,.95);">
-                    <b style="color: #60a5fa;">${isSprint ? 'Sprint' : 'Effort'} #${idx + 1}</b><br>
+                    <b style="color: #60a5fa;">${popupTitle}</b><br>
                     <div style="border-top: 1px solid rgba(255,255,255,.2); margin: 6px 0; padding-top: 6px;">
-                        <div><b>⚡ ${effort.avg.toFixed(0)} W</b> | 🌀 ${effort.avg_cadence.toFixed(0)} rpm</div>
-                        <div>⏱️ ${effort.duration}s | 🚴‍♂️ ${effort.avg_speed.toFixed(1)} km/h</div>
+                        <div><b>⚡ ${popupPower.toFixed(0)} W</b> | 🌀 ${popupCad.toFixed(0)} rpm</div>
+                        <div>⏱️ ${popupDur}s | 🚴‍♂️ ${popupSpeed.toFixed(1)} km/h</div>
                     </div>
                 </div>
             `))
@@ -884,6 +964,8 @@ function updateEffortVisibility() {
             marker.getPopup().addTo(map);
         });
     });
+
+    applyChartVisibilityFilters();
 }
 
 function updateToggleButtons() {
@@ -904,6 +986,836 @@ function updateToggleButtons() {
 function resetView() {
     map.flyTo({ center: [center_lon, center_lat], zoom: zoom, pitch: 45, bearing: 0, duration: 1500 });
 }
+
+let streamModalData = null;
+let avg30sSeconds = 30;
+let avg60sSeconds = 60;
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+const storedAvg30s = localStorage.getItem('stream_avg30s');
+const storedAvg60s = localStorage.getItem('stream_avg60s');
+if (storedAvg30s) avg30sSeconds = parseInt(storedAvg30s, 10);
+if (storedAvg60s) avg60sSeconds = parseInt(storedAvg60s, 10);
+
+function getIntensityZones() {
+    const stored = localStorage.getItem('inspection_zones');
+    if (stored) {
+        try {
+            return JSON.parse(stored);
+        } catch (e) {
+            console.log('Failed to parse stored zones');
+        }
+    }
+    if (chartData.intensity_zones && chartData.intensity_zones.length > 0) {
+        return chartData.intensity_zones;
+    }
+    return [
+        { min: 0, max: 60, color: '#009e80', name: 'Z1' },
+        { min: 60, max: 80, color: '#009e00', name: 'Z2' },
+        { min: 80, max: 90, color: '#ffcb0e', name: 'Z3' },
+        { min: 90, max: 105, color: '#ff7f0e', name: 'Z4' },
+        { min: 105, max: 135, color: '#dd0447', name: 'Z5' },
+        { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
+        { min: 300, max: 999, color: '#504861', name: 'Z7' },
+    ];
+}
+
+function openStreamModal(elemId, dataId, type) {
+    const data = type === 'effort'
+        ? chartData.efforts.find((e) => e.id == dataId)
+        : chartData.sprints.find((s) => s.id == dataId);
+
+    if (!data) return;
+    if (!data.time_stream || !data.power_stream) return;
+
+    streamModalData = {
+        data: data,
+        type: type,
+        label: type === 'effort' ? `E#${data.id + 1}` : `S#${data.rank}`,
+        timeStream: data.time_stream,
+        powerStream: data.power_stream,
+        hrStream: data.hr_stream,
+        wkgStream: data.wkg_stream,
+        cadenceStream: data.cadence_stream || null,
+        torqueStream: data.torque_stream || null,
+        speedStream: data.speed_stream || null,
+        effortStart: (data.stream_effort_start != null) ? data.stream_effort_start : 0,
+        effortEnd: (data.stream_effort_end != null) ? data.stream_effort_end : data.time_stream[data.time_stream.length - 1],
+        effortDuration: (data.stream_effort_end != null)
+            ? Math.round(data.stream_effort_end - data.stream_effort_start)
+            : (data.stream_effort_duration || 0),
+    };
+
+    const titleEl = document.getElementById('streamModalTitle');
+    if (!titleEl) return;
+    titleEl.textContent = `${streamModalData.label} - Duration: ${format_time_mmss(streamModalData.effortDuration)}s`;
+
+    const modal = document.getElementById('streamModal');
+    const modalOverlay = document.getElementById('streamModalOverlay');
+
+    if (!modal || !modalOverlay) return;
+
+    modal.classList.add('active');
+    modalOverlay.classList.add('active');
+
+    const ctrlPanel = document.getElementById('streamControlPanel');
+    if (ctrlPanel) ctrlPanel.style.display = (type === 'sprint') ? 'none' : '';
+
+    setTimeout(() => {
+        buildStreamChartsD3();
+    }, 50);
+}
+
+window.openStreamModal = openStreamModal;
+
+function closeStreamModal() {
+    const modal = document.getElementById('streamModal');
+    const modalOverlay = document.getElementById('streamModalOverlay');
+    modal.classList.remove('active');
+    modalOverlay.classList.remove('active');
+
+    document.getElementById('streamChart1').innerHTML = '';
+    document.getElementById('streamChart2').innerHTML = '';
+    document.getElementById('streamChart3').innerHTML = '';
+    document.getElementById('streamUnifiedChart').innerHTML = '';
+
+    streamModalData = null;
+}
+
+window.closeStreamModal = closeStreamModal;
+
+function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
+    const result = [];
+    for (let i = 0; i < timeData.length; i++) {
+        const c = timeData[i];
+        const lo = c - windowSeconds / 2;
+        const hi = c + windowSeconds / 2;
+        let sum = 0;
+        let cnt = 0;
+        for (let j = 0; j < timeData.length; j++) {
+            if (timeData[j] >= lo && timeData[j] <= hi) {
+                sum += powerData[j];
+                cnt++;
+            }
+        }
+        result.push(cnt ? sum / cnt : powerData[i]);
+    }
+    return result;
+}
+
+function buildStreamChartsD3() {
+    if (!streamModalData) return;
+
+    if (streamModalData.type === 'sprint') {
+        buildSprintStreamCharts();
+        return;
+    }
+
+    const cp = chartData.cp;
+    const zones = getIntensityZones();
+    const timeS = streamModalData.timeStream;
+    const powS = streamModalData.powerStream;
+    const hrS = streamModalData.hrStream || null;
+    const avg30 = calculateTimeBasedMovingAverage(powS, timeS, avg30sSeconds);
+    const avg60 = calculateTimeBasedMovingAverage(powS, timeS, avg60sSeconds);
+
+    const container = document.getElementById('streamUnifiedChart');
+    if (!container) return;
+    container.innerHTML = '';
+    container.style.position = 'relative';
+
+    const W = container.offsetWidth || 900;
+    const H = container.offsetHeight || 560;
+    const ML = 60;
+    const MR = 60;
+    const MT = 10;
+    const MB = 44;
+    const GAP = 8;
+    const innerW = W - ML - MR;
+    const panelH = Math.floor((H - MT - MB - GAP * 4) / 3);
+    const maxT = d3.max(timeS);
+    const maxP = d3.max(powS) * 1.1;
+
+    const effortStartTime = streamModalData.effortStart || 0;
+    const effortEndTime = streamModalData.effortEnd || maxT;
+
+    function zoneColor(w) {
+        const pct = w / cp * 100;
+        for (const z of zones) if (pct >= z.min && (z.max === 999 || pct < z.max)) return z.color;
+        return '#6b7280';
+    }
+
+    const panelDefs = [
+        { title: 'Raw Power', vals: powS, showHR: true },
+        { title: `Avg ${avg30sSeconds}s`, vals: avg30, showHR: false },
+        { title: `Avg ${avg60sSeconds}s`, vals: avg60, showHR: false },
+    ];
+
+    let curDomain = [effortStartTime, effortEndTime];
+
+    const svg = d3.select(container).append('svg')
+        .attr('width', W).attr('height', H)
+        .style('font-family', '-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif');
+
+    svg.append('defs').append('clipPath').attr('id', 'sc-clip3')
+        .append('rect').attr('width', innerW + 2).attr('height', panelH + 4).attr('x', -1).attr('y', -2);
+
+    const root = svg.append('g').attr('transform', `translate(${ML},${MT})`);
+
+    let hrYS = null;
+    if (hrS) {
+        const valid = hrS.filter((h) => h && h > 0);
+        if (valid.length) hrYS = d3.scaleLinear().domain([d3.min(valid) * 0.95, d3.max(valid) * 1.05]).range([panelH, 0]);
+    }
+
+    const dataGroups = [];
+    const crossVLines = [];
+    const crossDots = [];
+    const yScales = [];
+    const pg_refs = [];
+
+    panelDefs.forEach((panel, pi) => {
+        const ty = (panelH + GAP) * pi;
+        const pg = root.append('g').attr('transform', `translate(0,${ty})`);
+        pg_refs.push(pg);
+        const panelMax = d3.max(panel.vals) * 1.1;
+        const yS = d3.scaleLinear().domain([0, panelMax]).range([panelH, 0]);
+        panel._yS = yS;
+        yScales.push(yS);
+
+        pg.append('rect').attr('width', innerW).attr('height', panelH)
+            .attr('fill', '#ffffff').attr('rx', 3)
+            .attr('stroke', '#e5e7eb').attr('stroke-width', 0.5);
+
+        const yAx = pg.append('g').attr('class', 'y-ax-panel');
+        function redrawYAx(ys) {
+            yAx.call(d3.axisLeft(ys).ticks(4).tickFormat((d) => d).tickSize(0));
+            yAx.select('.domain').attr('stroke', '#d1d5db');
+            yAx.selectAll('text').attr('fill', '#6b7280').attr('font-size', 9).attr('x', -4);
+        }
+        redrawYAx(yS);
+        panel._redrawYAx = redrawYAx;
+        pg.append('text').attr('transform', 'rotate(-90)').attr('x', -panelH / 2).attr('y', -46)
+            .attr('text-anchor', 'middle').attr('fill', '#9ca3af').attr('font-size', 9).text('W');
+
+        if (pi === 0 && hrYS) {
+            const hrAx = pg.append('g').attr('transform', `translate(${innerW},0)`)
+                .call(d3.axisRight(hrYS).ticks(4).tickFormat((d) => d).tickSize(0));
+            hrAx.select('.domain').attr('stroke', '#fecaca');
+            hrAx.selectAll('text').attr('fill', '#ef4444').attr('font-size', 9).attr('x', 4);
+            pg.append('text').attr('transform', 'rotate(90)')
+                .attr('x', panelH / 2).attr('y', -innerW - 46)
+                .attr('text-anchor', 'middle').attr('fill', '#ef4444').attr('font-size', 9).text('bpm');
+        }
+
+        pg.append('line').attr('class', 'cp-line').attr('x1', 0).attr('x2', innerW)
+            .attr('y1', yS(cp)).attr('y2', yS(cp))
+            .attr('stroke', '#f59e0b').attr('stroke-width', 1)
+            .attr('stroke-dasharray', '5,3').attr('opacity', 0.9);
+        pg.append('text').attr('class', 'cp-label').attr('x', innerW - 3).attr('y', yS(cp) - 3)
+            .attr('text-anchor', 'end').attr('fill', '#f59e0b').attr('font-size', 8.5)
+            .text(`CP ${cp}W`);
+
+        pg.append('text').attr('x', 6).attr('y', 13)
+            .attr('fill', '#374151').attr('font-size', 10).attr('font-weight', 600)
+            .text(panel.title);
+
+        const dg = pg.append('g').attr('clip-path', 'url(#sc-clip3)');
+        dataGroups.push({ dg, panel, yS, pi });
+
+        const cv = pg.append('line').attr('y1', 0).attr('y2', panelH)
+            .attr('stroke', '#374151').attr('stroke-width', 1)
+            .attr('stroke-dasharray', '4,2').style('display', 'none').style('pointer-events', 'none');
+        crossVLines.push(cv);
+        const cd = pg.append('circle').attr('r', 3.5)
+            .attr('fill', 'white').attr('stroke', '#374151').attr('stroke-width', 1.5)
+            .style('display', 'none').style('pointer-events', 'none');
+        crossDots.push(cd);
+    });
+
+    function drawAll(domain) {
+        const xS = d3.scaleLinear().domain(domain).range([0, innerW]);
+
+        dataGroups.forEach(({ dg, panel, yS, pi }) => {
+            dg.selectAll('*').remove();
+            const pts = timeS.map((t, i) => ({ t, p: panel.vals[i] }))
+                .filter((d) => d.t >= domain[0] && d.t <= domain[1]);
+            if (pts.length < 2) return;
+
+            const visMax = d3.max(pts, (d) => d.p) * 1.1;
+            yS.domain([0, visMax]);
+            if (panel._redrawYAx) panel._redrawYAx(yS);
+            const pg = pg_refs[pi];
+
+            pg.select('line.cp-line').attr('y1', yS(cp)).attr('y2', yS(cp));
+            pg.select('text.cp-label').attr('y', yS(cp) - 3);
+
+            const svgDefs = d3.select(dg.node().closest('svg')).select('defs');
+
+            const fullAreaPath = d3.area()
+                .x((d) => xS(d.t)).y0(panelH).y1((d) => yS(d.p)).curve(d3.curveMonotoneX)(pts);
+
+            const curveClipId = `curve-clip-${pi}-${Math.round(domain[0] * 100)}`;
+            svgDefs.selectAll(`#${curveClipId}`).remove();
+            const curveClip = svgDefs.append('clipPath').attr('id', curveClipId);
+            curveClip.append('path').attr('d', fullAreaPath);
+
+            zones.forEach((z) => {
+                const minW = (z.min / 100) * cp;
+                const maxW = z.max === 999 ? maxP * 1.5 : (z.max / 100) * cp;
+                dg.append('rect')
+                    .attr('x', 0).attr('width', innerW)
+                    .attr('y', yS(maxW))
+                    .attr('height', Math.max(0, yS(minW) - yS(maxW)))
+                    .attr('fill', z.color)
+                    .attr('opacity', 0.82)
+                    .attr('clip-path', `url(#${curveClipId})`);
+            });
+
+            dg.append('path').datum(pts)
+                .attr('fill', 'white')
+                .attr('d', d3.area().x((d) => xS(d.t)).y0(-2).y1((d) => yS(d.p)).curve(d3.curveMonotoneX));
+
+            d3.range(0, visMax + 100, 100).forEach((w) => {
+                const yy = yS(w);
+                if (yy < 0 || yy > panelH) return;
+                dg.append('line')
+                    .attr('x1', 0).attr('x2', innerW)
+                    .attr('y1', yy).attr('y2', yy)
+                    .attr('stroke', '#94a3b8').attr('stroke-width', 0.5).attr('opacity', 0.35);
+            });
+
+            const minStep = Math.ceil(domain[0] / 60) * 60;
+            for (let t60 = minStep; t60 <= domain[1]; t60 += 60) {
+                dg.append('line')
+                    .attr('x1', xS(t60)).attr('x2', xS(t60))
+                    .attr('y1', 0).attr('y2', panelH)
+                    .attr('stroke', '#94a3b8').attr('stroke-width', 0.5).attr('opacity', 0.35);
+            }
+
+            const segG = dg.append('g');
+            for (let i = 0; i < pts.length - 1; i++) {
+                const d0 = pts[i];
+                const d1 = pts[i + 1];
+                segG.append('line')
+                    .attr('x1', xS(d0.t)).attr('y1', yS(d0.p))
+                    .attr('x2', xS(d1.t)).attr('y2', yS(d1.p))
+                    .attr('stroke', zoneColor((d0.p + d1.p) / 2))
+                    .attr('stroke-width', 0)
+                    .attr('stroke-linecap', 'round');
+            }
+
+            if (pi === 0 && hrS && hrYS) {
+                const hrPts = timeS.map((t, i) => ({ t, h: hrS[i] }))
+                    .filter((d) => d.t >= domain[0] && d.t <= domain[1] && d.h > 0);
+                if (hrPts.length > 1) {
+                    dg.append('path').datum(hrPts)
+                        .attr('fill', 'none').attr('stroke', '#1e3a5f').attr('stroke-width', 2.2)
+                        .attr('opacity', 1)
+                        .attr('d', d3.line().x((d) => xS(d.t)).y((d) => hrYS(d.h)).curve(d3.curveMonotoneX));
+                    dg.append('path').datum(hrPts)
+                        .attr('fill', 'none').attr('stroke', '#60a5fa').attr('stroke-width', 1.2)
+                        .attr('opacity', 1)
+                        .attr('d', d3.line().x((d) => xS(d.t)).y((d) => hrYS(d.h)).curve(d3.curveMonotoneX));
+                }
+            }
+        });
+    }
+    drawAll(curDomain);
+
+    const xAxG = root.append('g').attr('transform', `translate(0,${(panelH + GAP) * 3 - GAP})`);
+    function updateXAxis(dom) {
+        xAxG.call(d3.axisBottom(d3.scaleLinear().domain(dom).range([0, innerW])).ticks(8)
+            .tickFormat((d) => {
+                const m = Math.floor(d / 60);
+                const s = Math.round(d % 60);
+                return m > 0 ? `${m}m${s}s` : `${Math.round(d)}s`;
+            })
+            .tickSize(0));
+        xAxG.select('.domain').attr('stroke', '#d1d5db');
+        xAxG.selectAll('text').attr('fill', '#6b7280').attr('font-size', 9);
+    }
+    updateXAxis(curDomain);
+
+    const ttEl = document.createElement('div');
+    ttEl.style.cssText = 'position:absolute;pointer-events:none;display:none;z-index:999;'
+        + 'background:rgba(17,24,39,0.95);color:#fff;border-radius:6px;padding:8px 12px;'
+        + 'font-size:11px;line-height:1.7;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.35);';
+    container.appendChild(ttEl);
+
+    function updateEffortPointer(mx) {
+        const xS = d3.scaleLinear().domain(curDomain).range([0, innerW]);
+        const t = xS.invert(Math.max(0, Math.min(innerW, mx)));
+        let ci = 0;
+        let md = Infinity;
+        timeS.forEach((ts, i) => {
+            const d = Math.abs(ts - t);
+            if (d < md) {
+                md = d;
+                ci = i;
+            }
+        });
+
+        panelDefs.forEach((_, pi) => {
+            const yv = yScales[pi](panelDefs[pi].vals[ci] ?? 0);
+            crossVLines[pi].style('display', null).attr('x1', mx).attr('x2', mx);
+            crossDots[pi].style('display', null).attr('cx', mx).attr('cy', yv);
+        });
+
+        const ts = timeS[ci];
+        const m = Math.floor(ts / 60);
+        const s = Math.round(ts % 60);
+        const tStr = m > 0 ? `${m}m${s}s` : `${Math.round(ts)}s`;
+        let html = `<span style="color:#f9fafb;font-weight:700">${tStr}</span><br/>`;
+        html += `<span style="color:#fbbf24">⚡ ${Math.round(powS[ci])}W</span>`;
+        html += ` <span style="color:#a78bfa"> ∅${avg30sSeconds}s ${Math.round(avg30[ci])}W</span>`;
+        html += ` <span style="color:#6ee7b7"> ∅${avg60sSeconds}s ${Math.round(avg60[ci])}W</span>`;
+        if (hrS && hrS[ci] > 0) html += `<br/><span style="color:#fca5a5">❤️ ${Math.round(hrS[ci])} bpm</span>`;
+        ttEl.innerHTML = html;
+        ttEl.style.display = 'block';
+
+        const isTouchE = window.matchMedia('(pointer: coarse)').matches;
+        if (isTouchE) {
+            ttEl.style.left = '50%';
+            ttEl.style.transform = 'translateX(-50%)';
+            ttEl.style.top = '4px';
+        } else {
+            ttEl.style.transform = '';
+            let lx = ML + mx + 14;
+            if (lx + 240 > W - MR) lx = ML + mx - 250;
+            ttEl.style.left = `${lx}px`;
+            ttEl.style.top = `${Math.max(4, MT + 20)}px`;
+        }
+    }
+
+    const totalPH = (panelH + GAP) * 3 - GAP;
+    const effortOverlay = root.append('rect').attr('width', innerW).attr('height', totalPH)
+        .attr('fill', 'transparent').style('cursor', 'crosshair')
+        .on('mousemove', function(ev) {
+            const [mx] = d3.pointer(ev);
+            updateEffortPointer(mx);
+        })
+        .on('mouseleave', function() {
+            if (!window.matchMedia('(pointer: coarse)').matches) {
+                crossVLines.forEach((c) => c.style('display', 'none'));
+                crossDots.forEach((c) => c.style('display', 'none'));
+                ttEl.style.display = 'none';
+            }
+        });
+
+    effortOverlay.node().addEventListener('touchstart', function(ev) {
+        ev.preventDefault();
+        const r = container.getBoundingClientRect();
+        const mx = ev.touches[0].clientX - r.left - ML;
+        updateEffortPointer(mx);
+    }, { passive: false });
+    effortOverlay.node().addEventListener('touchmove', function(ev) {
+        ev.preventDefault();
+        const r = container.getBoundingClientRect();
+        const mx = ev.touches[0].clientX - r.left - ML;
+        updateEffortPointer(mx);
+    }, { passive: false });
+    effortOverlay.node().addEventListener('touchend', function(ev) {
+        ev.preventDefault();
+        crossVLines.forEach((c) => c.style('display', 'none'));
+        crossDots.forEach((c) => c.style('display', 'none'));
+        ttEl.style.display = 'none';
+    }, { passive: false });
+
+    if (!window.matchMedia('(pointer: coarse)').matches) {
+        requestAnimationFrame(() => {
+            const midTime = (effortStartTime + effortEndTime) / 2;
+            const xS0 = d3.scaleLinear().domain(curDomain).range([0, innerW]);
+            updateEffortPointer(xS0(midTime));
+        });
+    }
+}
+
+function buildSprintStreamCharts() {
+    const timeS = streamModalData.timeStream;
+    const powS = streamModalData.powerStream;
+    const cadS = streamModalData.cadenceStream;
+    const torS = streamModalData.torqueStream;
+
+    const container = document.getElementById('streamUnifiedChart');
+    if (!container) return;
+    container.innerHTML = '';
+    container.style.position = 'relative';
+
+    const W = container.offsetWidth || 900;
+    const H = container.offsetHeight || 560;
+    const ML = 64;
+    const MR = 64;
+    const MT = 14;
+    const MB = 48;
+    const GAP = 14;
+    const innerW = W - ML - MR;
+    const panelH = Math.floor((H - MT - MB - GAP * 3) / 2);
+    const maxT = d3.max(timeS);
+    const maxP = d3.max(powS) * 1.12;
+
+    const spdS = streamModalData.speedStream;
+    const validCad = cadS ? cadS.filter((v) => v && v > 0) : [];
+    const validTor = torS ? torS.filter((v) => v && v > 0) : [];
+    const maxCad = validCad.length ? d3.max(validCad) * 1.1 : 200;
+    const maxTor = validTor.length ? d3.max(validTor) * 1.1 : 50;
+    const minCad = validCad.length ? d3.min(validCad) * 0.92 : 0;
+    const minTor = validTor.length ? d3.min(validTor) * 0.92 : 0;
+
+    const effortStartTime = streamModalData.effortStart || 0;
+    const effortEndTime = streamModalData.effortEnd || maxT;
+    const curDomain = [effortStartTime, effortEndTime];
+
+    const svg = d3.select(container).append('svg')
+        .attr('width', W).attr('height', H)
+        .style('font-family', '-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif');
+
+    const defs = svg.append('defs');
+    const powGrad = defs.append('linearGradient').attr('id', 'sp-pow-grad')
+        .attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 1);
+    powGrad.append('stop').attr('offset', '0%').attr('stop-color', '#3b82f6').attr('stop-opacity', 0.35);
+    powGrad.append('stop').attr('offset', '100%').attr('stop-color', '#3b82f6').attr('stop-opacity', 0.02);
+
+    const cadGrad = defs.append('linearGradient').attr('id', 'sp-cad-grad')
+        .attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 1);
+    cadGrad.append('stop').attr('offset', '0%').attr('stop-color', '#10b981').attr('stop-opacity', 0.25);
+    cadGrad.append('stop').attr('offset', '100%').attr('stop-color', '#10b981').attr('stop-opacity', 0.02);
+
+    defs.append('clipPath').attr('id', 'sp-clip2')
+        .append('rect').attr('width', innerW + 2).attr('height', panelH + 4).attr('x', -1).attr('y', -2);
+
+    const root = svg.append('g').attr('transform', `translate(${ML},${MT})`);
+    const yPow = d3.scaleLinear().domain([0, maxP]).range([panelH, 0]);
+    const yCad = d3.scaleLinear().domain([minCad, maxCad]).range([panelH, 0]);
+    const yTor = validTor.length ? d3.scaleLinear().domain([minTor, maxTor]).range([panelH, 0]) : null;
+
+    const pg0 = root.append('g');
+    pg0.append('rect').attr('width', innerW).attr('height', panelH)
+        .attr('rx', 6).attr('fill', '#1e3a5f').attr('opacity', 0.04).attr('transform', 'translate(2,2)');
+    pg0.append('rect').attr('width', innerW).attr('height', panelH)
+        .attr('rx', 6).attr('fill', '#f8faff').attr('stroke', '#e2e8f0').attr('stroke-width', 1);
+
+    yPow.ticks(5).forEach((t) => {
+        pg0.append('line').attr('x1', 0).attr('x2', innerW)
+            .attr('y1', yPow(t)).attr('y2', yPow(t))
+            .attr('stroke', '#e2e8f0').attr('stroke-width', 0.8);
+    });
+
+    const yAx0 = pg0.append('g').call(d3.axisLeft(yPow).ticks(5).tickFormat((d) => d).tickSize(0));
+    yAx0.select('.domain').attr('stroke', '#cbd5e1');
+    yAx0.selectAll('text').attr('fill', '#64748b').attr('font-size', 9).attr('x', -5);
+    pg0.append('text').attr('transform', 'rotate(-90)').attr('x', -panelH / 2).attr('y', -50)
+        .attr('text-anchor', 'middle').attr('fill', '#3b82f6').attr('font-size', 10).attr('font-weight', 600).text('W');
+
+    pg0.append('rect').attr('x', 8).attr('y', 6).attr('width', 68).attr('height', 18)
+        .attr('rx', 4).attr('fill', '#3b82f6').attr('opacity', 0.12);
+    pg0.append('text').attr('x', 42).attr('y', 19).attr('text-anchor', 'middle')
+        .attr('fill', '#1d4ed8').attr('font-size', 10).attr('font-weight', 700).text('Power (W)');
+
+    const dg0 = pg0.append('g').attr('clip-path', 'url(#sp-clip2)');
+    const cv0 = pg0.append('line').attr('y1', 0).attr('y2', panelH)
+        .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('stroke-dasharray', '4,2').style('display', 'none');
+    const cd0 = pg0.append('circle').attr('r', 4)
+        .attr('fill', '#3b82f6').attr('stroke', 'white').attr('stroke-width', 2).style('display', 'none');
+    const cd0spd = pg0.append('circle').attr('r', 4)
+        .attr('fill', '#a855f7').attr('stroke', 'white').attr('stroke-width', 2).style('display', 'none');
+
+    const ty1 = panelH + GAP;
+    const pg1 = root.append('g').attr('transform', `translate(0,${ty1})`);
+    pg1.append('rect').attr('width', innerW).attr('height', panelH)
+        .attr('rx', 6).attr('fill', '#f8faff').attr('stroke', '#e2e8f0').attr('stroke-width', 1).attr('opacity', 0.04)
+        .attr('transform', 'translate(2,2)');
+    pg1.append('rect').attr('width', innerW).attr('height', panelH)
+        .attr('rx', 6).attr('fill', '#f8faff').attr('stroke', '#e2e8f0').attr('stroke-width', 1);
+
+    yCad.ticks(5).forEach((t) => {
+        pg1.append('line').attr('x1', 0).attr('x2', innerW)
+            .attr('y1', yCad(t)).attr('y2', yCad(t))
+            .attr('stroke', '#e2e8f0').attr('stroke-width', 0.8);
+    });
+
+    const yAx1L = pg1.append('g').call(d3.axisLeft(yCad).ticks(5).tickFormat((d) => d).tickSize(0));
+    yAx1L.select('.domain').attr('stroke', '#cbd5e1');
+    yAx1L.selectAll('text').attr('fill', '#10b981').attr('font-size', 9).attr('x', -5);
+    pg1.append('text').attr('transform', 'rotate(-90)').attr('x', -panelH / 2).attr('y', -50)
+        .attr('text-anchor', 'middle').attr('fill', '#10b981').attr('font-size', 10).attr('font-weight', 600).text('rpm');
+
+    if (yTor) {
+        const yAx1R = pg1.append('g').attr('transform', `translate(${innerW},0)`)
+            .call(d3.axisRight(yTor).ticks(5).tickFormat((d) => d).tickSize(0));
+        yAx1R.select('.domain').attr('stroke', '#cbd5e1');
+        yAx1R.selectAll('text').attr('fill', '#f59e0b').attr('font-size', 9).attr('x', 5);
+        pg1.append('text').attr('transform', 'rotate(90)').attr('x', panelH / 2).attr('y', -innerW - 50)
+            .attr('text-anchor', 'middle').attr('fill', '#f59e0b').attr('font-size', 10).attr('font-weight', 600).text('Nm');
+    }
+
+    const validSpd = spdS ? spdS.filter((v) => v > 0) : [];
+    const maxSpd = validSpd.length ? d3.max(validSpd) * 1.1 : 60;
+    const minSpd = validSpd.length ? d3.min(validSpd) * 0.92 : 0;
+    const ySpd = validSpd.length ? d3.scaleLinear().domain([minSpd, maxSpd]).range([panelH, 0]) : null;
+    if (ySpd) {
+        const yAx0R = pg0.append('g').attr('transform', `translate(${innerW},0)`)
+            .call(d3.axisRight(ySpd).ticks(5).tickFormat((d) => d).tickSize(0));
+        yAx0R.select('.domain').attr('stroke', '#cbd5e1');
+        yAx0R.selectAll('text').attr('fill', '#a855f7').attr('font-size', 9).attr('x', 5);
+        pg0.append('text').attr('transform', 'rotate(90)').attr('x', panelH / 2).attr('y', -innerW - 50)
+            .attr('text-anchor', 'middle').attr('fill', '#a855f7').attr('font-size', 10).attr('font-weight', 600).text('km/h');
+    }
+
+    const badgeW = yTor ? 148 : 88;
+    pg1.append('rect').attr('x', 8).attr('y', 6).attr('width', badgeW).attr('height', 18)
+        .attr('rx', 4).attr('fill', '#10b981').attr('opacity', 0.12);
+    pg1.append('text').attr('x', 8 + badgeW / 2).attr('y', 19).attr('text-anchor', 'middle')
+        .attr('fill', '#059669').attr('font-size', 10).attr('font-weight', 700)
+        .text(yTor ? 'Cadence (rpm)  ·  Torque (Nm)' : 'Cadence (rpm)');
+
+    const dg1 = pg1.append('g').attr('clip-path', 'url(#sp-clip2)');
+    const cv1 = pg1.append('line').attr('y1', 0).attr('y2', panelH)
+        .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('stroke-dasharray', '4,2').style('display', 'none');
+    const cd1cad = pg1.append('circle').attr('r', 4)
+        .attr('fill', '#10b981').attr('stroke', 'white').attr('stroke-width', 2).style('display', 'none');
+    const cd1tor = yTor ? pg1.append('circle').attr('r', 4)
+        .attr('fill', '#f59e0b').attr('stroke', 'white').attr('stroke-width', 2).style('display', 'none') : null;
+
+    function drawAll(domain) {
+        const xS = d3.scaleLinear().domain(domain).range([0, innerW]);
+
+        dg0.selectAll('*').remove();
+        const powPts = timeS.map((t, i) => ({ t, p: powS[i] })).filter((d) => d.t >= domain[0] && d.t <= domain[1]);
+        if (powPts.length > 1) {
+            dg0.append('path').datum(powPts)
+                .attr('fill', 'url(#sp-pow-grad)')
+                .attr('d', d3.area().x((d) => xS(d.t)).y0(panelH).y1((d) => yPow(d.p)).curve(d3.curveMonotoneX));
+            dg0.append('path').datum(powPts)
+                .attr('fill', 'none').attr('stroke', '#3b82f6').attr('stroke-width', 2)
+                .attr('d', d3.line().x((d) => xS(d.t)).y((d) => yPow(d.p)).curve(d3.curveMonotoneX));
+        }
+        if (spdS && ySpd) {
+            const spdPts = timeS.map((t, i) => ({ t, p: spdS[i] })).filter((d) => d.t >= domain[0] && d.t <= domain[1] && d.p > 0);
+            if (spdPts.length > 1) {
+                dg0.append('path').datum(spdPts)
+                    .attr('fill', 'none').attr('stroke', '#a855f7').attr('stroke-width', 1.8)
+                    .attr('stroke-dasharray', '5,2')
+                    .attr('d', d3.line().x((d) => xS(d.t)).y((d) => ySpd(d.p)).curve(d3.curveMonotoneX));
+            }
+        }
+
+        dg1.selectAll('*').remove();
+        if (cadS) {
+            const cadPts = timeS.map((t, i) => ({ t, p: cadS[i] })).filter((d) => d.t >= domain[0] && d.t <= domain[1] && d.p > 0);
+            if (cadPts.length > 1) {
+                dg1.append('path').datum(cadPts)
+                    .attr('fill', 'url(#sp-cad-grad)')
+                    .attr('d', d3.area().x((d) => xS(d.t)).y0(panelH).y1((d) => yCad(d.p)).curve(d3.curveMonotoneX));
+                dg1.append('path').datum(cadPts)
+                    .attr('fill', 'none').attr('stroke', '#10b981').attr('stroke-width', 2)
+                    .attr('d', d3.line().x((d) => xS(d.t)).y((d) => yCad(d.p)).curve(d3.curveMonotoneX));
+            }
+        }
+        if (torS && yTor) {
+            const torPts = timeS.map((t, i) => ({ t, p: torS[i] })).filter((d) => d.t >= domain[0] && d.t <= domain[1] && d.p > 0);
+            if (torPts.length > 1) {
+                dg1.append('path').datum(torPts)
+                    .attr('fill', 'none').attr('stroke', '#f59e0b').attr('stroke-width', 2.2)
+                    .attr('stroke-dasharray', '6,3')
+                    .attr('d', d3.line().x((d) => xS(d.t)).y((d) => yTor(d.p)).curve(d3.curveMonotoneX));
+            }
+        }
+    }
+    drawAll(curDomain);
+
+    const xAxG = root.append('g').attr('transform', `translate(0,${ty1 + panelH})`);
+    xAxG.call(d3.axisBottom(d3.scaleLinear().domain(curDomain).range([0, innerW])).ticks(8)
+        .tickFormat((d) => {
+            const m = Math.floor(d / 60);
+            const s = Math.round(d % 60);
+            return m > 0 ? `${m}m${s}s` : `${Math.round(d)}s`;
+        }).tickSize(3));
+    xAxG.select('.domain').attr('stroke', '#cbd5e1');
+    xAxG.selectAll('line').attr('stroke', '#cbd5e1');
+    xAxG.selectAll('text').attr('fill', '#64748b').attr('font-size', 9);
+
+    const ttEl = document.createElement('div');
+    ttEl.style.cssText = 'position:absolute;pointer-events:none;display:none;z-index:999;'
+        + 'background:rgba(15,23,42,0.96);color:#fff;border-radius:8px;padding:9px 13px;'
+        + 'font-size:11.5px;line-height:1.8;white-space:nowrap;'
+        + 'box-shadow:0 8px 24px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);';
+    container.appendChild(ttEl);
+
+    function updateSprintPointer(mx) {
+        mx = Math.max(0, Math.min(innerW, mx));
+        const xS = d3.scaleLinear().domain(curDomain).range([0, innerW]);
+        const t = xS.invert(mx);
+        let ci = 0;
+        let md = Infinity;
+        timeS.forEach((ts, i) => {
+            const d = Math.abs(ts - t);
+            if (d < md) {
+                md = d;
+                ci = i;
+            }
+        });
+
+        cv0.style('display', null).attr('x1', mx).attr('x2', mx);
+        cd0.style('display', null).attr('cx', mx).attr('cy', yPow(powS[ci] || 0));
+        if (ySpd && spdS && spdS[ci] > 0) cd0spd.style('display', null).attr('cx', mx).attr('cy', ySpd(spdS[ci]));
+        else cd0spd.style('display', 'none');
+
+        cv1.style('display', null).attr('x1', mx).attr('x2', mx);
+        if (cadS && cadS[ci] > 0) cd1cad.style('display', null).attr('cx', mx).attr('cy', yCad(cadS[ci]));
+        if (cd1tor && torS && torS[ci] > 0) cd1tor.style('display', null).attr('cx', mx).attr('cy', yTor(torS[ci]));
+
+        const ts = timeS[ci];
+        const m = Math.floor(ts / 60);
+        const s = Math.round(ts % 60);
+        const tStr = m > 0 ? `${m}m${s}s` : `${Math.round(ts)}s`;
+        let html = `<span style="color:#e2e8f0;font-weight:700;font-size:12px">${tStr}</span><br/>`;
+        html += `<span style="color:#93c5fd">⚡ ${Math.round(powS[ci] || 0)} W</span>`;
+        if (spdS && spdS[ci] > 0) html += `  <span style="color:#d8b4fe">🚴 ${spdS[ci].toFixed(1)} km/h</span>`;
+        if (cadS && cadS[ci] > 0) html += `  <span style="color:#6ee7b7">🌀 ${Math.round(cadS[ci])} rpm</span>`;
+        if (torS && torS[ci] > 0) html += `<br/><span style="color:#fcd34d">⚙️ ${Math.round(torS[ci])} Nm</span>`;
+        ttEl.innerHTML = html;
+        ttEl.style.display = 'block';
+
+        const isTouchS = window.matchMedia('(pointer: coarse)').matches;
+        if (isTouchS) {
+            ttEl.style.left = '50%';
+            ttEl.style.transform = 'translateX(-50%)';
+            ttEl.style.top = '4px';
+        } else {
+            ttEl.style.transform = '';
+            let lx = ML + mx + 16;
+            if (lx + 220 > W - MR) lx = ML + mx - 230;
+            ttEl.style.left = `${lx}px`;
+            ttEl.style.top = `${Math.max(8, MT + 20)}px`;
+        }
+    }
+
+    const totalPH = ty1 + panelH;
+    const sprintOverlay = root.append('rect').attr('width', innerW).attr('height', totalPH)
+        .attr('fill', 'transparent').style('cursor', 'crosshair')
+        .on('mousemove', function(ev) {
+            const [mx] = d3.pointer(ev);
+            updateSprintPointer(mx);
+        })
+        .on('mouseleave', function() {
+            if (!window.matchMedia('(pointer: coarse)').matches) {
+                [cv0, cv1, cd0, cd0spd, cd1cad].forEach((c) => c && c.style('display', 'none'));
+                if (cd1tor) cd1tor.style('display', 'none');
+                ttEl.style.display = 'none';
+            }
+        });
+
+    sprintOverlay.node().addEventListener('touchstart', function(ev) {
+        ev.preventDefault();
+        const r = container.getBoundingClientRect();
+        const mx = ev.touches[0].clientX - r.left - ML;
+        updateSprintPointer(mx);
+    }, { passive: false });
+    sprintOverlay.node().addEventListener('touchmove', function(ev) {
+        ev.preventDefault();
+        const r = container.getBoundingClientRect();
+        const mx = ev.touches[0].clientX - r.left - ML;
+        updateSprintPointer(mx);
+    }, { passive: false });
+    sprintOverlay.node().addEventListener('touchend', function(ev) {
+        ev.preventDefault();
+        [cv0, cv1, cd0, cd0spd, cd1cad].forEach((c) => c && c.style('display', 'none'));
+        if (cd1tor) cd1tor.style('display', 'none');
+        ttEl.style.display = 'none';
+    }, { passive: false });
+
+    if (!window.matchMedia('(pointer: coarse)').matches) {
+        requestAnimationFrame(() => {
+            const midTime = (effortStartTime + effortEndTime) / 2;
+            const xS0 = d3.scaleLinear().domain(curDomain).range([0, innerW]);
+            updateSprintPointer(xS0(midTime));
+        });
+    }
+}
+
+function initializeModalListeners() {
+    const closeBtn = document.getElementById('streamModalCloseBtn');
+    const modalOverlay = document.getElementById('streamModalOverlay');
+    const modal = document.getElementById('streamModal');
+    const avg30sSlider = document.getElementById('avg30sStreamSlider');
+    const avg60sSlider = document.getElementById('avg60sStreamSlider');
+    const avg30sValue = document.getElementById('avg30sStreamValue');
+    const avg60sValue = document.getElementById('avg60sStreamValue');
+
+    if (!closeBtn || !modalOverlay || !modal) {
+        setTimeout(initializeModalListeners, 100);
+        return;
+    }
+
+    closeBtn.addEventListener('click', closeStreamModal);
+    modalOverlay.addEventListener('click', closeStreamModal);
+
+    const debouncedRebuild = debounce(() => {
+        if (streamModalData) buildStreamChartsD3();
+    }, 300);
+
+    if (avg30sSlider) {
+        avg30sSlider.addEventListener('input', function() {
+            avg30sSeconds = parseInt(this.value, 10);
+            if (avg30sValue) avg30sValue.textContent = `${avg30sSeconds}s`;
+            localStorage.setItem('stream_avg30s', avg30sSeconds);
+            debouncedRebuild();
+        });
+    }
+
+    if (avg60sSlider) {
+        avg60sSlider.addEventListener('input', function() {
+            avg60sSeconds = parseInt(this.value, 10);
+            if (avg60sValue) avg60sValue.textContent = `${avg60sSeconds}s`;
+            localStorage.setItem('stream_avg60s', avg60sSeconds);
+            debouncedRebuild();
+        });
+    }
+
+    function addWheelToSlider(slider, valueEl, varSetter) {
+        if (!slider) return;
+        slider.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 1 : -1;
+            const newVal = Math.min(parseInt(slider.max, 10), Math.max(parseInt(slider.min, 10), parseInt(slider.value, 10) + delta));
+            slider.value = newVal;
+            if (valueEl) valueEl.textContent = `${newVal}s`;
+            varSetter(newVal);
+            localStorage.setItem(slider.id === 'avg30sStreamSlider' ? 'stream_avg30s' : 'stream_avg60s', newVal);
+            debouncedRebuild();
+        }, { passive: false });
+    }
+    addWheelToSlider(avg30sSlider, avg30sValue, (v) => { avg30sSeconds = v; });
+    addWheelToSlider(avg60sSlider, avg60sValue, (v) => { avg60sSeconds = v; });
+
+    modal.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeModalListeners);
+} else {
+    initializeModalListeners();
+}
+
+window.addEventListener('storage', function(e) {
+    if (e.key === 'inspection_zones' && streamModalData) {
+        buildStreamChartsD3();
+    }
+});
 
 document.getElementById('sidebar-close').addEventListener('click', () => {
     removeActiveEffortLayer();

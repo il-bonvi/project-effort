@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]], 
-                         sprints: List[Dict[str, Any]], cp: float, weight: float, session_id: str = '') -> str:
+                         sprints: List[Dict[str, Any]], cp: float, weight: float,
+                         chart_data_json: str = '{}', session_id: str = '') -> str:
     """
     Genera HTML interattivo per visualizzare traccia 3D con MapTiler GL JS.
     
@@ -138,6 +139,7 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
             center_lon=center_lon,
             zoom=zoom,
             distance_km=distance_km,
+            chart_data_json=chart_data_json,
             session_id=session_id
         )
         

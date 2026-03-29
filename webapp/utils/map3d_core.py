@@ -274,7 +274,7 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
     efforts_list: List[Dict[str, Any]] = []
     coords = geojson_data['features'][0]['geometry']['coordinates']
     
-    for s, e, avg in efforts:
+    for effort_idx, (s, e, avg) in enumerate(efforts):
         # Mappa indici da effort a coordinate filtrate
         pos_start = 0
         for idx_f, idx_orig in enumerate(orig_indices):
@@ -306,6 +306,8 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         
         if len(segment_coords) > 0:
             effort_dict = {
+                'id': int(effort_idx),
+                'type': 'effort',
                 'pos': int(pos_start),
                 'start': int(pos_start),
                 'end': int(pos_end),
@@ -320,7 +322,7 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
             efforts_list.append(effort_dict)
     
     # ===== STEP 7: Sprints Data Processing =====
-    for sprint in sprints:
+    for sprint_idx, sprint in enumerate(sprints):
         s = sprint['start']
         e = sprint['end']
         avg = sprint['avg']
@@ -357,6 +359,7 @@ def prepare_efforts_data(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         
         if len(segment_coords) > 0:
             sprint_dict = {
+                'id': int(sprint_idx),
                 'pos': int(pos_start),
                 'start': int(pos_start),
                 'end': int(pos_end),
