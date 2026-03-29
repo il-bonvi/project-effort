@@ -111,6 +111,7 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         dist_total = dist_km_values_full.tolist()
         time_total = df['time_sec'].values.tolist() if 'time_sec' in df.columns else list(range(len(df)))
         power_total = df['power'].values.tolist() if 'power' in df.columns else [0.0] * len(df)
+        hr_total = df['heartrate'].values.tolist() if 'heartrate' in df.columns else [0.0] * len(df)
         
         # Calculate total distance in km
         distance_km = float(np.max(dist_km_values_full)) if len(dist_km_values_full) > 0 else 0.0
@@ -130,6 +131,7 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
             'altitude': alt_total, 
             'time_sec': time_total,
             'power': power_total,
+            'heartrate': hr_total,
             'efforts': efforts_list
         })
         

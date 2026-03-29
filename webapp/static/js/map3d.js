@@ -25,6 +25,7 @@ let power5sCache = null;
 let activeEffortLayer = null;
 let activeEffortIdx = null;
 let activeSelectionType = null;
+let currentSelectionRange = null;
 let currentEfforts = efforts_data_json;
 let altimetryMarker = null;
 let altimetrySelection = { start: null, end: null };
@@ -130,6 +131,14 @@ function updateAltimetryMarkerByDistance(distanceKm) {
     ensureAltimetryMarker().setLngLat([coords[idx][0], coords[idx][1]]);
 }
 
+function updateSelectionStreamButton() {
+    const btn = document.getElementById('streamSelectionBtn');
+    if (!btn) return;
+    const hasSelection = !!(currentSelectionRange && currentSelectionRange.endIdx > currentSelectionRange.startIdx);
+    btn.style.display = hasSelection ? 'block' : 'none';
+    btn.disabled = !hasSelection;
+}
+
 function computePower5sProfile() {
     if (power5sCache) return power5sCache;
 
@@ -209,6 +218,56 @@ function getDistanceRangeIndices(startDist, endDist) {
     }
 
     return { startIdx, endIdx };
+}
+
+function buildSelectionStreamPayload() {
+    if (!currentSelectionRange) return null;
+
+    const timeSec = Array.isArray(elevationData.time_sec) ? elevationData.time_sec : [];
+    const power = Array.isArray(elevationData.power) ? elevationData.power : [];
+    const hr = Array.isArray(elevationData.heartrate) ? elevationData.heartrate : [];
+    const distances = Array.isArray(elevationData.distance) ? elevationData.distance : [];
+
+    const n = Math.min(timeSec.length, power.length);
+    if (!n) return null;
+
+    const s = Math.max(0, Math.min(currentSelectionRange.startIdx, n - 1));
+    const e = Math.max(s, Math.min(currentSelectionRange.endIdx, n - 1));
+
+    // Keep same context as effort stream charts: +/-120s around selected section.
+    const bufferSeconds = 120;
+    let sExt = s;
+    let eExt = Math.min(n, e + 1);
+    while (sExt > 0 && (timeSec[s] - timeSec[sExt - 1]) < bufferSeconds) sExt -= 1;
+    while (eExt < n && (timeSec[eExt] - timeSec[e]) < bufferSeconds) eExt += 1;
+
+    const t0 = timeSec[s];
+    const timeStream = timeSec.slice(sExt, eExt).map((t) => Number((t - t0).toFixed(2)));
+    const powerStream = power.slice(sExt, eExt).map((p) => Number(p || 0));
+    const hrStream = hr.length ? hr.slice(sExt, eExt).map((h) => (h > 0 ? Number(h) : null)) : null;
+    const w = Number(chartData.weight || 0);
+    const wkgStream = powerStream.map((p) => (w > 0 ? p / w : 0));
+
+    const effortEnd = Math.max(0, Number(timeSec[e] - timeSec[s]));
+    const effortDuration = Math.round(effortEnd);
+    const d0 = Number(distances[s] || currentSelectionRange.startDist || 0);
+    const d1 = Number(distances[e] || currentSelectionRange.endDist || d0);
+
+    return {
+        data: {},
+        type: 'effort',
+        label: `SEL ${d0.toFixed(2)}-${d1.toFixed(2)} km`,
+        timeStream,
+        powerStream,
+        hrStream,
+        wkgStream,
+        cadenceStream: null,
+        torqueStream: null,
+        speedStream: null,
+        effortStart: 0,
+        effortEnd,
+        effortDuration,
+    };
 }
 
 function format_time_mmss(seconds) {
@@ -665,6 +724,10 @@ function drawFullElevationChart() {
                     elevationChartInstance.setOption(option, { lazyUpdate: true });
                 }
             }
+
+            const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
+            currentSelectionRange = { startDist: start, endDist: end, startIdx, endIdx };
+            updateSelectionStreamButton();
             
             filterTraceByDistance(start, end);
         } else {
@@ -680,6 +743,8 @@ function drawFullElevationChart() {
             if (map.getSource('traccia-selected-zones')) {
                 map.getSource('traccia-selected-zones').setData(emptyFeatureCollection);
             }
+            currentSelectionRange = null;
+            updateSelectionStreamButton();
         }
     };
     
@@ -826,7 +891,9 @@ function resetTraceFilter() {
     altimetrySelection = { start: null, end: null };
     isAltimetrySelecting = false;
     activeSelectionType = null;
+    currentSelectionRange = null;
     setSelectionZonesDimmed(false);
+    updateSelectionStreamButton();
     
     // Clear selection highlights from chart
     if (elevationChartInstance) {
@@ -1276,6 +1343,33 @@ function openStreamModal(elemId, dataId, type) {
 }
 
 window.openStreamModal = openStreamModal;
+
+function openSelectionStreamModal() {
+    const prepared = buildSelectionStreamPayload();
+    if (!prepared) return;
+
+    streamModalData = prepared;
+
+    const titleEl = document.getElementById('streamModalTitle');
+    if (!titleEl) return;
+    titleEl.textContent = `${streamModalData.label} - Duration: ${format_time_mmss(streamModalData.effortDuration)}s`;
+
+    const modal = document.getElementById('streamModal');
+    const modalOverlay = document.getElementById('streamModalOverlay');
+    if (!modal || !modalOverlay) return;
+
+    modal.classList.add('active');
+    modalOverlay.classList.add('active');
+
+    const ctrlPanel = document.getElementById('streamControlPanel');
+    if (ctrlPanel) ctrlPanel.style.display = '';
+
+    setTimeout(() => {
+        buildStreamChartsD3();
+    }, 50);
+}
+
+window.openSelectionStreamModal = openSelectionStreamModal;
 
 function closeStreamModal() {
     const modal = document.getElementById('streamModal');
@@ -2023,5 +2117,10 @@ document.getElementById('sidebar-close').addEventListener('click', () => {
     resetChartHighlight();
     document.getElementById('sidebar-content').innerHTML = '';
 });
+
+const streamSelectionBtn = document.getElementById('streamSelectionBtn');
+if (streamSelectionBtn) {
+    streamSelectionBtn.addEventListener('click', openSelectionStreamModal);
+}
 
 map.on('load', () => { updateStyleName(); });
