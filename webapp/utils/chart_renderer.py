@@ -371,7 +371,7 @@ def plot_unified_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
             arrow = '⬆️' if vam_teorico - vam > 0 else ('⬇️' if vam_teorico - vam < 0 else '')
             wkg_teoric = vam / (gradient_factor * 100) if gradient_factor > 0 else 0
             diff_wkg = avg_power_per_kg - wkg_teoric
-            perc_err = (diff_wkg / avg_power_per_kg * 100) if avg_power_per_kg != 0 else 0
+            perc_err = ((wkg_teoric - avg_power_per_kg) / avg_power_per_kg * 100) if avg_power_per_kg != 0 else 0
             sign = '+' if perc_err > 0 else ('-' if perc_err < 0 else '')
             hover_lines.append(f"🚵‍♂️ {vam:.0f} m/h {arrow} {diff_vam:.0f} m/h | {abs(diff_wkg):.2f} W/kg")
             hover_lines.append(f"🧮 {vam_teorico:.0f} m/h | {wkg_teoric:.2f} W/kg | {sign}{abs(perc_err):.1f}%")

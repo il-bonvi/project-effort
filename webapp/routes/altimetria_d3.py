@@ -263,7 +263,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'vam_teorico': round(vam_teorico, 0),
             'wkg_teoric': round((vam / (gradient_factor * 100) if gradient_factor > 0 else 0), 2),
             'diff_wkg': round(abs(avg_power_per_kg - (vam / (gradient_factor * 100) if gradient_factor > 0 else 0)), 2),
-            'perc_err': round(((avg_power_per_kg - (vam / (gradient_factor * 100) if gradient_factor > 0 else 0)) / avg_power_per_kg * 100) if avg_power_per_kg != 0 else 0, 1) if avg_grade >= 4.5 else 0,
+            'perc_err': round((((vam / (gradient_factor * 100) if gradient_factor > 0 else 0) - avg_power_per_kg) / avg_power_per_kg * 100) if avg_power_per_kg != 0 else 0, 1) if avg_grade >= 4.5 else 0,
             'kj': round(kj, 0),
             'kj_over_cp': round(kj_over_cp, 0),
             'kj_kg': round(kj_kg, 1),

@@ -39,6 +39,8 @@ let showEfforts = true;  // Toggle for efforts visibility
 let showSprints = true;  // Toggle for sprints visibility
 const chartData = chart_data_json || { efforts: [], sprints: [], cp: 0, weight: 0, intensity_zones: [], torque_available: false };
 let d3AltimetryState = null;
+let currentSelectionMetrics = null;  // Store metrics for current manual selection
+let isShowingEffortDetail = false;  // True when effort is shown (covers selection metrics)
 
 function applyChartVisibilityFilters() {
     if (!d3AltimetryState || !d3AltimetryState.root) return;
@@ -264,6 +266,163 @@ function buildSelectionStreamPayload() {
     };
 }
 
+function calculateSelectionMetrics() {
+    if (!currentSelectionRange) return null;
+
+    const timeSec = Array.isArray(elevationData.time_sec) ? elevationData.time_sec : [];
+    const power = Array.isArray(elevationData.power) ? elevationData.power : [];
+    const hr = Array.isArray(elevationData.heartrate) ? elevationData.heartrate : [];
+    const cadence = Array.isArray(elevationData.cadence) ? elevationData.cadence : [];
+    const distances = Array.isArray(elevationData.distance) ? elevationData.distance : [];
+    const altitudes = Array.isArray(elevationData.altitude) ? elevationData.altitude : [];
+
+    const s = currentSelectionRange.startIdx;
+    const e = currentSelectionRange.endIdx;
+    if (e <= s || e >= power.length) return null;
+
+    // Duration
+    const durationSec = Math.max(0, timeSec[e] - timeSec[s]);
+    const durationDisplay = fmtDur(durationSec);
+
+    // Distance
+    const distStart = distances[s] || 0;
+    const distEnd = distances[e] || distStart;
+    const distTot = Math.abs(distEnd - distStart);
+    const distDisplay = distTot.toFixed(2);
+
+    // Elevation
+    const altStart = altitudes[s] || 0;
+    const altEnd = altitudes[e] || altStart;
+    const elevationGain = Math.max(0, altEnd - altStart);
+    const elevationDisplay = Math.round(elevationGain);
+
+    // Power metrics
+    const powerSlice = power.slice(s, e + 1);
+    const avgPower = powerSlice.length ? Math.round(powerSlice.reduce((a, b) => a + b, 0) / powerSlice.length) : 0;
+    
+    // 5s peak power (same strategy used for effort metrics)
+    let peak5s = 0;
+    if (powerSlice.length >= 5) {
+        let maxAvg = 0;
+        for (let i = 0; i <= powerSlice.length - 5; i++) {
+            const avg5 = (powerSlice[i] + powerSlice[i+1] + powerSlice[i+2] + powerSlice[i+3] + powerSlice[i+4]) / 5;
+            if (avg5 > maxAvg) maxAvg = avg5;
+        }
+        peak5s = Math.round(maxAvg);
+    } else if (powerSlice.length > 0) {
+        peak5s = Math.max(...powerSlice);
+    }
+
+    // HR metrics
+    const hrSlice = hr.slice(s, e + 1).filter(h => h > 0 && !isNaN(h));
+    const avgHr = hrSlice.length ? Math.round(hrSlice.reduce((a, b) => a + b, 0) / hrSlice.length) : 0;
+    const maxHr = hrSlice.length ? Math.max(...hrSlice) : 0;
+
+    // Weight and W/kg
+    const weight = Number(chartData.weight || 0);
+    const avgWkg = weight > 0 ? (avgPower / weight).toFixed(2) : 0;
+    const peak5sWkg = weight > 0 ? (peak5s / weight).toFixed(2) : 0;
+
+    // Speed
+    const avgSpeed = durationSec > 0 ? (distTot / (durationSec / 3600)).toFixed(1) : 0;
+
+    // Grade
+    const avgGrade = distTot > 0 ? ((elevationGain / (distTot * 1000)) * 100).toFixed(1) : 0;
+    let maxGrade = 0;
+    for (let i = s + 1; i <= e; i++) {
+        const dDistKm = Number(distances[i] || 0) - Number(distances[i - 1] || 0);
+        const dAlt = Number(altitudes[i] || 0) - Number(altitudes[i - 1] || 0);
+        if (dDistKm > 0) {
+            const g = (dAlt / (dDistKm * 1000)) * 100;
+            if (Number.isFinite(g) && g > maxGrade) maxGrade = g;
+        }
+    }
+    maxGrade = Number(maxGrade.toFixed(1));
+
+    // VAM (vertical ascent rate in m/h)
+    const vam = durationSec > 0 ? Math.round((elevationGain / (durationSec / 3600))) : 0;
+
+    // Energy (kJ) - total
+    const totalPowerSum = powerSlice.reduce((a, b) => a + b, 0);
+    const kJ = Math.round(totalPowerSum * durationSec / powerSlice.length / 1000);
+    
+    // Energy > CP (same semantics used in backend: counts full power when p > CP)
+    const cp = Number(chartData.cp || 0);
+    let kJOverCp = 0;
+    if (cp > 0) {
+        const powerAboveCpSum = powerSlice.reduce((sum, p) => (p > cp ? sum + p : sum), 0);
+        kJOverCp = Math.round(powerAboveCpSum * durationSec / powerSlice.length / 1000);
+    }
+
+    const kJkg = weight > 0 ? (kJ / weight).toFixed(1) : 0;
+    const kJkgOverCp = weight > 0 ? (kJOverCp / weight).toFixed(1) : 0;
+    const hours = durationSec / 3600;
+    const kJhKg = weight > 0 && hours > 0 ? ((kJ / weight) / hours).toFixed(1) : 0;
+    const kJhKgOverCp = weight > 0 && hours > 0 ? ((kJOverCp / weight) / hours).toFixed(1) : 0;
+    
+    // Cadence and pacing split (same fields shown in effort card)
+    const cadSlice = cadence.slice(s, e + 1).filter((c) => Number(c) > 0);
+    const avgCadence = cadSlice.length ? Math.round(cadSlice.reduce((a, b) => a + Number(b), 0) / cadSlice.length) : 0;
+    const half = Math.floor(powerSlice.length / 2);
+    const firstHalf = half > 0 ? powerSlice.slice(0, half) : [];
+    const secondHalf = half > 0 ? powerSlice.slice(half) : [];
+    const avgWattsFirst = firstHalf.length ? Math.round(firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length) : 0;
+    const avgWattsSecond = secondHalf.length ? Math.round(secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length) : 0;
+    const wattsRatio = avgWattsSecond > 0 ? (avgWattsFirst / avgWattsSecond).toFixed(2) : '0.00';
+    
+    // Theoretical values aligned with effort formulas
+    const avgGradeNum = Number(avgGrade);
+    const avgWkgNum = Number(avgWkg);
+    const gradientFactor = 2 + (avgGradeNum / 10);
+    const vamTeorico = weight > 0 ? Math.round(avgWkgNum * (gradientFactor * 100)) : 0;
+    const wkgTeoricoNum = gradientFactor > 0 ? (vam / (gradientFactor * 100)) : 0;
+    const diffWkgNum = Math.abs(avgWkgNum - wkgTeoricoNum);
+    const percErrNum = avgWkgNum !== 0 ? (((wkgTeoricoNum - avgWkgNum) / avgWkgNum) * 100) : 0;
+    const vamArrow = (vamTeorico - vam) > 0 ? '⬆️' : ((vamTeorico - vam) < 0 ? '⬇️' : '');
+    const diffVam = Math.round(Math.abs(vamTeorico - vam));
+    const wkgTeorico = wkgTeoricoNum.toFixed(2);
+    const diffWkg = diffWkgNum.toFixed(2);
+    const percErr = (percErrNum >= 0 ? '+' : '-') + Math.abs(percErrNum).toFixed(1);
+
+    return {
+        label: `SEL ${distStart.toFixed(2)}-${distEnd.toFixed(2)} km`,
+        startDist: distStart,
+        endDist: distEnd,
+        durationSec,
+        durationDisplay,
+        distTot,
+        distDisplay,
+        elevationGain,
+        elevationDisplay,
+        avgPower,
+        avgWkg,
+        peak5s,
+        peak5sWkg,
+        avgHr,
+        maxHr,
+        avgSpeed,
+        avgGrade,
+        maxGrade,
+        vam,
+        vamTeorico,
+        vamArrow,
+        diffVam,
+        kJ,
+        kJOverCp,
+        kJkg,
+        kJkgOverCp,
+        kJhKg,
+        kJhKgOverCp,
+        avgCadence,
+        avgWattsFirst,
+        avgWattsSecond,
+        wattsRatio,
+        wkgTeorico,
+        diffWkg,
+        percErr,
+    };
+}
+
 function format_time_mmss(seconds) {
     if (!seconds || seconds < 0) return '0:00';
     const mins = Math.floor(seconds / 60);
@@ -307,6 +466,61 @@ function findSelectedSegment(markerItem) {
     return null;
 }
 
+function buildSelectionMetricsCard(metrics) {
+    if (!metrics) return '';
+    const m = metrics;
+    const showVamTeor = Number(m.avgGrade) >= 4.5;
+    const signDwkg = Number(m.diffWkg) > 0 ? '+' : '';
+    const theoreticalRows = showVamTeor
+        ? `
+        <div class="metric-row"><span class="metric-label">🧮 VAM Teor.</span><span class="metric-value">${m.vamTeorico} m/h</span></div>
+        <div class="metric-row"><span class="metric-label">🧮 W/kg Teor.</span><span class="metric-value">${m.wkgTeorico} · Δ${signDwkg}${m.diffWkg}</span></div>
+        <div class="metric-row"><span class="metric-label">Err %</span><span class="metric-value">${m.percErr}%</span></div>
+    `
+        : '';
+    
+    const vamSection = `
+        <div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${showVamTeor ? `${m.vam} m/h ${m.vamArrow} ${m.diffVam} m/h` : `${m.vam} m/h`}</span></div>
+        ${theoreticalRows}
+    `;
+
+    return `
+        <div class="selected-header">
+            <div>
+                <div class="selected-title">🔍 Selection Metrics</div>
+                <div class="selected-subtitle-line">${m.distDisplay} km · ${m.elevationDisplay}m ↑</div>
+                <div class="selected-subtitle-line">${m.durationDisplay}</div>
+                <div class="selected-power">${m.avgPower}W <span>(${m.avgWkg} W/kg)</span></div>
+            </div>
+            <button class="stream-btn" id="selectionStreamBtn" onclick="openSelectionStreamModal()">📊 Stream</button>
+        </div>
+        <div class="selected-grid">
+            <div class="metric-col">
+                <div class="metric-row"><span class="metric-label">⚡ Avg</span><span class="metric-value">${m.avgPower}W</span></div>
+                <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${m.avgWkg}</span></div>
+                <div class="metric-row"><span class="metric-label">5″🔺 Peak</span><span class="metric-value">${m.peak5s}W · ${m.peak5sWkg} W/kg</span></div>
+                <div class="metric-row"><span class="metric-label">🌀 Cadence</span><span class="metric-value">${m.avgCadence > 0 ? `${m.avgCadence} rpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${m.avgWattsFirst}/${m.avgWattsSecond} · ${m.wattsRatio}</span></div>
+            </div>
+            <div class="metric-col">
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${m.avgHr > 0 ? `${m.avgHr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🔺 HR Max</span><span class="metric-value">${m.maxHr > 0 ? `${m.maxHr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${m.avgSpeed} km/h</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${m.avgGrade}% · 🔺${m.maxGrade}%</span></div>
+                ${vamSection}
+            </div>
+            <div class="metric-col">
+                <div class="metric-row"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${m.kJ} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">kJ &gt; CP</span><span class="metric-value">${m.kJOverCp} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${m.kJkg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/kg &gt; CP</span><span class="metric-value">${m.kJkgOverCp}</span></div>
+                <div class="metric-row"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${m.kJhKg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/h/kg &gt; CP</span><span class="metric-value">${m.kJhKgOverCp}</span></div>
+            </div>
+        </div>
+    `;
+}
+
 function buildEffortSidebarCard(e) {
     const signErr = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
     const signDwkg = e.diff_wkg > 0 ? '+' : '';
@@ -326,7 +540,10 @@ function buildEffortSidebarCard(e) {
                 <div class="selected-subtitle-line">${fmtDur(e.duration)} · ${e.distance_tot} km · ${e.elevation_gain}m ↑</div>
                 <div class="selected-power" style="color:${e.color}">${e.avg_power}W <span>(${e.cp_pct}%)</span></div>
             </div>
-            <button class="stream-btn" onclick="openStreamModal('e-${e.id}','${e.id}','effort')">📊 Stream</button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="stream-btn" onclick="openStreamModal('e-${e.id}','${e.id}','effort')">📊 Stream</button>
+                <button class="sidebar-close-btn" onclick="closeEffortDetailAndShowSelection()">✕</button>
+            </div>
         </div>
         <div class="selected-grid">
             <div class="metric-col">
@@ -372,7 +589,10 @@ function buildSprintSidebarCard(s) {
                 <div class="selected-subtitle-line">${fmtDur(s.duration)} · ${s.distance_tot} km · ${s.elevation_gain}m ↑</div>
                 <div class="selected-power">${s.avg_power}W</div>
             </div>
-            <button class="stream-btn" onclick="openStreamModal('s-${s.id}','${s.id}','sprint')">📊 Stream</button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="stream-btn" onclick="openStreamModal('s-${s.id}','${s.id}','sprint')">📊 Stream</button>
+                <button class="sidebar-close-btn" onclick="closeEffortDetailAndShowSelection()">✕</button>
+            </div>
         </div>
         <div class="selected-grid">
             <div class="metric-col">
@@ -420,6 +640,7 @@ function openEffortSidebar(idx) {
     setSelectionZonesDimmed(selected.type === 'effort' || selected.type === 'sprint');
 
     document.getElementById('sidebar-content').innerHTML = html;
+    isShowingEffortDetail = true;
     
     highlightEffortInChart(idx);
     removeActiveEffortLayer();
@@ -457,6 +678,22 @@ function removeActiveEffortLayer() {
         map.removeSource(activeEffortLayer);
     }
     activeEffortLayer = null;
+}
+
+function showSelectionMetricsCard() {
+    if (!currentSelectionMetrics) return;
+    const html = buildSelectionMetricsCard(currentSelectionMetrics);
+    document.getElementById('sidebar-content').innerHTML = html;
+    isShowingEffortDetail = false;
+}
+
+function closeEffortDetailAndShowSelection() {
+    removeActiveEffortLayer();
+    activeEffortIdx = null;
+    activeSelectionType = null;
+    setSelectionZonesDimmed(false);
+    resetChartHighlight();
+    showSelectionMetricsCard();
 }
 
 // D3 altimetry chart state holder
@@ -660,7 +897,9 @@ function drawFullElevationChart() {
             const end = Math.max(altimetrySelection.start, altimetrySelection.end);
             const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
             currentSelectionRange = { startDist: start, endDist: end, startIdx, endIdx };
+            currentSelectionMetrics = calculateSelectionMetrics();
             updateSelectionStreamButton();
+            showSelectionMetricsCard();
             drawSelectionVisual();
             filterTraceByDistance(start, end);
             return;
@@ -674,7 +913,9 @@ function drawFullElevationChart() {
             const end = Math.max(altimetrySelection.start, altimetrySelection.end);
             const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
             currentSelectionRange = { startDist: start, endDist: end, startIdx, endIdx };
+            currentSelectionMetrics = calculateSelectionMetrics();
             updateSelectionStreamButton();
+            showSelectionMetricsCard();
             filterTraceByDistance(start, end);
             return;
         }
@@ -710,8 +951,14 @@ function drawFullElevationChart() {
                 lastAltimetryUpdate = now;
                 const start = Math.min(altimetrySelection.start, altimetrySelection.end);
                 const end = Math.max(altimetrySelection.start, altimetrySelection.end);
+                const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
+                
+                // Update selection range and metrics in real-time during drag
+                currentSelectionRange = { startDist: start, endDist: end, startIdx, endIdx };
+                currentSelectionMetrics = calculateSelectionMetrics();
+                showSelectionMetricsCard();
+                
                 if (map.getSource('traccia-selected-zones')) {
-                    const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
                     map.getSource('traccia-selected-zones').setData(buildZoneColoredSelectionGeoJSON(startIdx, endIdx));
                 }
             }
@@ -878,8 +1125,11 @@ function resetTraceFilter() {
     altimetryDragEdge = null;
     activeSelectionType = null;
     currentSelectionRange = null;
+    currentSelectionMetrics = null;
+    isShowingEffortDetail = false;
     setSelectionZonesDimmed(false);
     updateSelectionStreamButton();
+    document.getElementById('sidebar-content').innerHTML = '';
     
     // Clear selection highlights from chart
     if (d3AltimetryState && d3AltimetryState.drawSelectionVisual) {
@@ -2047,12 +2297,20 @@ window.addEventListener('storage', function(e) {
 });
 
 document.getElementById('sidebar-close').addEventListener('click', () => {
-    removeActiveEffortLayer();
-    activeEffortIdx = null;
-    activeSelectionType = null;
-    setSelectionZonesDimmed(false);
-    resetChartHighlight();
-    document.getElementById('sidebar-content').innerHTML = '';
+    if (isShowingEffortDetail && currentSelectionMetrics) {
+        // If showing effort detail with valid selection metrics, restore the metrics
+        closeEffortDetailAndShowSelection();
+    } else {
+        // Otherwise, clear everything
+        removeActiveEffortLayer();
+        activeEffortIdx = null;
+        activeSelectionType = null;
+        setSelectionZonesDimmed(false);
+        resetChartHighlight();
+        document.getElementById('sidebar-content').innerHTML = '';
+        currentSelectionMetrics = null;
+        isShowingEffortDetail = false;
+    }
 });
 
 const streamSelectionBtn = document.getElementById('streamSelectionBtn');
