@@ -41,6 +41,15 @@ const chartData = chart_data_json || { efforts: [], sprints: [], cp: 0, weight: 
 let d3AltimetryState = null;
 let currentSelectionMetrics = null;  // Store metrics for current manual selection
 let isShowingEffortDetail = false;  // True when effort is shown (covers selection metrics)
+let currentFullRideMetrics = null;   // Store metrics for full ride fallback in sidebar
+
+function segmentStartsWithinSelection(segmentStartDist) {
+    if (!currentSelectionRange) return true;
+    const selStart = Math.min(Number(currentSelectionRange.startDist || 0), Number(currentSelectionRange.endDist || 0));
+    const selEnd = Math.max(Number(currentSelectionRange.startDist || 0), Number(currentSelectionRange.endDist || 0));
+    const start = Number(segmentStartDist);
+    return Number.isFinite(start) && start >= selStart && start <= selEnd;
+}
 
 function applyChartVisibilityFilters() {
     if (!d3AltimetryState || !d3AltimetryState.root) return;
@@ -48,7 +57,9 @@ function applyChartVisibilityFilters() {
     d3AltimetryState.root.selectAll('.effort-segment').each(function(d) {
         const segment = elevationData.efforts[d.idx];
         const isSprint = segment && segment.type === 'sprint';
-        const shouldShow = isSprint ? showSprints : showEfforts;
+        const segStart = Array.isArray(segment?.distance) && segment.distance.length ? segment.distance[0] : NaN;
+        const startsInsideSelection = segmentStartsWithinSelection(segStart);
+        const shouldShow = (isSprint ? showSprints : showEfforts) && startsInsideSelection;
         const isSelected = activeEffortIdx === d.idx;
         d3.select(this)
             .style('display', shouldShow ? null : 'none')
@@ -266,8 +277,7 @@ function buildSelectionStreamPayload() {
     };
 }
 
-function calculateSelectionMetrics() {
-    if (!currentSelectionRange) return null;
+function calculateMetricsForRange(s, e) {
 
     const timeSec = Array.isArray(elevationData.time_sec) ? elevationData.time_sec : [];
     const power = Array.isArray(elevationData.power) ? elevationData.power : [];
@@ -276,8 +286,6 @@ function calculateSelectionMetrics() {
     const distances = Array.isArray(elevationData.distance) ? elevationData.distance : [];
     const altitudes = Array.isArray(elevationData.altitude) ? elevationData.altitude : [];
 
-    const s = currentSelectionRange.startIdx;
-    const e = currentSelectionRange.endIdx;
     if (e <= s || e >= power.length) return null;
 
     // Duration
@@ -323,8 +331,29 @@ function calculateSelectionMetrics() {
     const avgWkg = weight > 0 ? (avgPower / weight).toFixed(2) : 0;
     const peak5sWkg = weight > 0 ? (peak5s / weight).toFixed(2) : 0;
 
-    // Speed
+    // Speed: keep average from distance/time, derive max from smoothed point-to-point speed
     const avgSpeed = durationSec > 0 ? (distTot / (durationSec / 3600)).toFixed(1) : 0;
+    const rawSpeed = [0];
+    for (let i = s + 1; i <= e; i++) {
+        const dt = Number(timeSec[i] || 0) - Number(timeSec[i - 1] || 0);
+        const dd = Number(distances[i] || 0) - Number(distances[i - 1] || 0);
+        if (dt > 0 && dd >= 0) {
+            const speedKmh = dd / (dt / 3600);
+            // Drop impossible spikes caused by timestamp/GPS noise.
+            rawSpeed.push(Number.isFinite(speedKmh) && speedKmh <= 110 ? speedKmh : 0);
+        } else {
+            rawSpeed.push(0);
+        }
+    }
+
+    const win = Math.min(3, rawSpeed.length);
+    const smoothSpeed = rawSpeed.map((_, i) => {
+        const start = Math.max(0, i - Math.floor(win / 2));
+        const end = Math.min(rawSpeed.length, i + Math.floor(win / 2) + 1);
+        const slice = rawSpeed.slice(start, end);
+        return slice.length ? (slice.reduce((a, b) => a + b, 0) / slice.length) : 0;
+    });
+    const maxSpeed = Number((smoothSpeed.length ? Math.max(...smoothSpeed) : 0).toFixed(1));
 
     // Grade
     const avgGrade = distTot > 0 ? ((elevationGain / (distTot * 1000)) * 100).toFixed(1) : 0;
@@ -401,6 +430,7 @@ function calculateSelectionMetrics() {
         avgHr,
         maxHr,
         avgSpeed,
+        maxSpeed,
         avgGrade,
         maxGrade,
         vam,
@@ -421,6 +451,11 @@ function calculateSelectionMetrics() {
         diffWkg,
         percErr,
     };
+}
+
+function calculateSelectionMetrics() {
+    if (!currentSelectionRange) return null;
+    return calculateMetricsForRange(currentSelectionRange.startIdx, currentSelectionRange.endIdx);
 }
 
 function format_time_mmss(seconds) {
@@ -487,7 +522,7 @@ function buildSelectionMetricsCard(metrics) {
     return `
         <div class="selected-header">
             <div>
-                <div class="selected-title">🔍 Selection Metrics</div>
+                <div class="selected-title">${m.cardTitle || '🔍 Selection'}</div>
                 <div class="selected-subtitle-line">${m.distDisplay} km · ${m.elevationDisplay}m ↑</div>
                 <div class="selected-subtitle-line">${m.durationDisplay}</div>
                 <div class="selected-power">${m.avgPower}W <span>(${m.avgWkg} W/kg)</span></div>
@@ -503,9 +538,8 @@ function buildSelectionMetricsCard(metrics) {
                 <div class="metric-row"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${m.avgWattsFirst}/${m.avgWattsSecond} · ${m.wattsRatio}</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${m.avgHr > 0 ? `${m.avgHr} bpm` : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">🔺 HR Max</span><span class="metric-value">${m.maxHr > 0 ? `${m.maxHr} bpm` : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${m.avgSpeed} km/h</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${m.avgHr > 0 ? `${m.avgHr} bpm · 🔺${m.maxHr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${m.avgSpeed} km/h · 🔺${m.maxSpeed} km/h</span></div>
                 <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${m.avgGrade}% · 🔺${m.maxGrade}%</span></div>
                 ${vamSection}
             </div>
@@ -554,8 +588,7 @@ function buildEffortSidebarCard(e) {
                 <div class="metric-row"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${e.avg_watts_first}/${e.avg_watts_second} · ${e.watts_ratio}</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${e.avg_hr > 0 ? `${e.avg_hr} bpm` : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">🔺 HR Max</span><span class="metric-value">${e.max_hr > 0 ? `${e.max_hr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${e.avg_hr > 0 ? `${e.avg_hr} bpm · 🔺${e.max_hr > 0 ? e.max_hr : '-'} bpm` : '-'}</span></div>
                 <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${e.avg_speed} km/h</span></div>
                 <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${e.avg_grade}% · 🔺${e.max_grade}%</span></div>
                 ${vamSection}
@@ -605,9 +638,8 @@ function buildSprintSidebarCard(s) {
                 <div class="metric-row"><span class="metric-label">🌀 Avg Cad.</span><span class="metric-value">${s.avg_cadence > 0 ? `${s.avg_cadence} rpm` : '-'}</span></div>
                 <div class="metric-row"><span class="metric-label">🌀 Min/Max</span><span class="metric-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
                 ${torqRows}
-                <div class="metric-row"><span class="metric-label">❤️ HR Max</span><span class="metric-value">${s.max_hr > 0 ? `${s.max_hr} bpm` : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">❤️ HR Min</span><span class="metric-value">${s.min_hr > 0 ? `${s.min_hr} bpm` : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${s.avg_grade}% · max ${s.max_grade}%</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${s.max_hr > 0 ? `${s.min_hr > 0 ? s.min_hr : '-'} bpm · 🔺${s.max_hr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${s.avg_grade}% · 🔺${s.max_grade}%</span></div>
             </div>
             <div class="metric-col">
                 <div class="metric-row"><span class="metric-label">➡️ Speed Start</span><span class="metric-value">${s.v1 > 0 ? `${s.v1} km/h` : '-'}</span></div>
@@ -682,8 +714,27 @@ function removeActiveEffortLayer() {
 
 function showSelectionMetricsCard() {
     if (!currentSelectionMetrics) return;
+    currentSelectionMetrics.cardTitle = '🔍 Selection';
     const html = buildSelectionMetricsCard(currentSelectionMetrics);
     document.getElementById('sidebar-content').innerHTML = html;
+    isShowingEffortDetail = false;
+}
+
+function showFullRideMetricsCard() {
+    const distances = Array.isArray(elevationData.distance) ? elevationData.distance : [];
+    if (distances.length < 2) {
+        document.getElementById('sidebar-content').innerHTML = '';
+        return;
+    }
+
+    currentFullRideMetrics = calculateMetricsForRange(0, distances.length - 1);
+    if (!currentFullRideMetrics) {
+        document.getElementById('sidebar-content').innerHTML = '';
+        return;
+    }
+
+    currentFullRideMetrics.cardTitle = '🚴 Full Ride';
+    document.getElementById('sidebar-content').innerHTML = buildSelectionMetricsCard(currentFullRideMetrics);
     isShowingEffortDetail = false;
 }
 
@@ -693,7 +744,8 @@ function closeEffortDetailAndShowSelection() {
     activeSelectionType = null;
     setSelectionZonesDimmed(false);
     resetChartHighlight();
-    showSelectionMetricsCard();
+    if (currentSelectionMetrics) showSelectionMetricsCard();
+    else showFullRideMetricsCard();
 }
 
 // D3 altimetry chart state holder
@@ -1082,13 +1134,14 @@ function filterTraceByDistance(startDist, endDist) {
         );
     }
     
-    // Hide/show effort markers based on their distance range
-    effortMarkers.forEach(({ marker, effortData, startDist: effortStart, endDist: effortEnd }) => {
-        // Check if effort overlaps with selected range
-        const effortOverlaps = !(effortEnd < startDist || effortStart > endDist);
+    // Hide/show effort markers: show only if the segment START is inside selected range
+    effortMarkers.forEach(({ marker, startDist: effortStart }) => {
+        const startsInsideSelection = Number(effortStart) >= Number(startDist) && Number(effortStart) <= Number(endDist);
         const markerElement = marker.getElement();
-        markerElement.style.display = effortOverlaps ? 'flex' : 'none';
+        markerElement.style.display = startsInsideSelection ? 'flex' : 'none';
     });
+
+    applyChartVisibilityFilters();
     
     // Fit view to filtered segment
     const bounds = filteredCoords.reduce((bounds, coord) => {
@@ -1129,7 +1182,8 @@ function resetTraceFilter() {
     isShowingEffortDetail = false;
     setSelectionZonesDimmed(false);
     updateSelectionStreamButton();
-    document.getElementById('sidebar-content').innerHTML = '';
+    showFullRideMetricsCard();
+    applyChartVisibilityFilters();
     
     // Clear selection highlights from chart
     if (d3AltimetryState && d3AltimetryState.drawSelectionVisual) {
@@ -2319,3 +2373,4 @@ if (streamSelectionBtn) {
 }
 
 map.on('load', () => { updateStyleName(); });
+showFullRideMetricsCard();
