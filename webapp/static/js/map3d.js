@@ -30,35 +30,29 @@ let currentEfforts = efforts_data_json;
 let altimetryMarker = null;
 let altimetrySelection = { start: null, end: null };
 let isAltimetrySelecting = false;
+let altimetryDragEdge = null;
+let altimetrySelectionBeforeDrag = null;
 let originalTracceGeoJSON = JSON.parse(JSON.stringify(geojson_str));
 let lastAltimetryUpdate = 0;
 let effortMarkers = [];  // Store effort marker references
 let showEfforts = true;  // Toggle for efforts visibility
 let showSprints = true;  // Toggle for sprints visibility
 const chartData = chart_data_json || { efforts: [], sprints: [], cp: 0, weight: 0, intensity_zones: [], torque_available: false };
+let d3AltimetryState = null;
 
 function applyChartVisibilityFilters() {
-    if (!elevationChartInstance) return;
+    if (!d3AltimetryState || !d3AltimetryState.root) return;
 
-    const option = elevationChartInstance.getOption();
-    if (!option.series || option.series.length <= 1) return;
-
-    option.series.forEach((series, i) => {
-        if (i === 0) return; // Base altitude series
-
-        const segment = elevationData.efforts[i - 1];
+    d3AltimetryState.root.selectAll('.effort-segment').each(function(d) {
+        const segment = elevationData.efforts[d.idx];
         const isSprint = segment && segment.type === 'sprint';
         const shouldShow = isSprint ? showSprints : showEfforts;
-
-        series.lineStyle = series.lineStyle || {};
-        series.itemStyle = series.itemStyle || {};
-        series.lineStyle.width = shouldShow ? 3 : 0;
-        series.lineStyle.opacity = shouldShow ? 1 : 0;
-        series.itemStyle.opacity = shouldShow ? 1 : 0;
-        series.silent = !shouldShow;
+        const isSelected = activeEffortIdx === d.idx;
+        d3.select(this)
+            .style('display', shouldShow ? null : 'none')
+            .attr('stroke-width', isSelected ? 4 : 3)
+            .attr('stroke-opacity', isSelected ? 1 : 1);
     });
-
-    elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
 }
 
 function setSelectionZonesDimmed(isDimmed) {
@@ -465,358 +459,349 @@ function removeActiveEffortLayer() {
     activeEffortLayer = null;
 }
 
-// ECharts elevation chart instance
+// D3 altimetry chart state holder
 let elevationChartInstance = null;
 
 function drawFullElevationChart() {
     const container = document.getElementById('elevation-chart');
-    if (!elevationChartInstance) {
-        elevationChartInstance = echarts.init(container);
-    }
+    const resizeHandle = document.getElementById('resize-handle');
+    if (!container || !resizeHandle) return;
 
-    // Calculate min/max with fixed aspect ratio (professional cycling software approach)
-    const elevations = elevationData.altitude;
-    const minAlt = Math.min(...elevations);
-    const maxAlt = Math.max(...elevations);
-    const distances = elevationData.distance;
-    const maxDist = Math.max(...distances);
-    
-    // INTERVALS.ICU APPROACH: elevation gain driven, not aspect ratio
+    if (d3AltimetryState && d3AltimetryState.cleanup) d3AltimetryState.cleanup();
+
+    container.querySelectorAll('svg').forEach((n) => n.remove());
+    const hoverTip = container.querySelector('.altimetry-hover-tip');
+    if (hoverTip) hoverTip.remove();
+    container.appendChild(resizeHandle);
+
+    const rect = container.getBoundingClientRect();
+    const width = Math.max(320, Math.floor(rect.width));
+    const height = Math.max(120, Math.floor(rect.height));
+    const margin = { top: 16, right: 16, bottom: 26, left: 56 };
+    const innerW = Math.max(10, width - margin.left - margin.right);
+    const innerH = Math.max(10, height - margin.top - margin.bottom);
+
+    const distances = elevationData.distance || [];
+    const altitudes = elevationData.altitude || [];
+    if (!distances.length || !altitudes.length) return;
+
+    const minAlt = Math.min(...altitudes);
+    const maxAlt = Math.max(...altitudes);
     const elevationGain = maxAlt - minAlt;
-    
-    // PADDING: fixed values, but smart about going negative
-    const paddingTop = 300;    // fisso +300m
-    // paddingBottom: max 100m, but don't go below 0 unless altitude is actually negative
+    const paddingTop = 300;
     const paddingBottom = minAlt >= 100 ? 100 : Math.max(0, minAlt * 0.5);
-    
-    // Y RANGE: based on actual elevation gain
-    // rangeY ≈ max(elevGain × 1.5, elevGain + 200), capped at 3000m
-    const rangeY_base = Math.max(elevationGain * 1.5, elevationGain + 200);
-    const rangeY_final = Math.min(rangeY_base + paddingBottom + paddingTop, 3000);
-    
-    // ROUND values to nice numbers (no 137m nonsense)
-    const roundTo = 50; // arrotonda a multipli di 50m
+    const rangeYBase = Math.max(elevationGain * 1.5, elevationGain + 200);
+    const rangeYFinal = Math.min(rangeYBase + paddingBottom + paddingTop, 3000);
+    const roundTo = 50;
     const yMin = Math.floor((minAlt - paddingBottom) / roundTo) * roundTo;
-    const yMax = Math.ceil((yMin + rangeY_final) / roundTo) * roundTo;
+    const yMax = Math.ceil((yMin + rangeYFinal) / roundTo) * roundTo;
+    const xMax = Math.max(...distances);
 
-    // Prepare series data
-    const seriesData = [
-        {
-            name: 'Altitudine',
-            data: elevationData.distance.map((dist, idx) => [dist, elevationData.altitude[idx]]),
-            type: 'line',
-            smooth: false,
-            stroke: 'none',
-            symbolSize: 0,
-            lineStyle: { color: '#9ca3af', width: 1 },
-            areaStyle: { color: 'rgba(156, 163, 175, 0.3)' },
-            markArea: { data: [] },
-            markLine: { data: [], symbol: 'none', label: { show: false } },
-            z: 1
-        }
-    ];
+    const xScale = d3.scaleLinear().domain([0, xMax]).range([0, innerW]);
+    const yScale = d3.scaleLinear().domain([yMin, yMax]).range([innerH, 0]);
 
-    // Add effort lines
+    const svg = d3.select(container)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('display', 'block')
+        .style('background', 'rgba(15, 23, 42, 0.95)');
+
+    const root = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    root.append('path')
+        .datum(distances.map((d, i) => ({ d, a: altitudes[i] })))
+        .attr('fill', 'rgba(156, 163, 175, 0.3)')
+        .attr('stroke', 'none')
+        .attr('d', d3.area().x((p) => xScale(p.d)).y0(innerH).y1((p) => yScale(p.a)));
+
+    root.append('path')
+        .datum(distances.map((d, i) => ({ d, a: altitudes[i] })))
+        .attr('fill', 'none')
+        .attr('stroke', '#9ca3af')
+        .attr('stroke-width', 1)
+        .attr('d', d3.line().x((p) => xScale(p.d)).y((p) => yScale(p.a)));
+
+    const segmentLayer = root.append('g').attr('class', 'segment-layer');
     elevationData.efforts.forEach((effort, idx) => {
-        seriesData.push({
-            name: `${effort.type === 'sprint' ? 'Sprint' : 'Effort'} #${idx + 1}`,
-            data: effort.distance.map((dist, i) => [dist, effort.altitude[i]]),
-            type: 'line',
-            smooth: false,
-            symbolSize: 0,
-            lineStyle: { color: effort.color, width: 3 },
-            itemStyle: { opacity: 1 },
-            z: 2
-        });
+        const pts = (effort.distance || []).map((d, i) => ({ d, a: (effort.altitude || [])[i] }));
+        segmentLayer.append('path')
+            .datum({ idx, type: effort.type || 'effort' })
+            .attr('class', 'effort-segment')
+            .attr('data-idx', String(idx))
+            .attr('fill', 'none')
+            .attr('stroke', effort.color || '#60a5fa')
+            .attr('stroke-width', 3)
+            .attr('stroke-opacity', 1)
+            .attr('d', d3.line().x((p) => xScale(p.d)).y((p) => yScale(p.a))(pts));
     });
 
-    const option = {
-        tooltip: {
-            trigger: 'axis',
-            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-            borderColor: 'rgba(255, 255, 255, 0.2)',
-            textStyle: { color: '#9ca3af', fontSize: 11 },
-            formatter: function(params) {
-                if (params.length === 0) return '';
-                // Find the closest non-altitude series (effort line)
-                let relevantParam = null;
-                for (let p of params) {
-                    if (p.seriesType === 'line' && p.seriesName !== 'Altitudine') {
-                        relevantParam = p;
-                        break;
-                    }
-                }
-                // If no effort found, use altitude
-                if (!relevantParam) {
-                    relevantParam = params[0];
-                }
-                
-                if (relevantParam.seriesType === 'line') {
-                    const dist = relevantParam.value[0].toFixed(2);
-                    const alt = relevantParam.value[1].toFixed(0);
-                    const seriesName = relevantParam.seriesName;
-                    
-                    // Format based on series type
-                    if (seriesName === 'Altitudine') {
-                        return `Distanza: ${dist} km<br>Altitudine: ${alt} m`;
-                    } else {
-                        return `<b>⚡ ${seriesName}</b><br>Distanza: ${dist} km<br>Altitudine: ${alt} m`;
-                    }
-                }
-                return '';
-            }
-        },
-        grid: {
-            left: 60,
-            right: 20,
-            top: 20,
-            bottom: 30,
-            containLabel: true
-        },
-        xAxis: {
-            type: 'value',
-            name: 'Distanza (km)',
-            nameLocation: 'middle',
-            nameGap: 25,
-            nameTextStyle: { color: '#9ca3af', fontSize: 10 },
-            min: 0,
-            max: maxDist,
-            axisLabel: { 
-                color: '#9ca3af', 
-                fontSize: 10,
-                formatter: function(value) { return value.toFixed(1); }
-            },
-            axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-            splitLine: { show: false },
-            boundaryGap: false
-        },
-        yAxis: {
-            type: 'value',
-            name: 'Altitudine (m)',
-            nameLocation: 'middle',
-            nameGap: 40,
-            nameTextStyle: { color: '#9ca3af', fontSize: 10 },
-            min: yMin,
-            max: yMax,
-            axisLabel: { color: '#9ca3af', fontSize: 10 },
-            axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-            splitLine: { show: false },
-            boundaryGap: false
-        },
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-        hoverLayerThreshold: Infinity,
-        series: seriesData
-    };
+    const selLayer = root.append('g').attr('class', 'selection-layer');
+    const selRect = selLayer.append('rect')
+        .attr('y', 0)
+        .attr('height', innerH)
+        .attr('fill', 'rgba(59, 130, 246, 0.2)')
+        .attr('stroke', 'rgba(59, 130, 246, 0.5)')
+        .attr('stroke-width', 1)
+        .style('display', 'none');
 
-    elevationChartInstance.setOption(option);
-    applyChartVisibilityFilters();
-    
-    // Always clean up old listeners
-    const chartContainer = document.getElementById('elevation-chart');
-    if (chartContainer._handleMouseMove) {
-        chartContainer.removeEventListener('mousemove', chartContainer._handleMouseMove);
-    }
-    if (chartContainer._handleMouseDown) {
-        chartContainer.removeEventListener('mousedown', chartContainer._handleMouseDown);
-    }
-    if (chartContainer._handleMouseLeave) {
-        chartContainer.removeEventListener('mouseleave', chartContainer._handleMouseLeave);
-    }
-    if (chartContainer._handleMouseUp) {
-        document.removeEventListener('mouseup', chartContainer._handleMouseUp);
-    }
-    if (chartContainer._handleDoubleClick) {
-        chartContainer.removeEventListener('dblclick', chartContainer._handleDoubleClick);
-    }
-    
-    // Add fresh listeners - simplified to avoid marker errors
-    const handleMouseMove = (e) => {
-        if (!elevationChartInstance) return;
+    const xAxis = d3.axisBottom(xScale).ticks(8).tickFormat((v) => Number(v).toFixed(1));
+    const yAxis = d3.axisLeft(yScale).ticks(5);
+    root.append('g').attr('transform', `translate(0,${innerH})`).call(xAxis)
+        .call((g) => g.selectAll('text').attr('fill', '#9ca3af').attr('font-size', 10))
+        .call((g) => g.selectAll('line,path').attr('stroke', 'rgba(255,255,255,0.1)'));
+    root.append('g').call(yAxis)
+        .call((g) => g.selectAll('text').attr('fill', '#9ca3af').attr('font-size', 10))
+        .call((g) => g.selectAll('line,path').attr('stroke', 'rgba(255,255,255,0.1)'));
 
-        const rect = chartContainer.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
-        
-        try {
-            const pointInGrid = elevationChartInstance.convertFromPixel('grid', [x, y]);
-            if (pointInGrid && pointInGrid[0] !== undefined) {
-                if (isAltimetrySelecting) {
-                    altimetrySelection.end = pointInGrid[0];
-                } else {
-                    updateAltimetryMarkerByDistance(pointInGrid[0]);
-                }
+    const hoverLine = root.append('line')
+        .attr('y1', 0).attr('y2', innerH)
+        .attr('stroke', 'rgba(203,213,225,0.6)')
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '3,3')
+        .style('display', 'none');
+
+    const hoverTipEl = document.createElement('div');
+    hoverTipEl.className = 'altimetry-hover-tip';
+    hoverTipEl.style.position = 'absolute';
+    hoverTipEl.style.pointerEvents = 'none';
+    hoverTipEl.style.display = 'none';
+    hoverTipEl.style.background = 'rgba(15,23,42,0.92)';
+    hoverTipEl.style.border = '1px solid rgba(255,255,255,0.15)';
+    hoverTipEl.style.color = '#cbd5e1';
+    hoverTipEl.style.fontSize = '11px';
+    hoverTipEl.style.padding = '4px 6px';
+    hoverTipEl.style.borderRadius = '6px';
+    container.appendChild(hoverTipEl);
+
+    function getDistanceAtPixel(clientX) {
+        const cRect = container.getBoundingClientRect();
+        const xLocal = clientX - cRect.left - margin.left;
+        const xClamped = Math.max(0, Math.min(innerW, xLocal));
+        return { distanceKm: xScale.invert(xClamped), xClamped };
+    }
+
+    function detectSelectionEdgeAtPixel(clientX) {
+        if (altimetrySelection.start == null || altimetrySelection.end == null) return null;
+        const cRect = container.getBoundingClientRect();
+        const xLocal = clientX - cRect.left - margin.left;
+        const sPx = xScale(Math.min(altimetrySelection.start, altimetrySelection.end));
+        const ePx = xScale(Math.max(altimetrySelection.start, altimetrySelection.end));
+        const ds = Math.abs(xLocal - sPx);
+        const de = Math.abs(xLocal - ePx);
+        const thr = 16;
+        if (ds > thr && de > thr) return null;
+        return ds <= de ? 'start' : 'end';
+    }
+
+    function getHoveredSegmentInfo(distanceKm) {
+        let best = null;
+        let bestSegment = null;
+        let bestDelta = Number.POSITIVE_INFINITY;
+
+        (currentEfforts || []).forEach((segment, idx) => {
+            const distArr = Array.isArray(segment.distance) ? segment.distance : [];
+            if (!distArr.length) return;
+
+            const segStart = Number(distArr[0]);
+            const segEnd = Number(distArr[distArr.length - 1]);
+            const s = Math.min(segStart, segEnd);
+            const e = Math.max(segStart, segEnd);
+            if (distanceKm < s || distanceKm > e) return;
+
+            const selected = findSelectedSegment(segment);
+            if (!selected) return;
+
+            const isSprint = selected.type === 'sprint';
+            const shouldShow = isSprint ? showSprints : showEfforts;
+            if (!shouldShow) return;
+
+            const center = (s + e) * 0.5;
+            const delta = Math.abs(distanceKm - center);
+            if (delta < bestDelta) {
+                bestDelta = delta;
+                best = selected;
+                bestSegment = segment;
             }
-        } catch(err) {
-            // Silently ignore
+        });
+
+        if (!best) return null;
+        const label = best.type === 'sprint'
+            ? `S#${best.data.rank}`
+            : `E#${best.data.id + 1}`;
+        const color = bestSegment?.color || '#60a5fa';
+        return { label, color };
+    }
+
+    function drawSelectionVisual() {
+        if (altimetrySelection.start == null || altimetrySelection.end == null) {
+            selRect.style('display', 'none');
+            return;
         }
-    };
-    
-    const handleMouseDown = (e) => {
-        if (!elevationChartInstance || !map.loaded()) return;
-        
-        const rect = chartContainer.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
-        
-        try {
-            const pointInGrid = elevationChartInstance.convertFromPixel('grid', [x, y]);
-            if (pointInGrid && pointInGrid[0] !== undefined) {
-                isAltimetrySelecting = true;
-                altimetrySelection.start = pointInGrid[0];
-                altimetrySelection.end = pointInGrid[0];
-                
-                // Hide hover marker when starting selection
-                clearAltimetryMarker();
-            }
-        } catch(err) {
-            console.warn('Error in altimetry mousedown:', err);
+        const s = Math.min(altimetrySelection.start, altimetrySelection.end);
+        const e = Math.max(altimetrySelection.start, altimetrySelection.end);
+        const sx = xScale(s);
+        const ex = xScale(e);
+        const w = Math.max(0, ex - sx);
+        if (w <= 0.5) {
+            selRect.style('display', 'none');
+            return;
         }
-    };
-    
-    const handleMouseLeave = () => {
-        if (!isAltimetrySelecting) clearAltimetryMarker();
-        if (elevationChartInstance) {
-            elevationChartInstance.dispatchAction({ type: 'hideTip' });
-        }
-        isAltimetrySelecting = false;
-    };
-    
-    const handleMouseUp = (e) => {
-        if (!isAltimetrySelecting) return;
-        
-        const rect = chartContainer.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        try {
-            if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
-                const pointInGrid = elevationChartInstance.convertFromPixel('grid', [x, y]);
-                if (pointInGrid && pointInGrid[0] !== undefined) {
-                    altimetrySelection.end = pointInGrid[0];
-                }
-            }
-        } catch(err) {
-            console.warn('Error in altimetry mouseup:', err);
-        }
-        
-        isAltimetrySelecting = false;
-        
-        if (Math.abs(altimetrySelection.start - altimetrySelection.end) > 0.5) {
+        selRect
+            .style('display', null)
+            .attr('x', sx)
+            .attr('width', w);
+    }
+
+    function commitSelectionOrRestore(dragEdgeAtRelease) {
+        const span = Math.abs((altimetrySelection.end ?? 0) - (altimetrySelection.start ?? 0));
+        if (span > 0.5) {
             const start = Math.min(altimetrySelection.start, altimetrySelection.end);
             const end = Math.max(altimetrySelection.start, altimetrySelection.end);
-            
-            // Show selection area after drag completes
-            if (elevationChartInstance) {
-                const option = elevationChartInstance.getOption();
-                if (option.series && option.series[0]) {
-                    option.series[0].markArea.data = [
-                        [
-                            { xAxis: start, itemStyle: { color: 'rgba(59, 130, 246, 0.2)', borderColor: 'rgba(59, 130, 246, 0.5)', borderWidth: 1 } },
-                            { xAxis: end }
-                        ]
-                    ];
-                    option.series[0].markLine.data = [];
-                    
-                    elevationChartInstance.setOption(option, { lazyUpdate: true });
-                }
-            }
-
             const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
             currentSelectionRange = { startDist: start, endDist: end, startIdx, endIdx };
             updateSelectionStreamButton();
-            
+            drawSelectionVisual();
             filterTraceByDistance(start, end);
-        } else {
-            // Clear all marks if selection is too small
-            if (elevationChartInstance) {
-                const option = elevationChartInstance.getOption();
-                if (option.series && option.series[0]) {
-                    option.series[0].markArea.data = [];
-                    option.series[0].markLine.data = [];
-                    elevationChartInstance.setOption(option, { lazyUpdate: true });
-                }
-            }
-            if (map.getSource('traccia-selected-zones')) {
-                map.getSource('traccia-selected-zones').setData(emptyFeatureCollection);
-            }
-            currentSelectionRange = null;
-            updateSelectionStreamButton();
+            return;
         }
-    };
-    
-    const handleDoubleClick = () => {
-        resetTraceFilter();
-    };
-    
-    // Update mousemove during selection to show range
-    const originalHandleMouseMove = handleMouseMove;
-    const enhancedHandleMouseMove = (e) => {
-        originalHandleMouseMove(e);
-        
-        if (!isAltimetrySelecting || !elevationChartInstance) return;
-        
-        const rect = chartContainer.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        try {
-            const pointInGrid = elevationChartInstance.convertFromPixel('grid', [x, y]);
-            if (pointInGrid && pointInGrid[0] !== undefined) {
-                altimetrySelection.end = pointInGrid[0];
-                
-                // Very aggressive throttling (200ms) to prevent lag while showing area highlight
-                const now = Date.now();
-                if (now - lastAltimetryUpdate > 10) {
-                    lastAltimetryUpdate = now;
-                    
-                    const start = Math.min(altimetrySelection.start, altimetrySelection.end);
-                    const end = Math.max(altimetrySelection.start, altimetrySelection.end);
-                    
-                    const option = elevationChartInstance.getOption();
-                    
-                    // Show area highlight during drag (same as static state)
-                    if (option.series && option.series[0]) {
-                        option.series[0].markArea.data = [
-                            [
-                                { xAxis: start, itemStyle: { color: 'rgba(59, 130, 246, 0.2)', borderColor: 'rgba(59, 130, 246, 0.5)', borderWidth: 1 } },
-                                { xAxis: end }
-                            ]
-                        ];
-                        option.series[0].markLine.data = [];
-                        
-                        elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
 
-                        // Real-time preview on map during drag.
-                        if (map.getSource('traccia-selected-zones')) {
-                            const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
-                            map.getSource('traccia-selected-zones').setData(
-                                buildZoneColoredSelectionGeoJSON(startIdx, endIdx)
-                            );
-                        }
-                    }
+        if (dragEdgeAtRelease && altimetrySelectionBeforeDrag) {
+            altimetrySelection.start = altimetrySelectionBeforeDrag.start;
+            altimetrySelection.end = altimetrySelectionBeforeDrag.end;
+            drawSelectionVisual();
+            const start = Math.min(altimetrySelection.start, altimetrySelection.end);
+            const end = Math.max(altimetrySelection.start, altimetrySelection.end);
+            const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
+            currentSelectionRange = { startDist: start, endDist: end, startIdx, endIdx };
+            updateSelectionStreamButton();
+            filterTraceByDistance(start, end);
+            return;
+        }
+
+        altimetrySelection = { start: null, end: null };
+        drawSelectionVisual();
+        if (map.getSource('traccia-selected-zones')) {
+            map.getSource('traccia-selected-zones').setData(emptyFeatureCollection);
+        }
+        currentSelectionRange = null;
+        updateSelectionStreamButton();
+    }
+
+    const dragOverlay = root.append('rect')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', innerW)
+        .attr('height', innerH)
+        .attr('fill', 'transparent')
+        .style('cursor', 'crosshair');
+
+    const handleMouseMove = (ev) => {
+        const point = getDistanceAtPixel(ev.clientX);
+        const idx = findNearestDistanceIndex(point.distanceKm);
+
+        if (isAltimetrySelecting) {
+            if (altimetryDragEdge === 'start') altimetrySelection.start = point.distanceKm;
+            else altimetrySelection.end = point.distanceKm;
+
+            drawSelectionVisual();
+            const now = Date.now();
+            if (now - lastAltimetryUpdate > 30) {
+                lastAltimetryUpdate = now;
+                const start = Math.min(altimetrySelection.start, altimetrySelection.end);
+                const end = Math.max(altimetrySelection.start, altimetrySelection.end);
+                if (map.getSource('traccia-selected-zones')) {
+                    const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
+                    map.getSource('traccia-selected-zones').setData(buildZoneColoredSelectionGeoJSON(startIdx, endIdx));
                 }
             }
-        } catch(err) {
-            // Silently ignore
+            return;
+        }
+
+        const edge = detectSelectionEdgeAtPixel(ev.clientX);
+        dragOverlay.style('cursor', edge ? 'ew-resize' : 'crosshair');
+
+        if (idx >= 0) {
+            hoverLine.style('display', null).attr('x1', xScale(elevationData.distance[idx])).attr('x2', xScale(elevationData.distance[idx]));
+            hoverTipEl.style.display = 'block';
+            const segInfo = getHoveredSegmentInfo(point.distanceKm);
+            const distText = `${elevationData.distance[idx].toFixed(2)} km · ${Math.round(elevationData.altitude[idx])} m`;
+            hoverTipEl.style.color = '#cbd5e1';
+            if (segInfo) {
+                hoverTipEl.innerHTML = `<span style="color: ${segInfo.color}">${segInfo.label}</span> · ${distText}`;
+            } else {
+                hoverTipEl.textContent = distText;
+            }
+
+            const tipW = Math.ceil(hoverTipEl.getBoundingClientRect().width || 120);
+            const chartW = Math.ceil(container.getBoundingClientRect().width || width);
+            const rawLeft = margin.left + point.xClamped + 10;
+            const clampedLeft = Math.max(6, Math.min(chartW - tipW - 6, rawLeft));
+            hoverTipEl.style.left = `${clampedLeft}px`;
+            hoverTipEl.style.top = `${margin.top + 4}px`;
+            updateAltimetryMarkerByDistance(point.distanceKm);
         }
     };
-    
-    chartContainer.addEventListener('mousemove', enhancedHandleMouseMove);
-    chartContainer.addEventListener('mouseleave', handleMouseLeave);
-    chartContainer.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('mouseup', handleMouseUp);
-    chartContainer.addEventListener('dblclick', handleDoubleClick);
-    
-    // Store for cleanup
-    chartContainer._handleMouseMove = enhancedHandleMouseMove;
-    chartContainer._handleMouseDown = handleMouseDown;
-    chartContainer._handleMouseLeave = handleMouseLeave;
-    chartContainer._handleMouseUp = handleMouseUp;
-    chartContainer._handleDoubleClick = handleDoubleClick;
+
+    const handleMouseDown = (ev) => {
+        const point = getDistanceAtPixel(ev.clientX);
+        const edge = detectSelectionEdgeAtPixel(ev.clientX);
+        isAltimetrySelecting = true;
+        altimetryDragEdge = edge || 'end';
+        altimetrySelectionBeforeDrag = edge ? { start: altimetrySelection.start, end: altimetrySelection.end } : null;
+
+        if (edge === 'start') altimetrySelection.start = point.distanceKm;
+        else if (edge === 'end') altimetrySelection.end = point.distanceKm;
+        else {
+            altimetrySelection.start = point.distanceKm;
+            altimetrySelection.end = point.distanceKm;
+        }
+        clearAltimetryMarker();
+        drawSelectionVisual();
+    };
+
+    const handleMouseLeave = () => {
+        if (isAltimetrySelecting) return;
+        hoverLine.style('display', 'none');
+        hoverTipEl.style.display = 'none';
+        clearAltimetryMarker();
+    };
+
+    const handleMouseUp = (ev) => {
+        if (!isAltimetrySelecting) return;
+        const point = getDistanceAtPixel(ev.clientX);
+        if (altimetryDragEdge === 'start') altimetrySelection.start = point.distanceKm;
+        else altimetrySelection.end = point.distanceKm;
+
+        isAltimetrySelecting = false;
+        const dragEdgeAtRelease = altimetryDragEdge;
+        altimetryDragEdge = null;
+        altimetrySelectionBeforeDrag = altimetrySelectionBeforeDrag || null;
+        commitSelectionOrRestore(dragEdgeAtRelease);
+        altimetrySelectionBeforeDrag = null;
+    };
+
+    const handleDoubleClick = () => resetTraceFilter();
+
+    dragOverlay.on('mousemove', handleMouseMove)
+        .on('mousedown', handleMouseDown)
+        .on('mouseleave', handleMouseLeave)
+        .on('dblclick', handleDoubleClick);
+
+    const onDocMouseUp = (ev) => handleMouseUp(ev);
+    document.addEventListener('mouseup', onDocMouseUp);
+
+    drawSelectionVisual();
+    d3AltimetryState = {
+        root,
+        xScale,
+        drawSelectionVisual,
+        cleanup: () => {
+            document.removeEventListener('mouseup', onDocMouseUp);
+        }
+    };
+
+    applyChartVisibilityFilters();
 }
 
 function filterTraceByDistance(startDist, endDist) {
@@ -890,19 +875,15 @@ function resetTraceFilter() {
     // Reset selection
     altimetrySelection = { start: null, end: null };
     isAltimetrySelecting = false;
+    altimetryDragEdge = null;
     activeSelectionType = null;
     currentSelectionRange = null;
     setSelectionZonesDimmed(false);
     updateSelectionStreamButton();
     
     // Clear selection highlights from chart
-    if (elevationChartInstance) {
-        const option = elevationChartInstance.getOption();
-        if (option.series && option.series[0]) {
-            option.series[0].markArea.data = [];
-            option.series[0].markLine.data = [];
-            elevationChartInstance.setOption(option, { lazyUpdate: true });
-        }
+    if (d3AltimetryState && d3AltimetryState.drawSelectionVisual) {
+        d3AltimetryState.drawSelectionVisual();
     }
     
     // Restore original view
@@ -916,74 +897,32 @@ function resetTraceFilter() {
 }
 
 function highlightEffortInChart(idx) {
-    if (!elevationChartInstance) return;
-    
-    // Get current option and update series opacity/width
-    const option = elevationChartInstance.getOption();
-    
-    option.series.forEach((series, i) => {
-        if (i === 0) {
-            // Base altitude line - always visible
-            series.lineStyle.width = 1;
-            series.lineStyle.opacity = 1;
-        } else {
-            // Effort lines
-            const effortIdx = i - 1;
-            const segment = elevationData.efforts[effortIdx];
-            const isSprint = segment && segment.type === 'sprint';
-            const shouldShow = isSprint ? showSprints : showEfforts;
+    if (!d3AltimetryState || !d3AltimetryState.root) return;
 
-            if (!shouldShow) {
-                series.lineStyle.width = 0;
-                series.lineStyle.opacity = 0;
-                series.itemStyle = series.itemStyle || {};
-                series.itemStyle.opacity = 0;
-                series.silent = true;
-            } else if (effortIdx === idx) {
-                // Selected effort - make it thicker but not too much
-                series.lineStyle.width = 4;
-                series.lineStyle.opacity = 1;
-                series.itemStyle = series.itemStyle || {};
-                series.itemStyle.opacity = 1;
-                series.silent = false;
-            } else {
-                // Other efforts - keep them visible but slightly faded
-                series.lineStyle.width = 2;
-                series.lineStyle.opacity = 0.6;
-                series.itemStyle = series.itemStyle || {};
-                series.itemStyle.opacity = 1;
-                series.silent = false;
-            }
-        }
+    d3AltimetryState.root.selectAll('.effort-segment').each(function(d) {
+        const segment = elevationData.efforts[d.idx];
+        const isSprint = segment && segment.type === 'sprint';
+        const shouldShow = isSprint ? showSprints : showEfforts;
+        const selected = d.idx === idx;
+        d3.select(this)
+            .style('display', shouldShow ? null : 'none')
+            .attr('stroke-width', selected ? 4 : 2)
+            .attr('stroke-opacity', selected ? 1 : 0.6);
     });
-
-    elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
 }
 
 function resetChartHighlight() {
-    if (!elevationChartInstance) return;
-    
-    // Reset all series to default state
-    const option = elevationChartInstance.getOption();
-    
-    option.series.forEach((series, i) => {
-        if (i === 0 || series.name === 'Altitudine') {
-            series.lineStyle.width = 1;
-            series.lineStyle.opacity = 1;
-        } else {
-            const effortIdx = i - 1;
-            const segment = elevationData.efforts[effortIdx];
-            const isSprint = segment && segment.type === 'sprint';
-            const shouldShow = isSprint ? showSprints : showEfforts;
-            series.itemStyle = series.itemStyle || {};
-            series.lineStyle.width = shouldShow ? 3 : 0;
-            series.lineStyle.opacity = shouldShow ? 1 : 0;
-            series.itemStyle.opacity = shouldShow ? 1 : 0;
-            series.silent = !shouldShow;
-        }
-    });
+    if (!d3AltimetryState || !d3AltimetryState.root) return;
 
-    elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
+    d3AltimetryState.root.selectAll('.effort-segment').each(function(d) {
+        const segment = elevationData.efforts[d.idx];
+        const isSprint = segment && segment.type === 'sprint';
+        const shouldShow = isSprint ? showSprints : showEfforts;
+        d3.select(this)
+            .style('display', shouldShow ? null : 'none')
+            .attr('stroke-width', shouldShow ? 3 : 0)
+            .attr('stroke-opacity', shouldShow ? 1 : 0);
+    });
 }
 
 let isResizing = false;
@@ -1005,9 +944,7 @@ document.addEventListener('mousemove', (e) => {
     mapDiv.style.bottom = newHeight + 'px';
     mapDiv.style.height = 'calc(100% - ' + newHeight + 'px)';
     
-    if (elevationChartInstance) {
-        elevationChartInstance.resize();
-    }
+    drawFullElevationChart();
     if (map) {
         setTimeout(() => map.resize(), 0);
     }
