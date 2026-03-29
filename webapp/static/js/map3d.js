@@ -19,8 +19,12 @@ map.addControl(new maplibregl.NavigationControl());
 const tracceGeoJSON = geojson_str;
 const elevationData = elevation_data_json;
 
+const emptyFeatureCollection = { type: 'FeatureCollection', features: [] };
+let power5sCache = null;
+
 let activeEffortLayer = null;
 let activeEffortIdx = null;
+let activeSelectionType = null;
 let currentEfforts = efforts_data_json;
 let altimetryMarker = null;
 let altimetrySelection = { start: null, end: null };
@@ -54,6 +58,157 @@ function applyChartVisibilityFilters() {
     });
 
     elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
+}
+
+function setSelectionZonesDimmed(isDimmed) {
+    if (!map || !map.getLayer('traccia-selected-zones-line')) return;
+
+    if (isDimmed) {
+        map.setPaintProperty('traccia-selected-zones-line', 'line-width', 4);
+        map.setPaintProperty('traccia-selected-zones-line', 'line-opacity', 0.28);
+    } else {
+        map.setPaintProperty('traccia-selected-zones-line', 'line-width', 7);
+        map.setPaintProperty('traccia-selected-zones-line', 'line-opacity', 1);
+    }
+}
+
+function clearAltimetryMarker() {
+    if (altimetryMarker) {
+        altimetryMarker.remove();
+        altimetryMarker = null;
+    }
+}
+
+function ensureAltimetryMarker() {
+    if (altimetryMarker) return altimetryMarker;
+
+    const markerEl = document.createElement('div');
+    markerEl.style.width = '14px';
+    markerEl.style.height = '14px';
+    markerEl.style.borderRadius = '50%';
+    markerEl.style.background = '#f8fafc';
+    markerEl.style.border = '3px solid #ef4444';
+    markerEl.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.25), 0 2px 8px rgba(0,0,0,0.35)';
+    markerEl.style.pointerEvents = 'none';
+
+    altimetryMarker = new maplibregl.Marker({ element: markerEl, anchor: 'center' })
+        .setLngLat([center_lon, center_lat])
+        .addTo(map);
+
+    return altimetryMarker;
+}
+
+function findNearestDistanceIndex(distanceKm) {
+    const distances = elevationData.distance || [];
+    if (!distances.length) return -1;
+
+    let low = 0;
+    let high = distances.length - 1;
+    while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if (distances[mid] < distanceKm) low = mid + 1;
+        else high = mid;
+    }
+
+    const idx = low;
+    if (idx <= 0) return 0;
+    if (idx >= distances.length) return distances.length - 1;
+
+    const prev = idx - 1;
+    return Math.abs(distances[idx] - distanceKm) < Math.abs(distances[prev] - distanceKm) ? idx : prev;
+}
+
+function updateAltimetryMarkerByDistance(distanceKm) {
+    if (!map || !map.loaded()) return;
+
+    const idx = findNearestDistanceIndex(distanceKm);
+    if (idx < 0) return;
+
+    const coords = originalTracceGeoJSON?.features?.[0]?.geometry?.coordinates;
+    if (!coords || !coords[idx]) return;
+
+    ensureAltimetryMarker().setLngLat([coords[idx][0], coords[idx][1]]);
+}
+
+function computePower5sProfile() {
+    if (power5sCache) return power5sCache;
+
+    const power = Array.isArray(elevationData.power) ? elevationData.power : [];
+    const timeSec = Array.isArray(elevationData.time_sec) ? elevationData.time_sec : [];
+
+    if (!power.length || power.length !== timeSec.length) {
+        power5sCache = [];
+        return power5sCache;
+    }
+
+    // Time-based 5s moving average to handle non-uniform FIT sampling.
+    power5sCache = calculateTimeBasedMovingAverage(power, timeSec, 5);
+    return power5sCache;
+}
+
+function zoneColorForPower(watts) {
+    const cp = Number(chartData.cp || 0);
+    if (!cp || cp <= 0) return '#6b7280';
+    const pct = watts / cp * 100;
+    const zones = getIntensityZones();
+    for (const z of zones) {
+        if (pct >= z.min && (z.max === 999 || pct < z.max)) return z.color;
+    }
+    return '#6b7280';
+}
+
+function buildZoneColoredSelectionGeoJSON(startIdx, endIdx) {
+    const coords = originalTracceGeoJSON?.features?.[0]?.geometry?.coordinates || [];
+    const power5s = computePower5sProfile();
+    const features = [];
+
+    if (!coords.length || !power5s.length) {
+        return emptyFeatureCollection;
+    }
+
+    const first = Math.max(1, startIdx);
+    const last = Math.min(endIdx, Math.min(coords.length, power5s.length) - 1);
+
+    for (let i = first; i <= last; i++) {
+        const c0 = coords[i - 1];
+        const c1 = coords[i];
+        if (!c0 || !c1) continue;
+        features.push({
+            type: 'Feature',
+            properties: {
+                color: zoneColorForPower(Number(power5s[i] || 0)),
+                p5s: Number(power5s[i] || 0),
+            },
+            geometry: {
+                type: 'LineString',
+                coordinates: [c0, c1],
+            },
+        });
+    }
+
+    return { type: 'FeatureCollection', features };
+}
+
+function getDistanceRangeIndices(startDist, endDist) {
+    const distances = elevationData.distance || [];
+    let startIdx = 0;
+    let endIdx = Math.max(0, distances.length - 1);
+
+    for (let i = 0; i < distances.length; i++) {
+        if (distances[i] >= startDist) {
+            startIdx = i;
+            break;
+        }
+    }
+
+    for (let i = distances.length - 1; i >= 0; i--) {
+        if (distances[i] <= endDist) {
+            endIdx = i;
+            break;
+        }
+    }
+
+    return { startIdx, endIdx };
 }
 
 function format_time_mmss(seconds) {
@@ -207,6 +362,9 @@ function openEffortSidebar(idx) {
     const html = selected.type === 'effort'
         ? buildEffortSidebarCard(selected.data)
         : buildSprintSidebarCard(selected.data);
+
+    activeSelectionType = selected.type;
+    setSelectionZonesDimmed(selected.type === 'effort' || selected.type === 'sprint');
 
     document.getElementById('sidebar-content').innerHTML = html;
     
@@ -415,10 +573,7 @@ function drawFullElevationChart() {
     // Add fresh listeners - simplified to avoid marker errors
     const handleMouseMove = (e) => {
         if (!elevationChartInstance) return;
-        
-        // Only handle selection feedback, not hover marker
-        if (!isAltimetrySelecting) return;
-        
+
         const rect = chartContainer.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -428,7 +583,11 @@ function drawFullElevationChart() {
         try {
             const pointInGrid = elevationChartInstance.convertFromPixel('grid', [x, y]);
             if (pointInGrid && pointInGrid[0] !== undefined) {
-                altimetrySelection.end = pointInGrid[0];
+                if (isAltimetrySelecting) {
+                    altimetrySelection.end = pointInGrid[0];
+                } else {
+                    updateAltimetryMarkerByDistance(pointInGrid[0]);
+                }
             }
         } catch(err) {
             // Silently ignore
@@ -452,10 +611,7 @@ function drawFullElevationChart() {
                 altimetrySelection.end = pointInGrid[0];
                 
                 // Hide hover marker when starting selection
-                if (altimetryMarker) {
-                    altimetryMarker.remove();
-                    altimetryMarker = null;
-                }
+                clearAltimetryMarker();
             }
         } catch(err) {
             console.warn('Error in altimetry mousedown:', err);
@@ -463,10 +619,7 @@ function drawFullElevationChart() {
     };
     
     const handleMouseLeave = () => {
-        if (!isAltimetrySelecting && altimetryMarker) {
-            altimetryMarker.remove();
-            altimetryMarker = null;
-        }
+        if (!isAltimetrySelecting) clearAltimetryMarker();
         if (elevationChartInstance) {
             elevationChartInstance.dispatchAction({ type: 'hideTip' });
         }
@@ -524,6 +677,9 @@ function drawFullElevationChart() {
                     elevationChartInstance.setOption(option, { lazyUpdate: true });
                 }
             }
+            if (map.getSource('traccia-selected-zones')) {
+                map.getSource('traccia-selected-zones').setData(emptyFeatureCollection);
+            }
         }
     };
     
@@ -568,6 +724,14 @@ function drawFullElevationChart() {
                         option.series[0].markLine.data = [];
                         
                         elevationChartInstance.setOption(option, { lazyUpdate: true, silent: true });
+
+                        // Real-time preview on map during drag.
+                        if (map.getSource('traccia-selected-zones')) {
+                            const { startIdx, endIdx } = getDistanceRangeIndices(start, end);
+                            map.getSource('traccia-selected-zones').setData(
+                                buildZoneColoredSelectionGeoJSON(startIdx, endIdx)
+                            );
+                        }
                     }
                 }
             }
@@ -594,24 +758,7 @@ function filterTraceByDistance(startDist, endDist) {
     if (!map || !originalTracceGeoJSON || !originalTracceGeoJSON.features[0]) return;
     
     const originalCoords = originalTracceGeoJSON.features[0].geometry.coordinates;
-    const distances = elevationData.distance;
-    
-    // Find indices for the distance range
-    let startIdx = 0, endIdx = distances.length - 1;
-    
-    for (let i = 0; i < distances.length; i++) {
-        if (distances[i] >= startDist) {
-            startIdx = i;
-            break;
-        }
-    }
-    
-    for (let i = distances.length - 1; i >= 0; i--) {
-        if (distances[i] <= endDist) {
-            endIdx = i;
-            break;
-        }
-    }
+    const { startIdx, endIdx } = getDistanceRangeIndices(startDist, endDist);
     
     // Create filtered GeoJSON with only selected segment
     const filteredCoords = originalCoords.slice(startIdx, endIdx + 1);
@@ -629,6 +776,13 @@ function filterTraceByDistance(startDist, endDist) {
     // Update map source
     if (map.getSource('traccia')) {
         map.getSource('traccia').setData(filteredGeoJSON);
+    }
+
+    // Overlay selected section with zone colors based on 5s power.
+    if (map.getSource('traccia-selected-zones')) {
+        map.getSource('traccia-selected-zones').setData(
+            buildZoneColoredSelectionGeoJSON(startIdx, endIdx)
+        );
     }
     
     // Hide/show effort markers based on their distance range
@@ -651,14 +805,15 @@ function resetTraceFilter() {
     if (!map) return;
     
     // Clean up marker
-    if (altimetryMarker) {
-        altimetryMarker.remove();
-        altimetryMarker = null;
-    }
+    clearAltimetryMarker();
     
     // Restore original trace
     if (map.getSource('traccia')) {
         map.getSource('traccia').setData(originalTracceGeoJSON);
+    }
+
+    if (map.getSource('traccia-selected-zones')) {
+        map.getSource('traccia-selected-zones').setData(emptyFeatureCollection);
     }
     
     // Show all effort markers again
@@ -670,6 +825,8 @@ function resetTraceFilter() {
     // Reset selection
     altimetrySelection = { start: null, end: null };
     isAltimetrySelecting = false;
+    activeSelectionType = null;
+    setSelectionZonesDimmed(false);
     
     // Clear selection highlights from chart
     if (elevationChartInstance) {
@@ -849,6 +1006,26 @@ function addOverlays() {
             }
         });
     }
+
+    if (!map.getSource('traccia-selected-zones')) {
+        map.addSource('traccia-selected-zones', {
+            'type': 'geojson',
+            'data': emptyFeatureCollection
+        });
+    }
+
+    if (!map.getLayer('traccia-selected-zones-line')) {
+        map.addLayer({
+            'id': 'traccia-selected-zones-line',
+            'type': 'line',
+            'source': 'traccia-selected-zones',
+            'paint': {
+                'line-color': ['get', 'color'],
+                'line-width': 7,
+                'line-opacity': 1
+            }
+        });
+    }
 }
 
 map.on('load', () => {
@@ -875,6 +1052,7 @@ function applyStyle(newIndex) {
     const onStyle = () => {
         addTerrain();
         addOverlays();
+        setSelectionZonesDimmed(activeSelectionType === 'effort' || activeSelectionType === 'sprint');
         updateEffortVisibility();
         updateStyleName();
         map.off('styledata', onStyle);
@@ -1840,6 +2018,8 @@ window.addEventListener('storage', function(e) {
 document.getElementById('sidebar-close').addEventListener('click', () => {
     removeActiveEffortLayer();
     activeEffortIdx = null;
+    activeSelectionType = null;
+    setSelectionZonesDimmed(false);
     resetChartHighlight();
     document.getElementById('sidebar-content').innerHTML = '';
 });
