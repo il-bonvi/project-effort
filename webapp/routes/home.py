@@ -34,4 +34,8 @@ def setup_home_router(sessions_dict: Dict[str, Any], templates_dir: Path = None)
 @router.get("/")
 async def home(request: Request):
     """Home page with FIT file upload form"""
-    return _templates.TemplateResponse("home.html", {"request": request})
+    return _templates.TemplateResponse(
+        request=request,
+        name="home.html",
+        context={"request": request}
+    )

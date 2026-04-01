@@ -21,7 +21,7 @@ sys.path.insert(0, str(_project_root))
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from starlette.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates
 
 from utils.effort_analyzer import (
     format_time_hhmmss, format_time_mmss, get_zone_color
@@ -565,8 +565,9 @@ async def altimetria_d3_view(request: Request, session_id: str):
         # Return the D3 template
         logger.info(f"Altimetria D3 visualization generated for session {session_id}")
         return templates.TemplateResponse(
-            "altimetria_d3.html",
-            {
+            request=request,
+            name="altimetria_d3.html",
+            context={
                 "request": request,
                 "filename": session.get('filename', 'Unknown'),
                 "chart_data_json": chart_data_json,
