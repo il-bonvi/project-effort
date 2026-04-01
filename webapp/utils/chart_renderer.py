@@ -10,7 +10,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 import io
-from xhtml2pdf import pisa
 
 from .effort_analyzer import (
     format_time_hhmmss, format_time_mmss, get_zone_color
