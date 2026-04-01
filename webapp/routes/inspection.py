@@ -99,7 +99,11 @@ async def inspection_view(session_id: str, request: Request):
     # Add request for template context
     template_data['request'] = request
     
-    return _templates.TemplateResponse("inspection.html", template_data)
+    return _templates.TemplateResponse(
+        request=request,
+        name="inspection.html",
+        context=template_data
+    )
 
 
 # =============================================================================

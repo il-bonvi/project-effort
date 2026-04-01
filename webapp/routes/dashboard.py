@@ -58,8 +58,9 @@ async def dashboard_view(request: Request, session_id: str):
     stats = session.get('stats', {})
 
     return templates.TemplateResponse(
-        "dashboard.html",
-        {
+        request=request,
+        name="dashboard.html",
+        context={
             "request": request,
             "session_id": session_id,
             "session": session,
