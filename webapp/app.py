@@ -25,6 +25,7 @@ from routes.altimetria_d3 import (
     router as altimetria_d3_router, setup_altimetria_d3_router
 )
 from routes.map3d import router as map3d_router, setup_map3d_router
+from routes.map2d import router as map2d_router, setup_map2d_router
 from routes.api import router as api_router, setup_api_router
 
 # Configure logging
@@ -59,6 +60,7 @@ setup_dashboard_router(sessions)
 setup_inspection_router(sessions)
 setup_altimetria_d3_router(sessions)
 setup_map3d_router(sessions)
+setup_map2d_router(sessions)
 setup_api_router(sessions)
 
 # Register all routers with the FastAPI application
@@ -70,6 +72,7 @@ app.include_router(dashboard_router, tags=["dashboard"])
 app.include_router(inspection_router, tags=["inspection"])
 app.include_router(altimetria_d3_router, tags=["altimetria-d3"])
 app.include_router(map3d_router, tags=["map3d"])
+app.include_router(map2d_router, tags=["map2d"])
 app.include_router(api_router, tags=["api"])
 
 logger.info("PEFFORT Web Application initialized successfully!")
