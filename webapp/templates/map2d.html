@@ -320,6 +320,7 @@
     let activeSelectionType = null;
     let currentSelectionRange = null;
     let currentSelectionMetrics = null;
+    let currentFullRideMetrics = null;
     let isShowingEffortDetail = false;
     let altimetryMarker = null;
     let altimetrySelection = { start: null, end: null };
@@ -433,24 +434,6 @@
 
             const icon = L.divIcon({ html: iconHtml, className: '', iconSize: [30,30], iconAnchor: [15,15] });
             const marker = L.marker([coordStart[1], coordStart[0]], { icon });
-
-            const popupTitle = isSprint
-                ? `Sprint #${selected?.data?.rank ?? (idx+1)}`
-                : `Effort #${(selected?.data?.id ?? effort.id ?? idx)+1}`;
-            const popupPower = Number(selected?.data?.avg_power ?? effort.avg ?? 0);
-            const popupCad   = Number(selected?.data?.avg_cadence ?? effort.avg_cadence ?? 0);
-            const popupDur   = Number(selected?.data?.duration ?? effort.duration ?? 0);
-            const popupSpeed = Number(selected?.data?.avg_speed ?? effort.avg_speed ?? 0);
-
-            marker.bindPopup(`
-                <div style="padding:10px;font-size:12px;color:#9ca3af;background:rgba(15,23,42,.95);">
-                    <b style="color:#60a5fa;">${popupTitle}</b><br>
-                    <div style="border-top:1px solid rgba(255,255,255,.2);margin:6px 0;padding-top:6px;">
-                        <div><b>⚡ ${popupPower.toFixed(0)} W</b> | 🌀 ${popupCad.toFixed(0)} rpm</div>
-                        <div>⏱️ ${popupDur}s | 🚴‍♂️ ${popupSpeed.toFixed(1)} km/h</div>
-                    </div>
-                </div>
-            `);
 
             marker.on('click', function() {
                 openEffortSidebar(idx);
@@ -590,7 +573,8 @@
         if (highlightLayer) { map.removeLayer(highlightLayer); highlightLayer = null; }
         activeEffortIdx = null;
         isShowingEffortDetail = false;
-        document.getElementById('sidebar-content').innerHTML = '<div class="sidebar-empty"><div style="font-size:2rem;margin-bottom:12px;">🗺️</div><strong style="color:#e2e8f0;display:block;margin-bottom:8px;">2D Map</strong>Clicca su un marker effort/sprint per vedere i dettagli.</div>';
+        if (currentSelectionMetrics) showSelectionMetricsCard();
+        else showFullRideMetricsCard();
     }
 
     // ════════════════════════════════════════════════════════
@@ -742,6 +726,7 @@
         currentSelectionRange = null;
         currentSelectionMetrics = null;
         updateEffortVisibility();
+        if (!isShowingEffortDetail) showFullRideMetricsCard();
         if (d3AltimetryState?.drawSelectionVisual) d3AltimetryState.drawSelectionVisual();
         if (trackCoords.length > 0) map.fitBounds(L.latLngBounds(trackCoords), { padding: [40,40] });
     }
@@ -793,7 +778,7 @@
         return `
         <div class="selected-header">
             <div>
-                <div class="selected-title">🔍 Selection</div>
+                <div class="selected-title">${m.cardTitle || '🔍 Selection'}</div>
                 <div class="selected-subtitle-line">${m.distDisplay} km · ${m.elevationDisplay}m ↑</div>
                 <div class="selected-subtitle-line">${m.durationDisplay}</div>
                 <div class="selected-power">${m.avgPower}W <span>(${m.avgWkg} W/kg)</span></div>
@@ -821,7 +806,26 @@
 
     function showSelectionMetricsCard() {
         if (!currentSelectionMetrics) return;
+        currentSelectionMetrics.cardTitle = '🔍 Selection';
         document.getElementById('sidebar-content').innerHTML = buildSelectionMetricsCard(currentSelectionMetrics);
+        isShowingEffortDetail = false;
+    }
+
+    function showFullRideMetricsCard() {
+        const distances = Array.isArray(elevation_data_json.distance) ? elevation_data_json.distance : [];
+        if (distances.length < 2) {
+            document.getElementById('sidebar-content').innerHTML = '';
+            return;
+        }
+
+        currentFullRideMetrics = calculateMetricsForRange(0, distances.length - 1);
+        if (!currentFullRideMetrics) {
+            document.getElementById('sidebar-content').innerHTML = '';
+            return;
+        }
+
+        currentFullRideMetrics.cardTitle = '🚴 Full Ride';
+        document.getElementById('sidebar-content').innerHTML = buildSelectionMetricsCard(currentFullRideMetrics);
         isShowingEffortDetail = false;
     }
 
@@ -1088,6 +1092,7 @@
 
     drawFullElevationChart();
     map.invalidateSize();
+    showFullRideMetricsCard();
     setTimeout(refreshMap2DLayout, 120);
     </script>
 </body>
