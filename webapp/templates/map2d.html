@@ -389,6 +389,19 @@
         return null;
     }
 
+    function markerPassesTypeFilter(effortData) {
+        const selected = findSelectedSegment(effortData);
+        const isSprint = selected ? selected.type === 'sprint' : effortData.type === 'sprint';
+        return isSprint ? showSprints : showEfforts;
+    }
+
+    function markerPassesSelectionFilter(effortData) {
+        if (!currentSelectionRange) return true;
+        const startDist = Number(effortData?.distance?.[0]);
+        if (!Number.isFinite(startDist)) return false;
+        return startDist >= Number(currentSelectionRange.startDist) && startDist <= Number(currentSelectionRange.endDist);
+    }
+
     function updateEffortVisibility() {
         effortMarkers.forEach(({ marker }) => map.removeLayer(marker));
         effortMarkers = [];
@@ -400,7 +413,7 @@
         efforts_data_json.forEach(function(effort, idx) {
             const selected = findSelectedSegment(effort);
             const isSprint = selected ? selected.type === 'sprint' : effort.type === 'sprint';
-            if ((isSprint && !showSprints) || (!isSprint && !showEfforts)) return;
+            if (!markerPassesTypeFilter(effort) || !markerPassesSelectionFilter(effort)) return;
 
             const coordStart = coords[effort.pos];
             if (!coordStart) return;
@@ -707,9 +720,9 @@
         trackGlow.setLatLngs(filtered);
         drawSelectedZonePolylines(startIdx, endIdx);
 
-        effortMarkers.forEach(({ marker, startDist: effortStart }) => {
+        effortMarkers.forEach(({ marker, startDist: effortStart, effortData }) => {
             const inside = Number(effortStart) >= Number(startDist) && Number(effortStart) <= Number(endDist);
-            if (inside) marker.addTo(map); else map.removeLayer(marker);
+            if (inside && markerPassesTypeFilter(effortData)) marker.addTo(map); else map.removeLayer(marker);
         });
 
         if (filtered.length > 0) {
@@ -723,12 +736,12 @@
         trackLine.setLatLngs(trackCoords);
         trackCasing.setLatLngs(trackCoords);
         trackGlow.setLatLngs(trackCoords);
-        effortMarkers.forEach(({ marker }) => marker.addTo(map));
         altimetrySelection = { start: null, end: null };
         isAltimetrySelecting = false;
         altimetryDragEdge = null;
         currentSelectionRange = null;
         currentSelectionMetrics = null;
+        updateEffortVisibility();
         if (d3AltimetryState?.drawSelectionVisual) d3AltimetryState.drawSelectionVisual();
         if (trackCoords.length > 0) map.fitBounds(L.latLngBounds(trackCoords), { padding: [40,40] });
     }
@@ -1051,8 +1064,31 @@
         d3AltimetryState = { root, xScale, drawSelectionVisual: drawSel, cleanup: () => document.removeEventListener('mouseup', onDocUp) };
     }
 
+    function refreshMap2DLayout() {
+        drawFullElevationChart();
+        map.invalidateSize();
+    }
+
+    window.addEventListener('resize', () => {
+        setTimeout(refreshMap2DLayout, 40);
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            setTimeout(refreshMap2DLayout, 40);
+        }
+    });
+
+    window.addEventListener('message', (event) => {
+        if (event.origin !== window.location.origin) return;
+        if (event.data && event.data.type === 'map2d-resize') {
+            setTimeout(refreshMap2DLayout, 40);
+        }
+    });
+
     drawFullElevationChart();
     map.invalidateSize();
+    setTimeout(refreshMap2DLayout, 120);
     </script>
 </body>
 </html>
