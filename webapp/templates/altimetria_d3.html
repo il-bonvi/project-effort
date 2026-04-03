@@ -370,11 +370,12 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 </script>
 
 <script>
-// ── storage listener (same as ECharts version) ──────────────────────────────
-const updateSignalKey = `effort_update_signal_{{ session_id }}`;
-window.addEventListener('storage', function(event) {
-    if (event.key === updateSignalKey) { location.reload(); }
-});
+// ── inter-tab update listener ────────────────────────────────────────────────
+const effortUpdateChannel = new BroadcastChannel('peffort_{{ session_id }}');
+effortUpdateChannel.onmessage = function(event) {
+    if (event?.data?.type === 'efforts_updated') { location.reload(); }
+};
+window.addEventListener('beforeunload', () => effortUpdateChannel.close());
 </script>
 
 {% raw %}
@@ -1728,14 +1729,25 @@ function calculateMovingAverage(data, windowSize) {
 
 // ── Time-based moving average ────────────────────────────────────────────
 function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
-    const result = [];
-    for (let i = 0; i < timeData.length; i++) {
-        const c = timeData[i], lo = c - windowSeconds/2, hi = c + windowSeconds/2;
-        let sum = 0, cnt = 0;
-        for (let j = 0; j < timeData.length; j++) {
-            if (timeData[j] >= lo && timeData[j] <= hi) { sum += powerData[j]; cnt++; }
+    const n = Math.min(powerData.length, timeData.length);
+    if (!n) return [];
+    const result = new Array(n);
+    let lo = 0, hi = 0, sum = 0, cnt = 0;
+    for (let i = 0; i < n; i++) {
+        const c = timeData[i];
+        const winLo = c - windowSeconds / 2;
+        const winHi = c + windowSeconds / 2;
+        while (hi < n && timeData[hi] <= winHi) {
+            sum += powerData[hi];
+            cnt++;
+            hi++;
         }
-        result.push(cnt ? sum/cnt : powerData[i]);
+        while (lo < hi && timeData[lo] < winLo) {
+            sum -= powerData[lo];
+            cnt--;
+            lo++;
+        }
+        result[i] = cnt ? sum / cnt : powerData[i];
     }
     return result;
 }
@@ -2428,9 +2440,6 @@ function buildSprintStreamCharts() {
     // not exposed to the user. The view is locked to the sprint range.
 }
 
-
-// ── Legacy single chart (unused but kept for safety) ──────────────────────
-function buildD3Chart() {}
 
 // Modal event listeners - wrap in DOMContentLoaded to ensure elements exist
 function initializeModalListeners() {
