@@ -2364,16 +2364,6 @@ window.addEventListener('storage', function(e) {
     }
 });
 
-const interTabChannel = new BroadcastChannel(`peffort_${session_id}`);
-interTabChannel.onmessage = (e) => {
-    if (e?.data?.type === 'efforts_updated') {
-        location.reload();
-    }
-    if (e?.data?.type === 'zones_updated' && streamModalData) {
-        buildStreamChartsD3();
-    }
-};
-
 document.getElementById('sidebar-close').addEventListener('click', () => {
     if (isShowingEffortDetail && currentSelectionMetrics) {
         // If showing effort detail with valid selection metrics, restore the metrics

@@ -80,6 +80,7 @@
                 location.reload();
             }
         };
+        window.addEventListener('beforeunload', () => effortUpdateChannel.close());
     </script>
     <script src='/static/js/map3d.js?v=2026040301'></script>
 </body>

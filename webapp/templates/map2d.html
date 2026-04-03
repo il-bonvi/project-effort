@@ -240,6 +240,7 @@
         effortUpdateChannel.onmessage = (event) => {
             if (event?.data?.type === 'efforts_updated') { location.reload(); }
         };
+        window.addEventListener('beforeunload', () => effortUpdateChannel.close());
     </script>
     <script>
     // ════════════════════════════════════════════════════════

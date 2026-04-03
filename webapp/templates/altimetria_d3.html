@@ -375,6 +375,7 @@ const effortUpdateChannel = new BroadcastChannel('peffort_{{ session_id }}');
 effortUpdateChannel.onmessage = function(event) {
     if (event?.data?.type === 'efforts_updated') { location.reload(); }
 };
+window.addEventListener('beforeunload', () => effortUpdateChannel.close());
 </script>
 
 {% raw %}

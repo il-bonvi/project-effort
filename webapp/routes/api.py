@@ -1351,7 +1351,12 @@ async def export_html_report(session_id: str, request: Request = None):
                 pass  # No body or JSON parse error — keep defaults
 
         chart_data_json = json.dumps(chart_data)
-        safe_chart_data_json = chart_data_json.replace("</script>", "<\\/script>")
+        safe_chart_data_json = re.sub(
+            r"</script>",
+            r"<\\/script>",
+            chart_data_json,
+            flags=re.IGNORECASE
+        )
         filename = session.get('filename', 'Activity')
         filename_escaped = html_module.escape(filename)
 
