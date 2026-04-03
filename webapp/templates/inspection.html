@@ -1871,8 +1871,10 @@
                         saveStatus.textContent = `Modifiche applicate! ${result.total_efforts} efforts, ${result.total_sprints} sprints.`;
                         saveStatus.style.color = '#22c55e';
                         
-                        // Notify other tabs via localStorage
-                        localStorage.setItem('effort_update_signal_{{ session_id }}', Date.now().toString());
+                        // Notify other tabs via BroadcastChannel
+                        const channel = new BroadcastChannel('peffort_{{ session_id }}');
+                        channel.postMessage({ type: 'efforts_updated' });
+                        channel.close();
                         
                         setTimeout(() => {
                             saveBtn.textContent = '💾 Salva Modifiche';
