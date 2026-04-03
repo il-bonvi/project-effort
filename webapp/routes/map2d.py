@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from routes.altimetria_d3 import prepare_chart_data, convert_to_python_types
+from utils.effort_analyzer import format_time_hhmmss, format_time_mmss
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +98,20 @@ async def map2d_view(session_id: str):
         power_total   = df['power'].values.tolist()       if 'power'      in df.columns else [0.0]*len(df)
         hr_total      = df['heartrate'].values.tolist()   if 'heartrate'  in df.columns else [0.0]*len(df)
         cadence_total = df['cadence'].values.tolist()     if 'cadence'    in df.columns else [0.0]*len(df)
+        
+        # Format time values as HH:MM:SS or MM:SS
+        time_formatted = []
+        for t in time_total:
+            if t >= 3600:
+                time_formatted.append(format_time_hhmmss(t))
+            else:
+                time_formatted.append(format_time_mmss(t))
 
         elevation_graph_data = json.dumps({
             'distance':  dist_full.tolist(),
             'altitude':  alt_full.tolist(),
             'time_sec':  time_total,
+            'time':      time_formatted,
             'power':     power_total,
             'heartrate': hr_total,
             'cadence':   cadence_total,

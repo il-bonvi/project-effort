@@ -891,6 +891,7 @@
 
         const distances = elevation_data_json.distance || [];
         const altitudes = elevation_data_json.altitude || [];
+        const times = elevation_data_json.time || [];
         if (!distances.length || !altitudes.length) return;
 
         const minAlt = Math.min(...altitudes), maxAlt = Math.max(...altitudes);
@@ -1044,7 +1045,8 @@
             if (idx >= 0) {
                 hoverLine.style('display',null).attr('x1',xScale(distances[idx])).attr('x2',xScale(distances[idx]));
                 tipEl.style.display = 'block';
-                tipEl.textContent = `${distances[idx].toFixed(2)} km · ${Math.round(altitudes[idx])} m`;
+                const time = times && times[idx] ? times[idx] : '—';
+                tipEl.textContent = `${distances[idx].toFixed(2)} km · ${Math.round(altitudes[idx])} m · ${time}`;
                 const tipW = Math.ceil(tipEl.getBoundingClientRect().width || 120);
                 const chartW = Math.ceil(container.getBoundingClientRect().width || width);
                 const rawLeft = margin.left + point.xClamped + 10;
