@@ -18,6 +18,7 @@ map.addControl(new maplibregl.NavigationControl());
 
 const tracceGeoJSON = geojson_str;
 const elevationData = elevation_data_json;
+const elevationTimes = elevationData.time || [];
 
 const emptyFeatureCollection = { type: 'FeatureCollection', features: [] };
 let power5sCache = null;
@@ -1024,7 +1025,8 @@ function drawFullElevationChart() {
             hoverLine.style('display', null).attr('x1', xScale(elevationData.distance[idx])).attr('x2', xScale(elevationData.distance[idx]));
             hoverTipEl.style.display = 'block';
             const segInfo = getHoveredSegmentInfo(point.distanceKm);
-            const distText = `${elevationData.distance[idx].toFixed(2)} km · ${Math.round(elevationData.altitude[idx])} m`;
+            const time = elevationTimes && elevationTimes[idx] ? elevationTimes[idx] : '—';
+            const distText = `${elevationData.distance[idx].toFixed(2)} km · ${Math.round(elevationData.altitude[idx])} m · ${time}`;
             hoverTipEl.style.color = '#cbd5e1';
             if (segInfo) {
                 hoverTipEl.innerHTML = `<span style="color: ${segInfo.color}">${segInfo.label}</span> · ${distText}`;

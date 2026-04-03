@@ -114,6 +114,15 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
         hr_total = df['heartrate'].values.tolist() if 'heartrate' in df.columns else [0.0] * len(df)
         cadence_total = df['cadence'].values.tolist() if 'cadence' in df.columns else [0.0] * len(df)
         
+        # Format time values as HH:MM:SS or MM:SS
+        from .effort_analyzer import format_time_hhmmss, format_time_mmss
+        time_formatted = []
+        for t in time_total:
+            if t >= 3600:
+                time_formatted.append(format_time_hhmmss(t))
+            else:
+                time_formatted.append(format_time_mmss(t))
+        
         # Calculate total distance in km
         distance_km = float(np.max(dist_km_values_full)) if len(dist_km_values_full) > 0 else 0.0
         
@@ -131,6 +140,7 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
             'distance': dist_total, 
             'altitude': alt_total, 
             'time_sec': time_total,
+            'time': time_formatted,
             'power': power_total,
             'heartrate': hr_total,
             'cadence': cadence_total,
