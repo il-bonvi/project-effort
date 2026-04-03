@@ -54,15 +54,15 @@
             <option value='2'>Bright</option>
             <option value='3'>Hybrid</option>
         </select>
-        <button class='control-btn' id='toggleEfforts' onclick='toggleEfforts()'>👊 Efforts: ON</button>
-        <button class='control-btn' id='toggleSprints' onclick='toggleSprints()'>🏃 Sprints: ON</button>
-        <button class='control-btn' onclick='resetView()'>🎯 Reset View</button>
+        <button class='control-btn' id='toggleEfforts'>👊 Efforts: ON</button>
+        <button class='control-btn' id='toggleSprints'>🏃 Sprints: ON</button>
+        <button class='control-btn' id='resetViewBtn'>🎯 Reset View</button>
         <button class='control-btn' id='streamSelectionBtn' style='display:none;'>📊 Stream Selection</button>
     </div>
 
     <script>
         // Variables for map3d.js
-        let efforts_data_json = {{ efforts_data_json | safe }};
+        const efforts_data_json = {{ efforts_data_json | safe }};
         const chart_data_json = {{ chart_data_json | safe }};
         const geojson_str = {{ geojson_str | safe }};
         const elevation_data_json = {{ elevation_data_json | safe }};
@@ -70,16 +70,17 @@
         const center_lat = {{ center_lat }};
         const center_lon = {{ center_lon }};
         const zoom = {{ zoom }};
+        const session_id = '{{ session_id }}';
 
-        // Listen for effort update signals from inspection.html
-        const updateSignalKey = `effort_update_signal_{{ session_id }}`;
-        
-        window.addEventListener('storage', function(event) {
-            if (event.key === updateSignalKey) {
+        // Listen for effort updates from inspection.html via BroadcastChannel
+        const effortUpdateChannel = new BroadcastChannel(`peffort_{{ session_id }}`);
+        effortUpdateChannel.onmessage = (event) => {
+            if (event?.data?.type === 'efforts_updated') {
                 console.log('Effort data updated in another tab, reloading map3d...');
                 location.reload();
             }
-        });
+        };
+        window.addEventListener('beforeunload', () => effortUpdateChannel.close());
     </script>
     <script src='/static/js/map3d.js?v=2026040301'></script>
 </body>

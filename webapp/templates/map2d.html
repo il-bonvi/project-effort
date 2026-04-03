@@ -221,9 +221,9 @@
             <option value='satellite'>Esri Satellite</option>
             <option value='cycle'>CyclOSM</option>
         </select>
-        <button class='control-btn' id='toggleEfforts' onclick='toggleEfforts()'>👊 Efforts: ON</button>
-        <button class='control-btn' id='toggleSprints' onclick='toggleSprints()'>🏃 Sprints: ON</button>
-        <button class='control-btn' onclick='resetView()'>🎯 Reset View</button>
+        <button class='control-btn' id='toggleEfforts'>👊 Efforts: ON</button>
+        <button class='control-btn' id='toggleSprints'>🏃 Sprints: ON</button>
+        <button class='control-btn' id='resetViewBtn'>🎯 Reset View</button>
     </div>
 
     <script>
@@ -236,10 +236,11 @@
         const center_lon  = {{ center_lon }};
         const initial_zoom = {{ zoom }};
 
-        const updateSignalKey = `effort_update_signal_{{ session_id }}`;
-        window.addEventListener('storage', function(event) {
-            if (event.key === updateSignalKey) { location.reload(); }
-        });
+        const effortUpdateChannel = new BroadcastChannel('peffort_{{ session_id }}');
+        effortUpdateChannel.onmessage = (event) => {
+            if (event?.data?.type === 'efforts_updated') { location.reload(); }
+        };
+        window.addEventListener('beforeunload', () => effortUpdateChannel.close());
     </script>
     <script>
     // ════════════════════════════════════════════════════════
@@ -276,6 +277,9 @@
         Object.values(tileLayers).forEach(l => map.removeLayer(l));
         tileLayers[this.value].addTo(map);
     });
+    document.getElementById('toggleEfforts').addEventListener('click', toggleEfforts);
+    document.getElementById('toggleSprints').addEventListener('click', toggleSprints);
+    document.getElementById('resetViewBtn').addEventListener('click', resetView);
 
     // ── Draw main track ──
     const trackCoords = geojson_str.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
@@ -613,14 +617,27 @@
     }
 
     function calculateTimeBasedMovingAverage(data, timeData, windowSeconds) {
-        return data.map((_, i) => {
-            const c = timeData[i], lo = c - windowSeconds/2, hi = c + windowSeconds/2;
-            let sum = 0, cnt = 0;
-            for (let j = 0; j < timeData.length; j++) {
-                if (timeData[j] >= lo && timeData[j] <= hi) { sum += data[j]; cnt++; }
+        const n = Math.min(data.length, timeData.length);
+        if (!n) return [];
+        const result = new Array(n);
+        let lo = 0, hi = 0, sum = 0, cnt = 0;
+        for (let i = 0; i < n; i++) {
+            const c = timeData[i];
+            const winLo = c - windowSeconds / 2;
+            const winHi = c + windowSeconds / 2;
+            while (hi < n && timeData[hi] <= winHi) {
+                sum += data[hi];
+                cnt++;
+                hi++;
             }
-            return cnt ? sum/cnt : data[i];
-        });
+            while (lo < hi && timeData[lo] < winLo) {
+                sum -= data[lo];
+                cnt--;
+                lo++;
+            }
+            result[i] = cnt ? sum / cnt : data[i];
+        }
+        return result;
     }
 
     // ════════════════════════════════════════════════════════

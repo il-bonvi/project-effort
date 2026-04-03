@@ -27,7 +27,7 @@ SPRINT_WINDOW_SECONDS = 5
 MIN_SPRINT_POWER = 500
 
 # GPS conversion constant
-SEMICIRCLES_TO_DEGREES = 180 / (2**31 - 1)
+SEMICIRCLES_TO_DEGREES = 180 / (2**31)
 
 ZONE_COLORS = [
     (106, "#1f77b4", "CP–just above"),
@@ -118,6 +118,7 @@ def parse_fit(file_path: str) -> pd.DataFrame:
     logger.info(f"Importati {record_count} record")
     
     df = pd.DataFrame(data)
+    df = df.copy()
     
     # Validazione timestamp
     try:
@@ -342,8 +343,11 @@ def merge_extend(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
     """
     power = df["power"].values
     changed = True
+    max_iterations = 100
+    iteration = 0
     
-    while changed:
+    while changed and iteration < max_iterations:
+        iteration += 1
         changed = False
         new_eff = []
         efforts.sort(key=lambda x: x[0])
@@ -390,6 +394,9 @@ def merge_extend(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
         if new_eff != efforts:
             changed = True
         efforts = new_eff
+
+    if iteration >= max_iterations:
+        logger.warning("merge_extend reached max_iterations (%s)", max_iterations)
     
     return efforts
 

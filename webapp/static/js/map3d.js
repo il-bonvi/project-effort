@@ -1376,6 +1376,9 @@ function prevStyle() { applyStyle(currentStyleIndex - 1); }
 document.getElementById('styleSelect').addEventListener('change', (e) => {
     applyStyle(parseInt(e.target.value));
 });
+document.getElementById('toggleEfforts').addEventListener('click', toggleEfforts);
+document.getElementById('toggleSprints').addEventListener('click', toggleSprints);
+document.getElementById('resetViewBtn').addEventListener('click', resetView);
 
 function toggleEfforts() {
     showEfforts = !showEfforts;
@@ -1631,20 +1634,29 @@ function closeStreamModal() {
 window.closeStreamModal = closeStreamModal;
 
 function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
-    const result = [];
-    for (let i = 0; i < timeData.length; i++) {
-        const c = timeData[i];
-        const lo = c - windowSeconds / 2;
-        const hi = c + windowSeconds / 2;
-        let sum = 0;
-        let cnt = 0;
-        for (let j = 0; j < timeData.length; j++) {
-            if (timeData[j] >= lo && timeData[j] <= hi) {
-                sum += powerData[j];
-                cnt++;
-            }
+    const n = Math.min(powerData.length, timeData.length);
+    if (!n) return [];
+    const result = new Array(n);
+    let lo = 0;
+    let hi = 0;
+    let sum = 0;
+    let cnt = 0;
+    for (let i = 0; i < n; i++) {
+        const center = timeData[i];
+        const winLo = center - windowSeconds / 2;
+        const winHi = center + windowSeconds / 2;
+
+        while (hi < n && timeData[hi] <= winHi) {
+            sum += powerData[hi];
+            cnt++;
+            hi++;
         }
-        result.push(cnt ? sum / cnt : powerData[i]);
+        while (lo < hi && timeData[lo] < winLo) {
+            sum -= powerData[lo];
+            cnt--;
+            lo++;
+        }
+        result[i] = cnt > 0 ? sum / cnt : powerData[i];
     }
     return result;
 }
