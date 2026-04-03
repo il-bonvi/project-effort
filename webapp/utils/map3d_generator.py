@@ -16,15 +16,28 @@ from .map3d_core import (
 )
 from .map3d_renderer import generate_3d_map_html as render_html
 
-# Import config
-import sys
-from pathlib import Path
-_root_path = str(Path(__file__).parent.parent.parent)
-if _root_path not in sys.path:
-    sys.path.insert(0, _root_path)
-from config import get_maptiler_key
+import os
 
 logger = logging.getLogger(__name__)
+
+
+def _get_maptiler_key() -> str:
+    key = os.environ.get("MAPTILER_API_KEY", "")
+    if key:
+        return key
+    try:
+        import sys
+        from pathlib import Path
+        _root_path = str(Path(__file__).parent.parent.parent)
+        if _root_path not in sys.path:
+            sys.path.insert(0, _root_path)
+        from config import get_maptiler_key  # type: ignore
+        return get_maptiler_key()
+    except ImportError:
+        logger.warning(
+            "MAPTILER_API_KEY not found. Configure env var or local config.py."
+        )
+        return ""
 
 
 def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]], 
@@ -152,7 +165,7 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
             efforts_data_json=efforts_data_json,
             elevation_data_json=elevation_graph_data,
             geojson_str=geojson_str,
-            maptiler_key=get_maptiler_key(),
+            maptiler_key=_get_maptiler_key(),
             center_lat=center_lat,
             center_lon=center_lon,
             zoom=zoom,

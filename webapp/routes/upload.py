@@ -150,8 +150,8 @@ async def upload_fit(
             detail="Sprint merge gap must be between 0 and 60 seconds"
         )
 
-    # Generate session ID
-    session_id = str(uuid.uuid4())[:8]
+    # Generate secure session ID
+    session_id = str(uuid.uuid4())
 
     # Sanitize filename to prevent path traversal attacks
     # Only keep the basename and replace any problematic characters
@@ -281,6 +281,9 @@ async def upload_fit(
     except Exception as e:
         logger.warning(f"Sprint detection failed: {e}")
         sprints = []
+        sprint_detection_error = str(e)
+    else:
+        sprint_detection_error = None
 
     # Calculate ride statistics
     ride_stats = calculate_ride_stats(df, cp)
@@ -295,7 +298,8 @@ async def upload_fit(
         'weight': weight,
         'effort_config': effort_config,
         'sprint_config': sprint_config,
-        'stats': ride_stats
+        'stats': ride_stats,
+        'sprint_detection_error': sprint_detection_error
     }
 
     # Redirect to dashboard with tabs

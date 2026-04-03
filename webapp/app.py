@@ -6,11 +6,13 @@ Each route module handles a specific functional area and uses APIRouter pattern
 
 import sys
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, Any
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from sessions import SessionStore
 
 # Import routers and their setup functions
 from routes.home import router as home_router, setup_home_router
@@ -36,10 +38,18 @@ logger = logging.getLogger(__name__)
 # FASTAPI APPLICATION INITIALIZATION
 # ============================================================================
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    logger.info("PEFFORT Web app started on http://localhost:8001")
+    yield
+    logger.info("PEFFORT Web app shut down")
+
+
 app = FastAPI(
     title="PEFFORT Web",
     description="Web interface for FIT file analysis and effort inspection",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Mount static files directory
@@ -48,7 +58,7 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Session storage (in-memory, stores analysis results and dataframes)
 # Shared across all route modules via setup_XXXX_router(sessions) functions
-sessions: Dict[str, Dict[str, Any]] = {}
+sessions: Dict[str, Dict[str, Any]] = SessionStore(max_sessions=20, ttl_seconds=86400)
 
 logger.info("Initializing PEFFORT Web Application...")
 
@@ -100,20 +110,18 @@ logger.info(
 )
 
 
-# ============================================================================
-# STARTUP/SHUTDOWN EVENTS (if needed for future enhancements)
-# ============================================================================
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "sessions_active": len(sessions),
+        "version": "1.0.0"
+    }
 
-@app.on_event("startup")
-async def startup_event():
-    """Called when application starts"""
-    logger.info("PEFFORT Web app started on http://localhost:8001")
 
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Called when application shuts down"""
-    logger.info("PEFFORT Web app shut down")
+@app.get("/ready")
+async def ready():
+    return {"status": "ready"}
 
 
 # ============================================================================

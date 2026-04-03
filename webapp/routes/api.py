@@ -15,6 +15,7 @@ import html as html_module
 import json
 import logging
 import csv
+from datetime import datetime, timezone
 import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -84,6 +85,12 @@ class SplitRequest(BaseModel):
     """Request to split an effort at a specific time"""
     effort_idx: int
     split_time_sec: float
+
+class TrimRequest(BaseModel):
+    """Request to trim an effort start/end in seconds"""
+    effort_idx: int
+    trim_start_sec: int = 0
+    trim_end_sec: int = 0
 
 
 class EffortModification(BaseModel):
@@ -403,7 +410,7 @@ async def split_effort(session_id: str, request: SplitRequest):
 
 
 @router.post("/{session_id}/trim")
-async def trim_effort(session_id: str, effort_idx: int, trim_start_sec: int = 0, trim_end_sec: int = 0):
+async def trim_effort(session_id: str, request: TrimRequest):
     """
     Trim an effort by removing seconds from start and/or end
 
@@ -422,17 +429,17 @@ async def trim_effort(session_id: str, effort_idx: int, trim_start_sec: int = 0,
     efforts = session['efforts']
     df = session['df']
 
-    if effort_idx >= len(efforts) or effort_idx < 0:
+    if request.effort_idx >= len(efforts) or request.effort_idx < 0:
         raise HTTPException(status_code=400, detail="Invalid effort index")
 
-    effort = efforts[effort_idx]
+    effort = efforts[request.effort_idx]
     start_idx, end_idx, _ = effort
 
     time_diff = df['time_sec'].diff().median()
     samples_per_sec = 1 / time_diff if time_diff > 0 else 1
 
-    new_start = start_idx + int(trim_start_sec * samples_per_sec)
-    new_end = end_idx - int(trim_end_sec * samples_per_sec)
+    new_start = start_idx + int(request.trim_start_sec * samples_per_sec)
+    new_end = end_idx - int(request.trim_end_sec * samples_per_sec)
 
     if new_start >= new_end:
         raise HTTPException(status_code=400, detail="Trim would result in invalid effort (start >= end)")
@@ -443,11 +450,14 @@ async def trim_effort(session_id: str, effort_idx: int, trim_start_sec: int = 0,
     trimmed_data = df.iloc[new_start:new_end]
     new_avg_power = trimmed_data['power'].mean() if len(trimmed_data) > 0 else effort[2]
 
-    efforts[effort_idx] = (new_start, new_end, new_avg_power)
+    efforts[request.effort_idx] = (new_start, new_end, new_avg_power)
 
     return {
         "success": True,
-        "message": f"Trimmed effort {effort_idx}: removed {trim_start_sec}s from start, {trim_end_sec}s from end",
+        "message": (
+            f"Trimmed effort {request.effort_idx}: removed "
+            f"{request.trim_start_sec}s from start, {request.trim_end_sec}s from end"
+        ),
         "new_start_time": int(df.iloc[new_start]['time_sec']),
         "new_end_time": int(df.iloc[new_end-1]['time_sec']) if new_end > 0 else 0,
         "new_duration": new_end - new_start,
@@ -521,6 +531,14 @@ async def delete_sprint(session_id: str, sprint_idx: int):
         },
         "remaining_sprints": len(sprints)
     }
+
+@router.delete("/{session_id}")
+async def delete_session(session_id: str):
+    """Delete an in-memory session and free related memory."""
+    deleted = _shared_sessions.pop(session_id, None)
+    if deleted is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"status": "deleted", "session_id": session_id}
 
 
 @router.post("/{session_id}/import")
@@ -1275,7 +1293,7 @@ async def export_modifications(session_id: str):
         'efforts': efforts_modifications,
         'deleted_efforts': [],
         'deleted_sprints': [],
-        'timestamp': '2026-02-10T00:00:00.000Z',  # Placeholder timestamp
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'total_efforts_original': len(efforts),
         'total_efforts_active': len(efforts),
         'total_sprints_original': len(sprints),
@@ -1333,6 +1351,7 @@ async def export_html_report(session_id: str, request: Request = None):
                 pass  # No body or JSON parse error — keep defaults
 
         chart_data_json = json.dumps(chart_data)
+        safe_chart_data_json = chart_data_json.replace("</script>", "<\\/script>")
         filename = session.get('filename', 'Activity')
         filename_escaped = html_module.escape(filename)
 
@@ -1341,7 +1360,7 @@ async def export_html_report(session_id: str, request: Request = None):
         html = template_path.read_text(encoding='utf-8')
 
         html = html.replace('{{ filename }}', filename_escaped)
-        html = html.replace('{{ chart_data_json | safe }}', chart_data_json)
+        html = html.replace('{{ chart_data_json | safe }}', safe_chart_data_json)
 
         # Remove the storage listener (irrelevant in a standalone file)
         storage_block = re.search(
