@@ -762,10 +762,26 @@
         const kJkg = w > 0 ? (kJ/w).toFixed(1) : 0;
         const hours = durationSec/3600;
         const kJhKg = w > 0 && hours > 0 ? ((kJ/w)/hours).toFixed(1) : 0;
+        
+        // Theoretical values aligned with effort formulas
+        const avgGradeNum = Number(avgGrade);
+        const avgWkgNum = Number(avgWkg);
+        const gradientFactor = 2 + (avgGradeNum / 10);
+        const vamTeorico = w > 0 ? Math.round(avgWkgNum * (gradientFactor * 100)) : 0;
+        const wkgTeoricoNum = gradientFactor > 0 ? (vam / (gradientFactor * 100)) : 0;
+        const diffWkgNum = Math.abs(avgWkgNum - wkgTeoricoNum);
+        const percErrNum = avgWkgNum !== 0 ? (((wkgTeoricoNum - avgWkgNum) / avgWkgNum) * 100) : 0;
+        const vamArrow = (vamTeorico - vam) > 0 ? '⬆️' : ((vamTeorico - vam) < 0 ? '⬇️' : '');
+        const diffVam = Math.round(Math.abs(vamTeorico - vam));
+        const wkgTeorico = wkgTeoricoNum.toFixed(2);
+        const diffWkg = diffWkgNum.toFixed(2);
+        const percErr = Math.abs(percErrNum).toFixed(1);
+        
         return { durationDisplay: fmtDur(durationSec), distDisplay: distTot.toFixed(2),
             elevationDisplay: Math.round(elevationGain), avgPower, avgWkg, avgHr, maxHr,
             avgSpeed, avgGrade, vam, kJ, kJOverCp, kJkg, kJhKg,
-            distStart, distEnd };
+            distStart, distEnd,
+            vamTeorico, vamArrow, diffVam, wkgTeorico, diffWkg, percErr, percErrNum };
     }
 
     function calculateSelectionMetrics() {
@@ -775,6 +791,20 @@
 
     function buildSelectionMetricsCard(m) {
         if (!m) return '';
+        const showVamTeor = Number(m.avgGrade) >= 4.5;
+        const signDwkg = Number(m.diffWkg) > 0 ? '+' : '';
+        const signPercErr = Number(m.percErrNum) > 0 ? '+' : (Number(m.percErrNum) < 0 ? '-' : '');
+        const theoreticalRows = showVamTeor
+            ? `
+        <div class="metric-row"><span class="metric-label">🧮 VAM Teor.</span><span class="metric-value">${m.vamTeorico} m/h</span></div>
+        <div class="metric-row"><span class="metric-label">🧮 W/kg Teor.</span><span class="metric-value">${m.wkgTeorico} · Δ${signDwkg}${m.diffWkg}</span></div>
+        <div class="metric-row"><span class="metric-label">Err %</span><span class="metric-value">${signPercErr}${m.percErr}%</span></div>
+    `
+            : '';
+        const vamSection = `
+        <div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${showVamTeor ? `${m.vam} m/h ${m.vamArrow} ${m.diffVam} m/h` : `${m.vam} m/h`}</span></div>
+        ${theoreticalRows}
+    `;
         return `
         <div class="selected-header">
             <div>
@@ -793,7 +823,7 @@
             <div class="metric-col">
                 <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${m.avgSpeed} km/h</span></div>
                 <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${m.avgGrade}%</span></div>
-                <div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${m.vam} m/h</span></div>
+                ${vamSection}
             </div>
             <div class="metric-col">
                 <div class="metric-row"><span class="metric-label">🔋 kJ</span><span class="metric-value">${m.kJ} kJ</span></div>
