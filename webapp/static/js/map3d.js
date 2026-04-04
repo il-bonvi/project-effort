@@ -44,6 +44,11 @@ let currentSelectionMetrics = null;  // Store metrics for current manual selecti
 let isShowingEffortDetail = false;  // True when effort is shown (covers selection metrics)
 let currentFullRideMetrics = null;   // Store metrics for full ride fallback in sidebar
 
+/**
+ * Returns true when a segment start distance is inside the current selection window.
+ * @param {number} segmentStartDist
+ * @returns {boolean}
+ */
 function segmentStartsWithinSelection(segmentStartDist) {
     if (!currentSelectionRange) return true;
     const selStart = Math.min(Number(currentSelectionRange.startDist || 0), Number(currentSelectionRange.endDist || 0));
@@ -52,6 +57,10 @@ function segmentStartsWithinSelection(segmentStartDist) {
     return Number.isFinite(start) && start >= selStart && start <= selEnd;
 }
 
+/**
+ * Apply current effort/sprint and selection filters to rendered chart segments.
+ * @returns {void}
+ */
 function applyChartVisibilityFilters() {
     if (!d3AltimetryState || !d3AltimetryState.root) return;
 
@@ -69,6 +78,11 @@ function applyChartVisibilityFilters() {
     });
 }
 
+/**
+ * Toggle dimmed styling for selected map zones while editing/inspecting segments.
+ * @param {boolean} isDimmed
+ * @returns {void}
+ */
 function setSelectionZonesDimmed(isDimmed) {
     if (!map || !map.getLayer('traccia-selected-zones-line')) return;
 
@@ -81,6 +95,10 @@ function setSelectionZonesDimmed(isDimmed) {
     }
 }
 
+/**
+ * Remove transient hover marker from map.
+ * @returns {void}
+ */
 function clearAltimetryMarker() {
     if (altimetryMarker) {
         altimetryMarker.remove();
@@ -88,6 +106,10 @@ function clearAltimetryMarker() {
     }
 }
 
+/**
+ * Create (if needed) and return the map marker used for altimetry hover sync.
+ * @returns {import('maplibre-gl').Marker}
+ */
 function ensureAltimetryMarker() {
     if (altimetryMarker) return altimetryMarker;
 
@@ -107,6 +129,11 @@ function ensureAltimetryMarker() {
     return altimetryMarker;
 }
 
+/**
+ * Find nearest sample index for a distance on the elevation profile.
+ * @param {number} distanceKm
+ * @returns {number}
+ */
 function findNearestDistanceIndex(distanceKm) {
     const distances = elevationData.distance || [];
     if (!distances.length) return -1;
@@ -127,6 +154,11 @@ function findNearestDistanceIndex(distanceKm) {
     return Math.abs(distances[idx] - distanceKm) < Math.abs(distances[prev] - distanceKm) ? idx : prev;
 }
 
+/**
+ * Move map hover marker to the point nearest to requested profile distance.
+ * @param {number} distanceKm
+ * @returns {void}
+ */
 function updateAltimetryMarkerByDistance(distanceKm) {
     if (!map || !map.loaded()) return;
 
@@ -139,6 +171,10 @@ function updateAltimetryMarkerByDistance(distanceKm) {
     ensureAltimetryMarker().setLngLat([coords[idx][0], coords[idx][1]]);
 }
 
+/**
+ * Show/hide stream selection button depending on current chart selection state.
+ * @returns {void}
+ */
 function updateSelectionStreamButton() {
     const btn = document.getElementById('streamSelectionBtn');
     if (!btn) return;
@@ -147,6 +183,10 @@ function updateSelectionStreamButton() {
     btn.disabled = !hasSelection;
 }
 
+/**
+ * Compute and memoize 5-second moving average power profile.
+ * @returns {number[]}
+ */
 function computePower5sProfile() {
     if (power5sCache) return power5sCache;
 
@@ -1530,6 +1570,13 @@ function getIntensityZones() {
     });
 }
 
+/**
+ * Open the stream modal for a selected effort or sprint card.
+ * @param {string} elemId Source element id (kept for compatibility with inline handlers).
+ * @param {string|number} dataId Effort/sprint identifier used to resolve stream payload.
+ * @param {'effort'|'sprint'} type Stream payload type.
+ * @returns {void}
+ */
 function openStreamModal(elemId, dataId, type) {
     const data = type === 'effort'
         ? chartData.efforts.find((e) => e.id == dataId)
@@ -1578,6 +1625,10 @@ function openStreamModal(elemId, dataId, type) {
 
 window.openStreamModal = openStreamModal;
 
+/**
+ * Open the stream modal for the current distance selection on the chart.
+ * @returns {void}
+ */
 function openSelectionStreamModal() {
     const prepared = buildSelectionStreamPayload();
     if (!prepared) return;
@@ -1605,6 +1656,10 @@ function openSelectionStreamModal() {
 
 window.openSelectionStreamModal = openSelectionStreamModal;
 
+/**
+ * Close stream modal and release rendered SVG nodes.
+ * @returns {void}
+ */
 function closeStreamModal() {
     const modal = document.getElementById('streamModal');
     const modalOverlay = document.getElementById('streamModalOverlay');
@@ -1625,6 +1680,11 @@ function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
     return window.PEffortCommon.calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds);
 }
 
+/**
+ * Build the unified D3 stream charts inside the modal.
+ * Renders either effort (3 panels) or sprint (2 panels) view.
+ * @returns {void}
+ */
 function buildStreamChartsD3() {
     if (!streamModalData) return;
 
@@ -1953,6 +2013,10 @@ function buildStreamChartsD3() {
     }
 }
 
+/**
+ * Build the sprint-specific stream charts (power/speed and cadence/torque).
+ * @returns {void}
+ */
 function buildSprintStreamCharts() {
     const timeS = streamModalData.timeStream;
     const powS = streamModalData.powerStream;
@@ -2256,6 +2320,10 @@ function buildSprintStreamCharts() {
     }
 }
 
+/**
+ * Bind modal interactions and slider-driven chart updates.
+ * @returns {void}
+ */
 function initializeModalListeners() {
     const closeBtn = document.getElementById('streamModalCloseBtn');
     const modalOverlay = document.getElementById('streamModalOverlay');

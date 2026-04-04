@@ -9,11 +9,11 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, MutableMapping
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from sessions import SessionStore
+from sessions import create_session_store
 
 # Import routers and their setup functions
 from routes.home import router as home_router, setup_home_router
@@ -87,9 +87,9 @@ app = FastAPI(
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-# Session storage (in-memory, stores analysis results and dataframes)
+# Session storage (Redis when REDIS_URL is configured, otherwise in-memory fallback)
 # Shared across all route modules via setup_XXXX_router(sessions) functions
-sessions: Dict[str, Dict[str, Any]] = SessionStore(max_sessions=20, ttl_seconds=86400)
+sessions: MutableMapping[str, Dict[str, Any]] = create_session_store(max_sessions=20, ttl_seconds=86400)
 app.state.sessions = sessions
 
 logger.info("Initializing PEFFORT Web Application...")

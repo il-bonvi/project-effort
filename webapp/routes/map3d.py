@@ -23,6 +23,7 @@ router = APIRouter()
 
 
 def _build_map3d_cache_signature(session: Dict[str, Any]) -> Tuple[Any, ...]:
+    """Build a deterministic signature for map3d HTML cache invalidation."""
     efforts = tuple((int(s), int(e), round(float(avg), 3)) for s, e, avg in session.get('efforts', []))
     sprints = tuple(
         (
@@ -53,7 +54,7 @@ def _build_map3d_cache_signature(session: Dict[str, Any]) -> Tuple[Any, ...]:
 
 
 def setup_map3d_router(sessions_dict: Dict[str, Any]):
-    """Setup the map3d router with shared sessions dictionary"""
+    """Legacy setup hook kept for backward compatibility with old app wiring."""
     _ = sessions_dict
 
 

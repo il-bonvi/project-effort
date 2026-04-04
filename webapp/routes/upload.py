@@ -330,7 +330,7 @@ async def upload_fit(
     # Calculate ride statistics
     ride_stats = calculate_ride_stats(df, cp)
 
-    # Store session data (in memory only - no persistent disk storage)
+    # Store session data (Redis-backed when REDIS_URL is configured)
     sessions[session_id] = {
         'filename': file.filename,
         'df': df,

@@ -97,6 +97,10 @@
     const INSPECTION_ZONES_KEY = 'inspection_zones_v2_{{ session_id }}';
     const INSPECTION_ZONES_KEY_LEGACY_VERSION = 'inspection_zones_v2';
     const INSPECTION_ZONES_LEGACY_KEY = 'inspection_zones';
+    /**
+     * Load intensity zones from storage with backward-compatible key fallback.
+     * @returns {Array<{min:number,max:number,color:string}>}
+     */
     function getIntensityZones() {
         return window.PEffortCommon.getIntensityZones({
             keys: [
@@ -108,6 +112,11 @@
         });
     }
 
+    /**
+     * Resolve zone color from a power value using current CP and configured zones.
+     * @param {number} watts Power value in watts.
+     * @returns {string}
+     */
     function zoneColorForPower(watts) {
         const cp = Number(chartData.cp || 0);
         if (!cp || cp <= 0) return '#6b7280';
@@ -119,8 +128,18 @@
     }
 
     //  Utility 
+    /**
+     * Format duration using shared helper.
+     * @param {number} s Duration in seconds.
+     * @returns {string}
+     */
     function fmtDur(s) { return window.PEffortCommon.fmtDur(s); }
 
+    /**
+     * Format seconds to MM:SS.
+     * @param {number} seconds
+     * @returns {string}
+     */
     function format_time_mmss(seconds) {
         if (!seconds || seconds < 0) return '0:00';
         const m = Math.floor(seconds / 60);
@@ -131,6 +150,11 @@
     // 
     // EFFORT MARKERS
     // 
+    /**
+     * Resolve an item in chart data from marker metadata.
+     * @param {{id?:string|number,type?:string}|null} markerItem
+     * @returns {{data: object, type: 'effort'|'sprint'}|null}
+     */
     function findSelectedSegment(markerItem) {
         if (!markerItem) return null;
         if (markerItem.type === 'sprint') {
@@ -144,12 +168,22 @@
         return null;
     }
 
+    /**
+     * Check marker visibility against effort/sprint toggle state.
+     * @param {object} effortData
+     * @returns {boolean}
+     */
     function markerPassesTypeFilter(effortData) {
         const selected = findSelectedSegment(effortData);
         const isSprint = selected ? selected.type === 'sprint' : effortData.type === 'sprint';
         return isSprint ? showSprints : showEfforts;
     }
 
+    /**
+     * Check marker visibility against current distance selection.
+     * @param {object} effortData
+     * @returns {boolean}
+     */
     function markerPassesSelectionFilter(effortData) {
         if (!currentSelectionRange) return true;
         const startDist = Number(effortData?.distance?.[0]);
@@ -157,6 +191,10 @@
         return startDist >= Number(currentSelectionRange.startDist) && startDist <= Number(currentSelectionRange.endDist);
     }
 
+    /**
+     * Rebuild effort/sprint markers according to active filters.
+     * @returns {void}
+     */
     function updateEffortVisibility() {
         effortMarkers.forEach(({ marker }) => map.removeLayer(marker));
         effortMarkers = [];
@@ -684,6 +722,13 @@
         };
     }
 
+    /**
+     * Open the stream modal for a selected effort or sprint card.
+     * @param {string} elemId Source element id (kept for compatibility with inline handlers).
+     * @param {string|number} dataId Effort/sprint identifier used to resolve stream payload.
+     * @param {'effort'|'sprint'} type Stream payload type.
+     * @returns {void}
+     */
     function openStreamModal(elemId, dataId, type) {
         const data = type === 'effort'
             ? chartData.efforts.find((e) => e.id == dataId)
@@ -734,6 +779,10 @@
 
     window.openStreamModal = openStreamModal;
 
+    /**
+     * Open the stream modal for the current distance selection on the chart.
+     * @returns {void}
+     */
     function openSelectionStreamModal() {
         const prepared = buildSelectionStreamPayload();
         if (!prepared) return;
@@ -763,6 +812,10 @@
 
     window.openSelectionStreamModal = openSelectionStreamModal;
 
+    /**
+     * Close stream modal and release rendered SVG nodes.
+     * @returns {void}
+     */
     function closeStreamModal() {
         const modal = document.getElementById('streamModal');
         const modalOverlay = document.getElementById('streamModalOverlay');
@@ -786,6 +839,11 @@
     }
 
     // Stream rendering logic is intentionally shared with 3D map behavior.
+    /**
+     * Build the unified D3 stream charts inside the modal.
+     * Renders either effort (3 panels) or sprint (2 panels) view.
+     * @returns {void}
+     */
     function buildStreamChartsD3() {
         if (!streamModalData) return;
 
@@ -1114,6 +1172,10 @@
         }
     }
 
+    /**
+     * Build the sprint-specific stream charts (power/speed and cadence/torque).
+     * @returns {void}
+     */
     function buildSprintStreamCharts() {
         const timeS = streamModalData.timeStream;
         const powS = streamModalData.powerStream;
@@ -1417,6 +1479,10 @@
         }
     }
 
+    /**
+     * Bind modal interactions and slider-driven chart updates.
+     * @returns {void}
+     */
     function initializeModalListeners() {
         const closeBtn = document.getElementById('streamModalCloseBtn');
         const modalOverlay = document.getElementById('streamModalOverlay');

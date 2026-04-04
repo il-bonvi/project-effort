@@ -432,16 +432,19 @@
         <h1>🚴 PEFFORT Dashboard</h1>
         <div class="header-info">
             <span><strong>File:</strong> {{ session.filename }}</span>
-            <span><strong>Efforts:</strong> {{ session.efforts|length }}</span>
-            <span><strong>Sprints:</strong> {{ session.sprints|length }}</span>
-            <span><strong>CP:</strong> {{ session.cp | int }}W</span>
-            <span><strong>Weight:</strong> {{ session.weight }}kg</span>
+            <span><strong>Efforts:</strong> <span id="headerEffortsCount">{{ session.efforts|length }}</span></span>
+            <span><strong>Sprints:</strong> <span id="headerSprintsCount">{{ session.sprints|length }}</span></span>
+            <span><strong>CP:</strong> <span id="headerCpValue">{{ session.cp | int }}</span>W</span>
+            <span><strong>Weight:</strong> <span id="headerWeightValue">{{ session.weight }}</span>kg</span>
             <span><strong>Session:</strong> {{ session_id }}</span>
         </div>
         <a href="/" class="back-btn">⬅️ Nuovo Upload</a>
     </div>
     
     <div class="tab-container">
+        <div id="sprintDetectionWarning" style="display: {% if session.sprint_detection_error %}block{% else %}none{% endif %}; margin: 10px 20px 0; padding: 10px 12px; border: 1px solid #fca5a5; border-radius: 8px; background: #fef2f2; color: #b91c1c; font-size: 0.9rem;">
+            ⚠️ Sprint detection warning: <span id="sprintDetectionWarningText">{{ session.sprint_detection_error or '' }}</span>
+        </div>
         <div class="tabs">
             <div class="tab active" data-tab="overview">📊 Overview</div>
             <div class="tab" data-tab="inspection">🔍 Inspection</div>
@@ -499,13 +502,13 @@
                     <div class="summary-boxes">
                         <div class="summary-box">
                             <h3>💪 Efforts Summary</h3>
-                            <div class="summary-value efforts">{{ session.efforts|length }}</div>
+                            <div class="summary-value efforts" id="overviewEffortsCount">{{ session.efforts|length }}</div>
                             <p class="summary-desc">Detected effort intervals</p>
                         </div>
                         
                         <div class="summary-box">
                             <h3>🚀 Sprints Summary</h3>
-                            <div class="summary-value sprints">{{ session.sprints|length }}</div>
+                            <div class="summary-value sprints" id="overviewSprintsCount">{{ session.sprints|length }}</div>
                             <p class="summary-desc">Detected sprint intervals</p>
                         </div>
                     </div>
@@ -780,13 +783,63 @@
             }
         }
 
-        function reloadDashboardPreserveUi(delayMs = 0) {
-            saveDashboardUiState();
-            if (delayMs > 0) {
-                setTimeout(() => location.reload(), delayMs);
-                return;
+        function refreshEmbeddedTabs() {
+            const inspectionFrame = document.querySelector('#inspection iframe');
+            const altimetriaFrame = document.querySelector('#altimetria-d3 iframe');
+            const map3dFrame = document.getElementById('map3d-iframe');
+            const map2dFrame = document.getElementById('map2d-iframe');
+            const token = Date.now();
+
+            if (inspectionFrame?.src) inspectionFrame.src = `/inspection/${sessionId}?t=${token}`;
+            if (altimetriaFrame?.src) altimetriaFrame.src = `/altimetria-d3/${sessionId}?t=${token}`;
+            if (map3dLoaded && map3dFrame) map3dFrame.src = `/map3d/${sessionId}?t=${token}`;
+            if (map2dLoaded && map2dFrame) {
+                map2dFrame.src = `/map2d/${sessionId}?t=${token}`;
+                map2dFrame.addEventListener('load', () => notifyMap2DResize(), { once: true });
             }
-            location.reload();
+        }
+
+        async function refreshDashboardStatus() {
+            const response = await fetch(`/api/${sessionId}/status`);
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(`HTTP ${response.status}: ${message || response.statusText}`);
+            }
+            const status = await response.json();
+
+            const headerEfforts = document.getElementById('headerEffortsCount');
+            const headerSprints = document.getElementById('headerSprintsCount');
+            const headerCp = document.getElementById('headerCpValue');
+            const headerWeight = document.getElementById('headerWeightValue');
+            const overviewEfforts = document.getElementById('overviewEffortsCount');
+            const overviewSprints = document.getElementById('overviewSprintsCount');
+
+            if (headerEfforts) headerEfforts.textContent = String(status.total_efforts ?? 0);
+            if (headerSprints) headerSprints.textContent = String(status.total_sprints ?? 0);
+            if (headerCp) headerCp.textContent = String(status.cp ?? 0);
+            if (headerWeight) headerWeight.textContent = String(status.weight ?? 0);
+            if (overviewEfforts) overviewEfforts.textContent = String(status.total_efforts ?? 0);
+            if (overviewSprints) overviewSprints.textContent = String(status.total_sprints ?? 0);
+
+            const warningBox = document.getElementById('sprintDetectionWarning');
+            const warningText = document.getElementById('sprintDetectionWarningText');
+            if (warningBox && warningText) {
+                if (status.sprint_detection_error) {
+                    warningText.textContent = String(status.sprint_detection_error);
+                    warningBox.style.display = 'block';
+                } else {
+                    warningText.textContent = '';
+                    warningBox.style.display = 'none';
+                }
+            }
+        }
+
+        async function refreshDashboardAfterMutation(delayMs = 0) {
+            if (delayMs > 0) {
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+            await refreshDashboardStatus();
+            refreshEmbeddedTabs();
         }
         
         async function redetectEfforts() {
@@ -814,7 +867,7 @@
                 const result = await response.json();
                 if (result.success) {
                     alert(`✅ Re-detected ${result.total_efforts} efforts!`);
-                    reloadDashboardPreserveUi();
+                    await refreshDashboardAfterMutation();
                 } else {
                     alert(`❌ Error: ${result.message}`);
                 }
@@ -845,7 +898,7 @@
                 const result = await response.json();
                 if (result.success) {
                     alert(`✅ Re-detected ${result.total_sprints} sprints!`);
-                    reloadDashboardPreserveUi();
+                    await refreshDashboardAfterMutation();
                 } else {
                     alert(`❌ Error: ${result.message}`);
                 }
@@ -874,7 +927,7 @@
                 const result = await response.json();
                 if (result.status === 'success') {
                     alert(`✅ ${result.message}\n\nEfforts have been re-detected with the new parameters.`);
-                    reloadDashboardPreserveUi();
+                    await refreshDashboardAfterMutation();
                 } else {
                     alert(`❌ Error: ${result.message}`);
                 }
@@ -921,7 +974,7 @@
                 importStatus.textContent = '⏳ Applying modifications...';
                 
                 // Send to server for validation and application
-                const response = await fetch(`/api/import-modifications/${sessionId}`, {
+                const response = await fetch(`/api/${sessionId}/import-modifications`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(jsonData)
@@ -933,9 +986,9 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    importStatus.textContent = '✅ Modifications imported successfully! Reloading page...';
+                    importStatus.textContent = '✅ Modifications imported successfully! Refreshing views...';
                     importStatus.style.color = '#22c55e';
-                    reloadDashboardPreserveUi(1500);
+                    await refreshDashboardAfterMutation(300);
                 } else {
                     importStatus.textContent = `❌ Error: ${result.message}`;
                     importStatus.style.color = '#ef4444';
@@ -948,7 +1001,7 @@
         
         async function downloadModificationsJson() {
             try {
-                const response = await fetch(`/api/export-modifications/${sessionId}`);
+                const response = await fetch(`/api/${sessionId}/export-modifications`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
@@ -1178,6 +1231,7 @@
         });
 
         restoreDashboardUiState();
+        refreshDashboardStatus().catch((err) => console.warn('Failed to refresh dashboard status', err));
 
         // ESC key to exit fullscreen
         document.addEventListener('keydown', function(e) {

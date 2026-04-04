@@ -460,14 +460,14 @@ Quick wins ancora aperte:
 ### Priorità Alta (prima del deployment)
 1. **Completato** — §1.1 Chiave MapTiler: aggiunti warning runtime + checklist operativa + variabile `MAPTILER_KEY_DOMAIN_RESTRICTED`
 2. **Completato** — §1.2 Rate limiting upload: strategia validata (limiter in-memory + supporto proxy headers + env di tuning produzione)
-3. **Completato** — §3.4 Persistenza sessioni su Render: strategia validata (`/data` persistent disk consigliato, Redis opzionale)
+3. **Completato** — §3.4 Persistenza sessioni su Render: implementata strategia Redis (`REDIS_URL`) con fallback in-memory solo locale
 
 ### Priorità Media (refactoring successivo)
 4. **Completato** — §4.1/4.2 Template JS separati in file statici (`webapp/static/js/map2d.js`, `webapp/static/js/altimetria_d3.js`)
 
 ### Priorità Bassa (miglioramento continuo)
-5. **§4.8** — Aggiungere TypedDict per i return type delle funzioni core
-6. **§8.2** — Aggiungere docstring/JSDoc nelle parti frontend-facing
+5. **Completato** — §4.8 TypedDict aggiunti ai return type core (`segment_metrics.py`, `map3d_core.py`, `metrics.py`, `effort_analyzer.py`)
+6. **Completato** — §8.2 Aggiunte docstring/JSDoc nelle parti frontend-facing (route helper + stream/utility JS su 2D/3D/altimetria)
 
 ---
 

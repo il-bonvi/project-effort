@@ -1,8 +1,39 @@
 """Shared segment metrics for efforts/sprints across routes and map utilities."""
 
-from typing import Any, Dict
+from typing import TypedDict
 
 import numpy as np
+
+
+class SegmentMetrics(TypedDict):
+    duration: int
+    elevation_gain: float
+    dist_tot_m: float
+    avg_speed: float
+    avg_grade: float
+    max_grade: float
+    vam: float
+    avg_watts_first: float
+    avg_watts_second: float
+    watts_ratio: float
+    avg_hr: float
+    max_hr: float
+    best_5s_watt: int
+    best_5s_watt_kg: float
+    avg_power_per_kg: float
+    avg_cadence: float
+    kj: float
+    kj_over_cp: float
+    kj_kg: float
+    kj_kg_over_cp: float
+    kj_h_kg: float
+    kj_h_kg_over_cp: float
+    vam_teorico: float
+    wkg_teoric: float
+    diff_wkg: float
+    perc_err: float
+    vam_arrow: str
+    diff_vam: float
 
 
 def compute_segment_metrics(
@@ -20,7 +51,7 @@ def compute_segment_metrics(
     start_time_sec: float,
     kj: float,
     kj_over_cp: float,
-) -> Dict[str, Any]:
+) -> SegmentMetrics:
     """Compute a consistent set of performance metrics for one segment."""
     if len(seg_time) == 0:
         return {

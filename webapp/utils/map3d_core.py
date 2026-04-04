@@ -7,11 +7,36 @@ import json
 import logging
 import numpy as np
 import pandas as pd
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, TypedDict
 from .effort_analyzer import get_zone_color
 from .segment_metrics import compute_segment_metrics
 
 logger = logging.getLogger(__name__)
+
+
+class EffortParameters(TypedDict):
+    duration: int
+    elevation: float
+    w_kg: float
+    best_5s: int
+    best_5s_watt_kg: float
+    avg_hr: float
+    max_hr: float
+    avg_cadence: float
+    avg_speed: float
+    avg_grade: float
+    max_grade: float
+    vam: float
+    watts_first: float
+    watts_second: float
+    watts_ratio: float
+    kj: float
+    kj_over_cp: float
+    kj_kg: float
+    kj_kg_over_cp: float
+    kj_h_kg: float
+    kj_h_kg_over_cp: float
+    vam_teorico: float
 
 
 def export_traccia_geojson(df: pd.DataFrame) -> Tuple[dict, List[int]]:
@@ -111,7 +136,7 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
                                dist_km_values: np.ndarray,
                                cp: float, weight: float,
                                joules_cumulative: np.ndarray,
-                               joules_over_cp_cumulative: np.ndarray) -> Dict[str, Any]:
+                               joules_over_cp_cumulative: np.ndarray) -> EffortParameters:
     """
     Calcola tutti i parametri di un singolo effort.
     

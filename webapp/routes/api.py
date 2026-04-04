@@ -585,6 +585,7 @@ async def delete_session(session_id: str, sessions: SessionsDep):
 
 
 @router.post("/{session_id}/import")
+@router.post("/{session_id}/import-legacy")
 async def import_modifications(session_id: str, modifications: LegacyImportRequest, sessions: SessionsDep):
     """
     Import effort modifications from exported JSON
@@ -1157,6 +1158,7 @@ async def export_csv_data(session_id: str, sessions: SessionsDep):
 
 
 @router.post("/import-modifications/{session_id}")
+@router.post("/{session_id}/import-modifications")
 async def import_dashboard_modifications(session_id: str, modifications: DashboardImportRequest, sessions: SessionsDep):
     """
     Import effort modifications from JSON file for dashboard.
@@ -1307,6 +1309,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
 
 
 @router.get("/export-modifications/{session_id}")
+@router.get("/{session_id}/export-modifications")
 async def export_modifications(session_id: str, sessions: SessionsDep):
     """
     Export current effort/sprint modifications as JSON (for dashboard download).

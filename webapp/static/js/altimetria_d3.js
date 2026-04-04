@@ -33,6 +33,11 @@ const MARGIN = { top: 15, right: 20, bottom: 55, left: 60 };
 const ANN_SPACE = 80;
 
 // Utility function to format seconds as MM:SS
+/**
+ * Format seconds to MM:SS.
+ * @param {number} seconds
+ * @returns {string}
+ */
 function format_time_mmss(seconds) {
     if (!seconds || seconds < 0) return "0:00";
     const mins = Math.floor(seconds / 60);
@@ -40,11 +45,20 @@ function format_time_mmss(seconds) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Format a duration string using shared helper implementation.
+ * @param {number} seconds
+ * @returns {string}
+ */
 function fmtDur(seconds) {
     return window.PEffortCommon.fmtDur(seconds);
 }
 
 let W, H, innerW, innerH;
+/**
+ * Recompute chart dimensions from current container size.
+ * @returns {void}
+ */
 function updateDims() {
     W = Math.max(chartEl.clientWidth,  400);
     H = Math.max(chartEl.clientHeight, 300);
@@ -118,8 +132,17 @@ const popupCard    = document.getElementById('popup-card');
 // 
 // RENDER FUNCTIONS
 // 
+/**
+ * Get current zoom-rescaled X scale.
+ * @returns {d3.ScaleLinear<number, number>}
+ */
 function getXZ() { return currentZoom.rescaleX(xScale); }
 
+/**
+ * Render chart axes for current zoom transform.
+ * @param {d3.ScaleLinear<number, number>} xz
+ * @returns {void}
+ */
 function renderAxes(xz) {
     const nTicks = Math.max(5, Math.round(innerW / 80));
     xAxisG.call(
@@ -144,6 +167,11 @@ function renderAxes(xz) {
     });
 }
 
+/**
+ * Render filled elevation area and contour line.
+ * @param {d3.ScaleLinear<number, number>} xz
+ * @returns {void}
+ */
 function renderElevation(xz) {
     const area = d3.area()
         .x(d => xz(d.dist)).y0(innerH).y1(d => yScale(d.alt))
@@ -157,6 +185,11 @@ function renderElevation(xz) {
     elevG.append('path').datum(chartData.elevation_data).attr('class','elev-line').attr('d', line);
 }
 
+/**
+ * Render effort/sprint track segments over elevation profile.
+ * @param {d3.ScaleLinear<number, number>} xz
+ * @returns {void}
+ */
 function renderSegments(xz) {
     segsG.selectAll('*').remove();
 
@@ -1250,6 +1283,13 @@ function getIntensityZones() {
     });
 }
 
+/**
+ * Open the stream modal for a selected effort or sprint card.
+ * @param {string} elemId Source element id (kept for compatibility with inline handlers).
+ * @param {string|number} dataId Effort/sprint identifier used to resolve stream payload.
+ * @param {'effort'|'sprint'} type Stream payload type.
+ * @returns {void}
+ */
 function openStreamModal(elemId, dataId, type) {
     // Get the effort or sprint data
     const data = type === 'effort' ? chartData.efforts.find(e => e.id == dataId) : chartData.sprints.find(s => s.id == dataId);
@@ -1311,6 +1351,10 @@ function openStreamModal(elemId, dataId, type) {
 // Expose globally so onclick attribute can call it
 window.openStreamModal = openStreamModal;
 
+/**
+ * Close stream modal and release rendered SVG nodes.
+ * @returns {void}
+ */
 function closeStreamModal() {
     const modal = document.getElementById('streamModal');
     const overlay = document.getElementById('streamModalOverlay');
@@ -1349,6 +1393,11 @@ function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
 }
 
 //  Unified 3-panel D3 stream chart 
+/**
+ * Build the unified D3 stream charts inside the modal.
+ * Renders either effort (3 panels) or sprint (2 panels) view.
+ * @returns {void}
+ */
 function buildStreamChartsD3() {
     if (!streamModalData) return;
 
@@ -1712,6 +1761,10 @@ function buildStreamChartsD3() {
 
 
 //  Sprint stream chart: 2 panels  Power | Cadence+Torque dual-axis 
+/**
+ * Build the sprint-specific stream charts (power/speed and cadence/torque).
+ * @returns {void}
+ */
 function buildSprintStreamCharts() {
     const timeS = streamModalData.timeStream;
     const powS  = streamModalData.powerStream;
@@ -2038,6 +2091,10 @@ function buildSprintStreamCharts() {
 
 
 // Modal event listeners - wrap in DOMContentLoaded to ensure elements exist
+/**
+ * Bind modal interactions and slider-driven chart updates.
+ * @returns {void}
+ */
 function initializeModalListeners() {
     const closeBtn = document.getElementById('streamModalCloseBtn');
     const overlay = document.getElementById('streamModalOverlay');

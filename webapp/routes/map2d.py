@@ -20,6 +20,7 @@ router = APIRouter()
 
 
 def _build_map2d_cache_signature(session: Dict[str, Any]) -> tuple[Any, ...]:
+    """Build a deterministic signature for map2d HTML cache invalidation."""
     efforts = tuple((int(s), int(e), round(float(avg), 3)) for s, e, avg in session.get('efforts', []))
     sprints = tuple(
         (
@@ -50,7 +51,7 @@ def _build_map2d_cache_signature(session: Dict[str, Any]) -> tuple[Any, ...]:
 
 
 def setup_map2d_router(sessions_dict: Dict[str, Any]):
-    """Setup the map2d router with shared sessions dictionary"""
+    """Legacy setup hook kept for backward compatibility with old app wiring."""
     _ = sessions_dict
 
 

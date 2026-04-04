@@ -35,12 +35,14 @@ router = APIRouter()
 
 
 def _round_sig(value: Any, digits: int = 3) -> Any:
+    """Round floats for cache signatures while leaving non-float values untouched."""
     if isinstance(value, float):
         return round(value, digits)
     return value
 
 
 def _build_chart_cache_signature(session: Dict[str, Any]) -> Tuple[Any, ...]:
+    """Build deterministic signature used to invalidate chart_data cache."""
     efforts = session.get('efforts', [])
     sprints = session.get('sprints', [])
     effort_sig = tuple((int(s), int(e), _round_sig(float(avg))) for s, e, avg in efforts)
@@ -95,8 +97,7 @@ def get_chart_data_json(session: Dict[str, Any]) -> str:
             return cached_json
 
     chart_data = prepare_chart_data(session)
-    chart_data = convert_to_python_types(chart_data)
-    chart_data_json = json.dumps(chart_data)
+    chart_data_json = json.dumps(chart_data, default=_json_numpy_default)
     session['_chart_data_cache'] = {
         'signature': signature,
         'json': chart_data_json,
@@ -104,21 +105,15 @@ def get_chart_data_json(session: Dict[str, Any]) -> str:
     return chart_data_json
 
 
-def convert_to_python_types(obj: Any) -> Any:
-    """
-    Recursively convert numpy types to Python native types for JSON serialization
-    """
+def _json_numpy_default(obj: Any) -> Any:
+    """JSON serializer hook for NumPy scalar/array values."""
     if isinstance(obj, np.integer):
         return int(obj)
-    elif isinstance(obj, np.floating):
+    if isinstance(obj, np.floating):
         return float(obj)
-    elif isinstance(obj, np.ndarray):
+    if isinstance(obj, np.ndarray):
         return obj.tolist()
-    elif isinstance(obj, dict):
-        return {key: convert_to_python_types(value) for key, value in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_to_python_types(item) for item in obj]
-    return obj
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
@@ -569,7 +564,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def setup_altimetria_d3_router(sessions_dict: Dict[str, Any]):
-    """Setup the altimetria D3 router with shared sessions dictionary"""
+    """Legacy setup hook kept for backward compatibility with old app wiring."""
     _ = sessions_dict
 
 

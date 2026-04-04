@@ -32,6 +32,7 @@ pip install -r requirements.txt
 
 6. Configura chiavi API (opzionale per mappa 3D):
 
+- Copia `config.example.py` in `config.py`
 - Modifica `config.py`
 - Imposta `MAPTILER_API_KEY`
 
@@ -96,7 +97,7 @@ cd webapp && uvicorn app:app --host 0.0.0.0 --port $PORT
 - `UPLOAD_RATE_LIMIT_MAX_REQUESTS=10`
 - `UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60`
 - `UPLOAD_RATE_LIMIT_TRUST_PROXY_HEADERS=true` (consigliato dietro proxy/reverse proxy)
-- `SESSION_PERSIST_DIR=/data/peffort_sessions` (consigliato con Render Persistent Disk)
+- `REDIS_URL=redis://:<password>@<host>:<port>/0`
 
 ## Decisione Rate Limiting Produzione
 
@@ -112,14 +113,13 @@ Nota: il limiter in-memory non e' condiviso tra processi/istanze multiple.
 
 Scelta validata:
 
-1. Baseline consigliata: disco persistente Render montato su `/data`, con `SESSION_PERSIST_DIR=/data/peffort_sessions`.
-2. Alternativa premium: Redis (maggiore complessita', migliore scalabilita').
-3. Fallback economico: `/tmp` (non persistente tra restart, ma funzionale nel breve periodo).
+1. Strategia scelta: Redis come unico backend di persistenza sessioni.
+2. Configurare `REDIS_URL` in Render (Redis gestito o servizio compatibile).
+3. Senza `REDIS_URL`, l'app usa fallback in-memory solo per sviluppo locale.
 
 Stima costi orientativa:
 
-1. Persistent Disk Render: circa $0.25/GB/mese (dipende dal piano).
-2. Redis gestito: costo maggiore ma migliore per multi-instance/concorrenza.
+1. Redis gestito: costo maggiore ma migliore per multi-instance/concorrenza.
 
 ## Troubleshooting minimo
 

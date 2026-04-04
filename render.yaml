@@ -17,5 +17,5 @@ services:
         value: "60"
       - key: UPLOAD_RATE_LIMIT_TRUST_PROXY_HEADERS
         value: "true"
-      - key: SESSION_PERSIST_DIR
-        value: /data/peffort_sessions
+      - key: REDIS_URL
+        sync: false
