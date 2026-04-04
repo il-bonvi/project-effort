@@ -14,7 +14,7 @@ html, body {
 }
 #container { display: flex; height: 100vh; width: 100vw; }
 
-/* â”€â”€ Chart area â”€â”€ */
+/*  Chart area  */
 #chart { flex: 1; height: 100%; overflow: hidden; position: relative; }
 #chart-svg { width: 100%; height: 100%; display: block; }
 
@@ -47,7 +47,7 @@ html, body {
 .axis-label-text { font-size: 11px; fill: #6b7280; }
 text.axis-name { font-size: 11px; fill: #9ca3af; }
 
-/* â”€â”€ Annotations â”€â”€ */
+/*  Annotations  */
 .ann-leader { stroke: #b0b0b0; stroke-width: 0.8; stroke-dasharray: 3,2; fill: none; pointer-events: none; }
 .popup-leader { stroke: #6b7280; stroke-width: 1.5; stroke-dasharray: 5,3; fill: none; pointer-events: none; }
 
@@ -59,7 +59,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 
 .ann-cluster { cursor: pointer; }
 
-/* â”€â”€ Expanded popup card â€” wide, above chart, morphs from pill â”€â”€ */
+/*  Expanded popup card  wide, above chart, morphs from pill  */
 #popup-card {
     position: absolute;
     z-index: 200;
@@ -71,7 +71,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
     width: 560px;                         /* wide horizontal layout */
     font-size: 11.5px; line-height: 1.55;
     pointer-events: none;
-    opacity: 0;                           /* hidden â€” no display:none */
+    opacity: 0;                           /* hidden  no display:none */
     overflow: hidden;
 }
 #popup-card.shown { pointer-events: auto; }
@@ -102,7 +102,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 #popup-card .pc-label { color: #6b7280; margin-right: 4px; white-space: nowrap; }
 #popup-card .pc-value { font-weight: 600; color: #111827; text-align: right; }
 
-/* â”€â”€ Tooltip (hover) â”€â”€ */
+/*  Tooltip (hover)  */
 #tooltip {
     position: absolute; pointer-events: none; display: none; z-index: 300;
     background: rgba(50,50,50,0.95); color: #fff;
@@ -114,7 +114,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 /* crosshair */
 .crosshair { stroke: #9ca3af; stroke-width: 0.8; stroke-dasharray: 3,2; pointer-events: none; }
 
-/* â”€â”€ Sidebar â”€â”€ */
+/*  Sidebar  */
 #sidebar {
     width: 380px; height: 100%; overflow-y: auto;
     background: #f8f9fa; border-left: 2px solid #e5e7eb; padding: 15px;
@@ -168,7 +168,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 .eg .sep { grid-column: 1/-1; border-top: 1px solid #e5e7eb; margin: 2px 0; }
 .eg .span2 { grid-column: 2/-1; font-weight: 600; color: #111827; white-space: nowrap; }
 
-/* â”€â”€ Zoom Modal â”€â”€ */
+/*  Zoom Modal  */
 .stream-modal-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.5); z-index: 500;
@@ -227,7 +227,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
     display: block; overflow: hidden; flex: 1; min-height: 0;
 }
 .stream-chart {
-    display: none; /* hidden â€” we use one unified SVG */
+    display: none; /* hidden  we use one unified SVG */
 }
 #streamUnifiedChart {
     width: 100%; height: 100%; border-radius: 8px; border: 1px solid #e5e7eb;
@@ -243,7 +243,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
     background: linear-gradient(135deg, #2563eb, #1d4ed8); transform: scale(1.05);
 }
 
-/* â”€â”€ Mobile / Tablet responsive â”€â”€ */
+/*  Mobile / Tablet responsive  */
 @media (max-width: 900px) {
     html, body {
         overflow: hidden !important;
@@ -354,17 +354,17 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
     <div id="sidebar">
         <div class="config-info" id="config-section"></div>
         <div class="section">
-            <h2>âš¡ Efforts</h2>
+            <h2>🚴 Efforts</h2>
             <div id="efforts-list"></div>
         </div>
         <div class="section">
-            <h2>ðŸ’¨ Sprints</h2>
+            <h2>⚡ Sprints</h2>
             <div id="sprints-list"></div>
         </div>
     </div>
 </div>
 
-<!-- DATA INJECTION POINT â€” identical to ECharts version -->
+<!-- DATA INJECTION POINT  identical to ECharts version -->
 <script type="application/json" id="chart-data-json">
 {{ chart_data_json | safe }}
 </script>
@@ -372,7 +372,7 @@ text.axis-name { font-size: 11px; fill: #9ca3af; }
 <script src="/static/js/peffort_common.js?v=2026040401"></script>
 
 <script>
-// â”€â”€ inter-tab update listener â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  inter-tab update listener 
 let effortUpdateChannel = null;
 try {
     effortUpdateChannel = new BroadcastChannel('peffort_{{ session_id }}');
@@ -394,7 +394,7 @@ window.addEventListener('beforeunload', () => {
 <div id="streamModal" class="stream-modal">
     <div class="stream-modal-header">
         <h2 id="streamModalTitle">Stream Zoom</h2>
-        <button class="stream-modal-close" id="streamModalCloseBtn">âœ•</button>
+        <button class="stream-modal-close" id="streamModalCloseBtn">✕</button>
     </div>
     <div class="stream-control-panel" id="streamControlPanel">
         <div class="stream-control-group">
@@ -418,3 +418,4 @@ window.addEventListener('beforeunload', () => {
 
 </body>
 </html>
+

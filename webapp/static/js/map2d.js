@@ -1,21 +1,21 @@
-﻿    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+﻿    // 
     // MAP SETUP
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     const tileLayers = {
         osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: 'Â© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            attribution: '(c) <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
             maxZoom: 19
         }),
         topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            attribution: 'Â© <a href="https://opentopomap.org">OpenTopoMap</a>',
+            attribution: '(c) <a href="https://opentopomap.org">OpenTopoMap</a>',
             maxZoom: 17
         }),
         satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Â© Esri',
+            attribution: '(c) Esri',
             maxZoom: 19
         }),
         cycle: L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
-            attribution: 'Â© <a href="https://www.cyclosm.org/">CyclOSM</a>',
+            attribution: '(c) <a href="https://www.cyclosm.org/">CyclOSM</a>',
             maxZoom: 20
         })
     };
@@ -36,7 +36,7 @@
     document.getElementById('toggleSprints').addEventListener('click', toggleSprints);
     document.getElementById('resetViewBtn').addEventListener('click', resetView);
 
-    // â”€â”€ Draw main track â”€â”€
+    //  Draw main track 
     const trackCoords = geojson_str.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
     
     // Casing (dark outline)
@@ -68,9 +68,9 @@
         map.fitBounds(L.latLngBounds(trackCoords), { padding: [40, 40] });
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     // STATE
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     const chartData = chart_data_json || { efforts: [], sprints: [], cp: 0, weight: 0, intensity_zones: [], torque_available: false };
     const elevationData = elevation_data_json || {};
     let effortMarkers = [];
@@ -93,7 +93,7 @@
 
     const emptyFC = { type: 'FeatureCollection', features: [] };
 
-    // â”€â”€ Zone colors â”€â”€
+    //  Zone colors 
     const INSPECTION_ZONES_KEY = 'inspection_zones_v2_{{ session_id }}';
     const INSPECTION_ZONES_KEY_LEGACY_VERSION = 'inspection_zones_v2';
     const INSPECTION_ZONES_LEGACY_KEY = 'inspection_zones';
@@ -118,7 +118,7 @@
         return '#6b7280';
     }
 
-    // â”€â”€ Utility â”€â”€
+    //  Utility 
     function fmtDur(s) { return window.PEffortCommon.fmtDur(s); }
 
     function format_time_mmss(seconds) {
@@ -128,9 +128,9 @@
         return `${m}:${s.toString().padStart(2,'0')}`;
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     // EFFORT MARKERS
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     function findSelectedSegment(markerItem) {
         if (!markerItem) return null;
         if (markerItem.type === 'sprint') {
@@ -201,52 +201,52 @@
 
     updateEffortVisibility();
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     // SIDEBAR CARDS (same structure as map3d.js)
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     function buildEffortSidebarCard(e) {
         const showVamTeor = e.avg_grade >= 4.5;
         const signErr  = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
         const signDwkg = e.diff_wkg > 0 ? '+' : '';
         const vamSection = showVamTeor ? `
-            <div class="metric-row"><span class="metric-label">ðŸšµ VAM</span><span class="metric-value">${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h</span></div>
-            <div class="metric-row"><span class="metric-label">ðŸ§® VAM Teor.</span><span class="metric-value">${e.vam_teorico} m/h</span></div>
-            <div class="metric-row"><span class="metric-label">ðŸ§® W/kg Teor.</span><span class="metric-value">${e.wkg_teoric} Â· Î”${signDwkg}${e.diff_wkg}</span></div>
+            <div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h</span></div>
+            <div class="metric-row"><span class="metric-label">🧮 VAM Teor.</span><span class="metric-value">${e.vam_teorico} m/h</span></div>
+            <div class="metric-row"><span class="metric-label">🧮 W/kg Teor.</span><span class="metric-value">${e.wkg_teoric}  ${signDwkg}${e.diff_wkg}</span></div>
             <div class="metric-row"><span class="metric-label">Err %</span><span class="metric-value">${signErr}${Math.abs(e.perc_err)}%</span></div>
-        ` : `<div class="metric-row"><span class="metric-label">ðŸšµ VAM</span><span class="metric-value">${e.vam} m/h</span></div>`;
+        ` : `<div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${e.vam} m/h</span></div>`;
         return `
         <div class="selected-header">
             <div>
-                <div class="selected-title">E#${e.id+1} Â· Rank #${e.rank}</div>
+                <div class="selected-title">E#${e.id+1}  Rank #${e.rank}</div>
                 <div class="selected-subtitle-line">${e.start_time}</div>
-                <div class="selected-subtitle-line">${fmtDur(e.duration)} Â· ${e.distance_tot} km Â· ${e.elevation_gain}m â†‘</div>
+                <div class="selected-subtitle-line">${fmtDur(e.duration)}  ${e.distance_tot} km  ${e.elevation_gain}m </div>
                 <div class="selected-power" style="color:${e.color}">${e.avg_power}W <span>(${e.cp_pct}%)</span></div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
-                <button class="stream-btn" onclick="openStreamModal('e-${e.id}', '${e.id}', 'effort')">ðŸ“Š Stream</button>
-                <button class="sidebar-close-btn" onclick="closeSidebar()">âœ•</button>
+                <button class="stream-btn" onclick="openStreamModal('e-${e.id}', '${e.id}', 'effort')">📊 Stream</button>
+                <button class="sidebar-close-btn" onclick="closeSidebar()">✕</button>
             </div>
         </div>
         <div class="selected-grid">
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">âš¡ Avg</span><span class="metric-value">${e.avg_power}W</span></div>
-                <div class="metric-row"><span class="metric-label">âš–ï¸ W/kg</span><span class="metric-value">${e.avg_power_per_kg}</span></div>
-                <div class="metric-row"><span class="metric-label">5â€³ðŸ”º Peak</span><span class="metric-value">${e.best_5s_watt}W Â· ${e.best_5s_watt_kg} W/kg</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸŒ€ Cadence</span><span class="metric-value">${e.avg_cadence} rpm</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ”€ 1st/2nd</span><span class="metric-value">${e.avg_watts_first}/${e.avg_watts_second} Â· ${e.watts_ratio}</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Avg</span><span class="metric-value">${e.avg_power}W</span></div>
+                <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${e.avg_power_per_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">5″🔺 Peak</span><span class="metric-value">${e.best_5s_watt}W  ${e.best_5s_watt_kg} W/kg</span></div>
+                <div class="metric-row"><span class="metric-label">🌀 Cadence</span><span class="metric-value">${e.avg_cadence} rpm</span></div>
+                <div class="metric-row"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${e.avg_watts_first}/${e.avg_watts_second}  ${e.watts_ratio}</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">â¤ï¸ HR</span><span class="metric-value">${e.avg_hr > 0 ? e.avg_hr+' bpm Â· ðŸ”º'+(e.max_hr||'-')+' bpm' : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸš´ Speed</span><span class="metric-value">${e.avg_speed} km/h</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ“ Grade</span><span class="metric-value">${e.avg_grade}% Â· ðŸ”º${e.max_grade}%</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${e.avg_hr > 0 ? e.avg_hr+' bpm  '+(e.max_hr||'-')+' bpm' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${e.avg_speed} km/h</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${e.avg_grade}%  ${e.max_grade}%</span></div>
                 ${vamSection}
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">ðŸ”‹ kJ Total</span><span class="metric-value">${e.kj} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${e.kj} kJ</span></div>
                 <div class="metric-row"><span class="metric-label">kJ &gt; CP</span><span class="metric-value">${e.kj_over_cp} kJ</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ’ª kJ/kg</span><span class="metric-value">${e.kj_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${e.kj_kg}</span></div>
                 <div class="metric-row"><span class="metric-label">kJ/kg &gt; CP</span><span class="metric-value">${e.kj_kg_over_cp}</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ”¥ kJ/h/kg</span><span class="metric-value">${e.kj_h_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${e.kj_h_kg}</span></div>
                 <div class="metric-row"><span class="metric-label">kJ/h/kg &gt; CP</span><span class="metric-value">${e.kj_h_kg_over_cp}</span></div>
             </div>
         </div>`;
@@ -255,43 +255,43 @@
     function buildSprintSidebarCard(s) {
         const torqAvail = chartData.torque_available;
         const torqRows = torqAvail ? `
-            <div class="metric-row"><span class="metric-label">âš™ï¸ Avg Torque</span><span class="metric-value">${s.avg_torque > 0 ? s.avg_torque+' Nm' : '-'}</span></div>
-            <div class="metric-row"><span class="metric-label">âš™ï¸ Min/Max Torque</span><span class="metric-value">${s.min_torque > 0 ? s.min_torque : '-'} / ${s.max_torque > 0 ? s.max_torque : '-'} Nm</span></div>
+            <div class="metric-row"><span class="metric-label">⚙️ Avg Torque</span><span class="metric-value">${s.avg_torque > 0 ? s.avg_torque+' Nm' : '-'}</span></div>
+            <div class="metric-row"><span class="metric-label">⚙️ Min/Max Torque</span><span class="metric-value">${s.min_torque > 0 ? s.min_torque : '-'} / ${s.max_torque > 0 ? s.max_torque : '-'} Nm</span></div>
         ` : '';
         return `
         <div class="selected-header">
             <div>
                 <div class="selected-title">S#${s.rank}</div>
                 <div class="selected-subtitle-line">${s.start_time}</div>
-                <div class="selected-subtitle-line">${fmtDur(s.duration)} Â· ${s.distance_tot} km Â· ${s.elevation_gain}m â†‘</div>
+                <div class="selected-subtitle-line">${fmtDur(s.duration)}  ${s.distance_tot} km  ${s.elevation_gain}m </div>
                 <div class="selected-power">${s.avg_power}W</div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
-                <button class="stream-btn" onclick="openStreamModal('s-${s.id}', '${s.id}', 'sprint')">ðŸ“Š Stream</button>
-                <button class="sidebar-close-btn" onclick="closeSidebar()">âœ•</button>
+                <button class="stream-btn" onclick="openStreamModal('s-${s.id}', '${s.id}', 'sprint')">📊 Stream</button>
+                <button class="sidebar-close-btn" onclick="closeSidebar()">✕</button>
             </div>
         </div>
         <div class="selected-grid">
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">âš¡ Avg Power</span><span class="metric-value">${s.avg_power}W</span></div>
-                <div class="metric-row"><span class="metric-label">âš–ï¸ W/kg</span><span class="metric-value">${s.avg_power_per_kg}</span></div>
-                <div class="metric-row"><span class="metric-label">âš¡ Max</span><span class="metric-value">${s.max_watt}W${s.rpm_at_max > 0 ? ' @ '+s.rpm_at_max+' rpm' : ''}</span></div>
-                <div class="metric-row"><span class="metric-label">âš¡ Min</span><span class="metric-value">${s.min_watt}W${s.rpm_at_min > 0 ? ' @ '+s.rpm_at_min+' rpm' : ''}</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Avg Power</span><span class="metric-value">${s.avg_power}W</span></div>
+                <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${s.avg_power_per_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Max</span><span class="metric-value">${s.max_watt}W${s.rpm_at_max > 0 ? ' @ '+s.rpm_at_max+' rpm' : ''}</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Min</span><span class="metric-value">${s.min_watt}W${s.rpm_at_min > 0 ? ' @ '+s.rpm_at_min+' rpm' : ''}</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">ðŸŒ€ Avg Cad.</span><span class="metric-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸŒ€ Min/Max</span><span class="metric-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
+                <div class="metric-row"><span class="metric-label">🌀 Avg Cad.</span><span class="metric-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🌀 Min/Max</span><span class="metric-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
                 ${torqRows}
-                <div class="metric-row"><span class="metric-label">â¤ï¸ HR</span><span class="metric-value">${s.max_hr > 0 ? (s.min_hr > 0 ? s.min_hr : '-')+' bpm Â· ðŸ”º'+s.max_hr+' bpm' : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ“ Grade</span><span class="metric-value">${s.avg_grade}% Â· ðŸ”º${s.max_grade}%</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${s.max_hr > 0 ? (s.min_hr > 0 ? s.min_hr : '-')+' bpm  '+s.max_hr+' bpm' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${s.avg_grade}%  ${s.max_grade}%</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">âž¡ï¸ Speed Start</span><span class="metric-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">âž¡ï¸ Speed End</span><span class="metric-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ”‹ kJ Total</span><span class="metric-value">${s.kj} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">➡️ Speed Start</span><span class="metric-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">➡️ Speed End</span><span class="metric-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${s.kj} kJ</span></div>
                 <div class="metric-row"><span class="metric-label">kJ &gt; CP</span><span class="metric-value">${s.kj_over_cp} kJ</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ’ª kJ/kg</span><span class="metric-value">${s.kj_kg}</span></div>
-                <div class="metric-row"><span class="metric-label">kJ/h/kg</span><span class="metric-value">${s.kj_h_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${s.kj_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${s.kj_h_kg}</span></div>
             </div>
         </div>`;
     }
@@ -333,21 +333,21 @@
         else showFullRideMetricsCard();
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     // TOGGLE BUTTONS
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     function toggleEfforts() {
         showEfforts = !showEfforts;
         updateEffortVisibility();
         const btn = document.getElementById('toggleEfforts');
-        btn.textContent = showEfforts ? 'ðŸ‘Š Efforts: ON' : 'ðŸ‘Š Efforts: OFF';
+        btn.textContent = showEfforts ? '🚴 Efforts: ON' : '🚴 Efforts: OFF';
         btn.style.backgroundColor = showEfforts ? '#10b981' : '#ef4444';
     }
     function toggleSprints() {
         showSprints = !showSprints;
         updateEffortVisibility();
         const btn = document.getElementById('toggleSprints');
-        btn.textContent = showSprints ? 'ðŸƒ Sprints: ON' : 'ðŸƒ Sprints: OFF';
+        btn.textContent = showSprints ? '⚡ Sprints: ON' : '⚡ Sprints: OFF';
         btn.style.backgroundColor = showSprints ? '#10b981' : '#ef4444';
     }
     function resetView() {
@@ -356,9 +356,9 @@
         }
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     // 5s POWER PROFILE
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     function computePower5sProfile() {
         if (power5sCache) return power5sCache;
         const power = Array.isArray(elevation_data_json.power) ? elevation_data_json.power : [];
@@ -372,9 +372,9 @@
         return window.PEffortCommon.calculateTimeBasedMovingAverage(data, timeData, windowSeconds);
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     // ALTIMETRY CHART (identical logic to map3d.js)
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     function findNearestDistanceIndex(distanceKm) {
         const distances = elevation_data_json.distance || [];
         if (!distances.length) return -1;
@@ -480,7 +480,7 @@
         if (trackCoords.length > 0) map.fitBounds(L.latLngBounds(trackCoords), { padding: [40,40] });
     }
 
-    // â”€â”€ Selection metrics (same as map3d.js) â”€â”€
+    //  Selection metrics (same as map3d.js) 
     function calculateMetricsForRange(s, e) {
         const timeSec = Array.isArray(elevation_data_json.time_sec) ? elevation_data_json.time_sec : [];
         const power = Array.isArray(elevation_data_json.power) ? elevation_data_json.power : [];
@@ -520,7 +520,7 @@
         const wkgTeoricoNum = gradientFactor > 0 ? (vam / (gradientFactor * 100)) : 0;
         const diffWkgNum = Math.abs(avgWkgNum - wkgTeoricoNum);
         const percErrNum = avgWkgNum !== 0 ? (((wkgTeoricoNum - avgWkgNum) / avgWkgNum) * 100) : 0;
-        const vamArrow = (vamTeorico - vam) > 0 ? 'â¬†ï¸' : ((vamTeorico - vam) < 0 ? 'â¬‡ï¸' : '');
+        const vamArrow = (vamTeorico - vam) > 0 ? '' : ((vamTeorico - vam) < 0 ? '' : '');
         const diffVam = Math.round(Math.abs(vamTeorico - vam));
         const wkgTeorico = wkgTeoricoNum.toFixed(2);
         const diffWkg = diffWkgNum.toFixed(2);
@@ -545,48 +545,48 @@
         const signPercErr = Number(m.percErrNum) > 0 ? '+' : (Number(m.percErrNum) < 0 ? '-' : '');
         const theoreticalRows = showVamTeor
             ? `
-        <div class="metric-row"><span class="metric-label">ðŸ§® VAM Teor.</span><span class="metric-value">${m.vamTeorico} m/h</span></div>
-        <div class="metric-row"><span class="metric-label">ðŸ§® W/kg Teor.</span><span class="metric-value">${m.wkgTeorico} Â· Î”${signDwkg}${m.diffWkg}</span></div>
+        <div class="metric-row"><span class="metric-label">🧮 VAM Teor.</span><span class="metric-value">${m.vamTeorico} m/h</span></div>
+        <div class="metric-row"><span class="metric-label">🧮 W/kg Teor.</span><span class="metric-value">${m.wkgTeorico}  ${signDwkg}${m.diffWkg}</span></div>
         <div class="metric-row"><span class="metric-label">Err %</span><span class="metric-value">${signPercErr}${m.percErr}%</span></div>
     `
             : '';
         const vamSection = `
-        <div class="metric-row"><span class="metric-label">ðŸšµ VAM</span><span class="metric-value">${showVamTeor ? `${m.vam} m/h ${m.vamArrow} ${m.diffVam} m/h` : `${m.vam} m/h`}</span></div>
+        <div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${showVamTeor ? `${m.vam} m/h ${m.vamArrow} ${m.diffVam} m/h` : `${m.vam} m/h`}</span></div>
         ${theoreticalRows}
     `;
         return `
         <div class="selected-header">
             <div>
-                <div class="selected-title">${m.cardTitle || 'ðŸ” Selection'}</div>
-                <div class="selected-subtitle-line">${m.distDisplay} km Â· ${m.elevationDisplay}m â†‘</div>
+                <div class="selected-title">${m.cardTitle || '🔍 Selection'}</div>
+                <div class="selected-subtitle-line">${m.distDisplay} km  ${m.elevationDisplay}m </div>
                 <div class="selected-subtitle-line">${m.durationDisplay}</div>
                 <div class="selected-power">${m.avgPower}W <span>(${m.avgWkg} W/kg)</span></div>
             </div>
-            ${m.canStream ? '<button class="stream-btn" onclick="openSelectionStreamModal()">ðŸ“Š Stream</button>' : ''}
+            ${m.canStream ? '<button class="stream-btn" onclick="openSelectionStreamModal()">📊 Stream</button>' : ''}
         </div>
         <div class="selected-grid">
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">âš¡ Avg Power</span><span class="metric-value">${m.avgPower}W</span></div>
-                <div class="metric-row"><span class="metric-label">âš–ï¸ W/kg</span><span class="metric-value">${m.avgWkg}</span></div>
-                <div class="metric-row"><span class="metric-label">â¤ï¸ HR</span><span class="metric-value">${m.avgHr > 0 ? m.avgHr+' bpm Â· ðŸ”º'+m.maxHr+' bpm' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Avg Power</span><span class="metric-value">${m.avgPower}W</span></div>
+                <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${m.avgWkg}</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${m.avgHr > 0 ? m.avgHr+' bpm  '+m.maxHr+' bpm' : '-'}</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">ðŸš´ Speed</span><span class="metric-value">${m.avgSpeed} km/h</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ“ Grade</span><span class="metric-value">${m.avgGrade}%</span></div>
+                <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${m.avgSpeed} km/h</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${m.avgGrade}%</span></div>
                 ${vamSection}
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">ðŸ”‹ kJ</span><span class="metric-value">${m.kJ} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">🔋 kJ</span><span class="metric-value">${m.kJ} kJ</span></div>
                 <div class="metric-row"><span class="metric-label">kJ &gt; CP</span><span class="metric-value">${m.kJOverCp} kJ</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ’ª kJ/kg</span><span class="metric-value">${m.kJkg}</span></div>
-                <div class="metric-row"><span class="metric-label">ðŸ”¥ kJ/h/kg</span><span class="metric-value">${m.kJhKg}</span></div>
+                <div class="metric-row"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${m.kJkg}</span></div>
+                <div class="metric-row"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${m.kJhKg}</span></div>
             </div>
         </div>`;
     }
 
     function showSelectionMetricsCard() {
         if (!currentSelectionMetrics) return;
-        currentSelectionMetrics.cardTitle = 'ðŸ” Selection';
+        currentSelectionMetrics.cardTitle = '🔍 Selection';
         currentSelectionMetrics.canStream = true;
         document.getElementById('sidebar-content').innerHTML = buildSelectionMetricsCard(currentSelectionMetrics);
         isShowingEffortDetail = false;
@@ -605,15 +605,15 @@
             return;
         }
 
-        currentFullRideMetrics.cardTitle = 'ðŸš´ Full Ride';
+        currentFullRideMetrics.cardTitle = '🚴 Full Ride';
         currentFullRideMetrics.canStream = false;
         document.getElementById('sidebar-content').innerHTML = buildSelectionMetricsCard(currentFullRideMetrics);
         isShowingEffortDetail = false;
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     // STREAM MODAL
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // 
     let streamModalData = null;
     let avg30sSeconds = 30;
     let avg60sSeconds = 60;
@@ -721,6 +721,8 @@
 
         modal.classList.add('active');
         modalOverlay.classList.add('active');
+        modal.style.zIndex = '99999';
+        modalOverlay.style.zIndex = '99998';
 
         const ctrlPanel = document.getElementById('streamControlPanel');
         if (ctrlPanel) ctrlPanel.style.display = (type === 'sprint') ? 'none' : '';
@@ -748,6 +750,8 @@
 
         modal.classList.add('active');
         modalOverlay.classList.add('active');
+        modal.style.zIndex = '99999';
+        modalOverlay.style.zIndex = '99998';
 
         const ctrlPanel = document.getElementById('streamControlPanel');
         if (ctrlPanel) ctrlPanel.style.display = '';
@@ -764,6 +768,8 @@
         const modalOverlay = document.getElementById('streamModalOverlay');
         modal.classList.remove('active');
         modalOverlay.classList.remove('active');
+        modal.style.zIndex = '';
+        modalOverlay.style.zIndex = '';
 
         document.getElementById('streamChart1').innerHTML = '';
         document.getElementById('streamChart2').innerHTML = '';
@@ -1044,10 +1050,10 @@
             const s = Math.round(ts % 60);
             const tStr = m > 0 ? `${m}m${s}s` : `${Math.round(ts)}s`;
             let html = `<span style="color:#f9fafb;font-weight:700">${tStr}</span><br/>`;
-            html += `<span style="color:#fbbf24">âš¡ ${Math.round(powS[ci])}W</span>`;
-            html += ` <span style="color:#a78bfa"> âˆ…${avg30sSeconds}s ${Math.round(avg30[ci])}W</span>`;
-            html += ` <span style="color:#6ee7b7"> âˆ…${avg60sSeconds}s ${Math.round(avg60[ci])}W</span>`;
-            if (hrS && hrS[ci] > 0) html += `<br/><span style="color:#fca5a5">â¤ï¸ ${Math.round(hrS[ci])} bpm</span>`;
+            html += `<span style="color:#fbbf24">⚡ ${Math.round(powS[ci])}W</span>`;
+            html += ` <span style="color:#a78bfa"> ∅${avg30sSeconds}s ${Math.round(avg30[ci])}W</span>`;
+            html += ` <span style="color:#6ee7b7"> ∅${avg60sSeconds}s ${Math.round(avg60[ci])}W</span>`;
+            if (hrS && hrS[ci] > 0) html += `<br/><span style="color:#fca5a5">❤️ ${Math.round(hrS[ci])} bpm</span>`;
             ttEl.innerHTML = html;
             ttEl.style.display = 'block';
 
@@ -1244,7 +1250,7 @@
             .attr('rx', 4).attr('fill', '#10b981').attr('opacity', 0.12);
         pg1.append('text').attr('x', 8 + badgeW / 2).attr('y', 19).attr('text-anchor', 'middle')
             .attr('fill', '#059669').attr('font-size', 10).attr('font-weight', 700)
-            .text(yTor ? 'Cadence (rpm)  Â·  Torque (Nm)' : 'Cadence (rpm)');
+            .text(yTor ? 'Cadence (rpm)  ·  Torque (Nm)' : 'Cadence (rpm)');
 
         const dg1 = pg1.append('g').attr('clip-path', 'url(#sp-clip2)');
         const cv1 = pg1.append('line').attr('y1', 0).attr('y2', panelH)
@@ -1347,10 +1353,10 @@
             const s = Math.round(ts % 60);
             const tStr = m > 0 ? `${m}m${s}s` : `${Math.round(ts)}s`;
             let html = `<span style="color:#e2e8f0;font-weight:700;font-size:12px">${tStr}</span><br/>`;
-            html += `<span style="color:#93c5fd">âš¡ ${Math.round(powS[ci] || 0)} W</span>`;
-            if (spdS && spdS[ci] > 0) html += `  <span style="color:#d8b4fe">ðŸš´ ${spdS[ci].toFixed(1)} km/h</span>`;
-            if (cadS && cadS[ci] > 0) html += `  <span style="color:#6ee7b7">ðŸŒ€ ${Math.round(cadS[ci])} rpm</span>`;
-            if (torS && torS[ci] > 0) html += `<br/><span style="color:#fcd34d">âš™ï¸ ${Math.round(torS[ci])} Nm</span>`;
+            html += `<span style="color:#93c5fd">⚡ ${Math.round(powS[ci] || 0)} W</span>`;
+            if (spdS && spdS[ci] > 0) html += `  <span style="color:#d8b4fe">🚴 ${spdS[ci].toFixed(1)} km/h</span>`;
+            if (cadS && cadS[ci] > 0) html += `  <span style="color:#6ee7b7">🌀 ${Math.round(cadS[ci])} rpm</span>`;
+            if (torS && torS[ci] > 0) html += `<br/><span style="color:#fcd34d">⚙️ ${Math.round(torS[ci])} Nm</span>`;
             ttEl.innerHTML = html;
             ttEl.style.display = 'block';
 
@@ -1488,7 +1494,7 @@
         }
     });
 
-    // â”€â”€ D3 Altimetry chart (identical visual to map3d) â”€â”€
+    //  D3 Altimetry chart (identical visual to map3d) 
     let isResizing = false;
     document.getElementById('resize-handle').addEventListener('mousedown', e => { isResizing = true; e.preventDefault(); });
     document.addEventListener('mousemove', e => {
@@ -1674,8 +1680,8 @@
             if (idx >= 0) {
                 hoverLine.style('display',null).attr('x1',xScale(distances[idx])).attr('x2',xScale(distances[idx]));
                 tipEl.style.display = 'block';
-                const time = times && times[idx] ? times[idx] : 'â€”';
-                tipEl.textContent = `${distances[idx].toFixed(2)} km Â· ${Math.round(altitudes[idx])} m Â· ${time}`;
+                const time = times && times[idx] ? times[idx] : '';
+                tipEl.textContent = `${distances[idx].toFixed(2)} km  ${Math.round(altitudes[idx])} m  ${time}`;
                 const tipW = Math.ceil(tipEl.getBoundingClientRect().width || 120);
                 const chartW = Math.ceil(container.getBoundingClientRect().width || width);
                 const rawLeft = margin.left + point.xClamped + 10;
@@ -1755,3 +1761,4 @@
     map.invalidateSize();
     showFullRideMetricsCard();
     setTimeout(refreshMap2DLayout, 120);
+

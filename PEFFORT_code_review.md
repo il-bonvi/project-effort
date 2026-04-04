@@ -463,11 +463,11 @@ Quick wins ancora aperte:
 3. **Completato** — §3.4 Persistenza sessioni su Render: strategia validata (`/data` persistent disk consigliato, Redis opzionale)
 
 ### Priorità Media (refactoring successivo)
-4. **§4.1/4.2** — Template JS troppo grandi → separare in file statici
+4. **Completato** — §4.1/4.2 Template JS separati in file statici (`webapp/static/js/map2d.js`, `webapp/static/js/altimetria_d3.js`)
 
 ### Priorità Bassa (miglioramento continuo)
 5. **§4.8** — Aggiungere TypedDict per i return type delle funzioni core
-7. **§8.2** — Aggiungere docstring/JSDoc nelle parti frontend-facing
+6. **§8.2** — Aggiungere docstring/JSDoc nelle parti frontend-facing
 
 ---
 

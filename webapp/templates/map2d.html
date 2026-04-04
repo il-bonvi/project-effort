@@ -15,7 +15,7 @@
             color: #fff;
         }
 
-        /* â”€â”€ Layout â”€â”€ */
+        /*  Layout  */
         #map {
             position: absolute;
             top: 0;
@@ -47,7 +47,7 @@
             z-index: 20;
         }
 
-        /* â”€â”€ Sidebar â”€â”€ */
+        /*  Sidebar  */
         #sidebar {
             position: fixed;
             left: 0;
@@ -126,7 +126,7 @@
         }
         .sidebar-close-btn:hover { background: rgba(239,68,68,.25); }
 
-        /* â”€â”€ Controls â”€â”€ */
+        /*  Controls  */
         .controls {
             position: absolute;
             bottom: 160px;
@@ -162,7 +162,7 @@
             box-shadow: 0 2px 8px rgba(0,0,0,.3);
         }
 
-        /* â”€â”€ Hover tooltip â”€â”€ */
+        /*  Hover tooltip  */
         #hover-tooltip {
             position: fixed;
             top: 10px;
@@ -178,7 +178,7 @@
             box-shadow: 0 4px 12px rgba(0,0,0,.5);
         }
 
-        /* â”€â”€ Leaflet overrides â”€â”€ */
+        /*  Leaflet overrides  */
         .leaflet-container { background: #1e293b; }
         .leaflet-control-zoom a {
             background: #1e40af !important;
@@ -202,7 +202,7 @@
             right: 0;
             bottom: 0;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 500;
+            z-index: 5000;
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -225,7 +225,7 @@
             max-width: 1400px;
             height: 90vh;
             overflow: hidden;
-            z-index: 501;
+            z-index: 5001;
             padding: 20px;
             opacity: 0;
             pointer-events: none;
@@ -260,9 +260,23 @@
         .stream-modal-close {
             background: none;
             border: none;
-            font-size: 24px;
+            font-size: 22px;
             cursor: pointer;
             color: #6b7280;
+            width: 34px;
+            height: 34px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            border-radius: 8px;
+            transition: background-color 0.2s ease, color 0.2s ease;
+            font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+        }
+
+        .stream-modal-close:hover {
+            background: #f3f4f6;
+            color: #111827;
         }
 
         .stream-control-panel {
@@ -343,7 +357,7 @@
     <div id="streamModal" class="stream-modal">
         <div class="stream-modal-header">
             <h2 id="streamModalTitle">Stream Zoom</h2>
-            <button class="stream-modal-close" id="streamModalCloseBtn">âœ•</button>
+            <button class="stream-modal-close" id="streamModalCloseBtn">✕</button>
         </div>
         <div class="stream-control-panel" id="streamControlPanel">
             <div class="stream-control-group">
@@ -368,7 +382,7 @@
     <div id='sidebar'>
         <div id='sidebar-content'>
             <div class="sidebar-empty">
-                <div style="font-size: 2rem; margin-bottom: 12px;">ðŸ—ºï¸</div>
+                <div style="font-size: 2rem; margin-bottom: 12px;">🗺️</div>
                 <strong style="color: #e2e8f0; display: block; margin-bottom: 8px;">2D Map</strong>
                 Clicca su un marker effort/sprint per vedere i dettagli.<br><br>
                 Seleziona un'area sull'altimetria per filtrare la traccia.
@@ -383,14 +397,14 @@
             <option value='satellite'>Esri Satellite</option>
             <option value='cycle'>CyclOSM</option>
         </select>
-        <button class='control-btn' id='toggleEfforts'>ðŸ‘Š Efforts: ON</button>
-        <button class='control-btn' id='toggleSprints'>ðŸƒ Sprints: ON</button>
-        <button class='control-btn' id='resetViewBtn'>ðŸŽ¯ Reset View</button>
+        <button class='control-btn' id='toggleEfforts'>🚴 Efforts: ON</button>
+        <button class='control-btn' id='toggleSprints'>⚡ Sprints: ON</button>
+        <button class='control-btn' id='resetViewBtn'>🔄 Reset View</button>
     </div>
 
     <script src="/static/js/peffort_common.js?v=2026040401"></script>
     <script>
-        // â”€â”€ Data injected from server â”€â”€
+        //  Data injected from server 
         const efforts_data_json   = {{ efforts_data_json | safe }};
         const chart_data_json     = {{ chart_data_json | safe }};
         const geojson_str         = {{ geojson_str | safe }};
@@ -415,3 +429,4 @@
     <script src="/static/js/map2d.js?v=2026040402"></script>
 </body>
 </html>
+

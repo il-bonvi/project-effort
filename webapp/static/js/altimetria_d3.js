@@ -1,11 +1,11 @@
-﻿// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+﻿// 
 // DATA
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 const chartData = JSON.parse(document.getElementById('chart-data-json').innerText);
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Y-AXIS LOGIC â€” identical to ECharts version (intervals.icu approach)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
+// Y-AXIS LOGIC  identical to ECharts version (intervals.icu approach)
+// 
 const elevations = chartData.elevation_data.map(d => d.alt);
 const minAlt = Math.min(...elevations);
 const maxAlt = Math.max(...elevations);
@@ -22,9 +22,9 @@ const yMaxRaw       = Math.ceil((yMin + rangeY_final) / roundTo) * roundTo;
 const yMaxCap       = Math.ceil((maxAlt + paddingTop) / roundTo) * roundTo;
 const yMax          = Math.min(yMaxRaw, yMaxCap);
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // SVG SETUP
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 const svg = d3.select('#chart-svg');
 const chartEl = document.getElementById('chart');
 
@@ -58,7 +58,7 @@ svg.attr('width', W).attr('height', H);
 // Defs
 const defs = svg.append('defs');
 
-// Elevation gradient â€” same colors as ECharts (#f3f4f6 area, #d1d5db line)
+// Elevation gradient  same colors as ECharts (#f3f4f6 area, #d1d5db line)
 const grad = defs.append('linearGradient').attr('id','areaGrad').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
 grad.append('stop').attr('offset','0%').attr('stop-color','#d1d5db').attr('stop-opacity',0.55);
 grad.append('stop').attr('offset','100%').attr('stop-color','#f3f4f6').attr('stop-opacity',0.20);
@@ -71,27 +71,27 @@ defs.append('clipPath').attr('id','chartClip')
 const ROOT_Y = MARGIN.top + ANN_SPACE;
 const g = svg.append('g').attr('transform', `translate(${MARGIN.left},${ROOT_Y})`);
 
-// â”€â”€ Scales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Scales 
 let xScale = d3.scaleLinear().domain([0, maxDist]).range([0, innerW]);
 let yScale = d3.scaleLinear().domain([yMin, yMax]).range([innerH, 0]);
 
 // Zoom-rescaled x (updated on zoom/pan)
 let xScaleZ = xScale.copy();
 
-// â”€â”€ Layer groups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Layer groups 
 const gridG    = g.append('g').attr('class','grid-layer');
 const xAxisG   = g.append('g').attr('class','x-axis').attr('transform',`translate(0,${innerH})`);
 const yAxisG   = g.append('g').attr('class','y-axis');
 const clipG    = g.append('g').attr('clip-path','url(#chartClip)');
 const elevG    = clipG.append('g').attr('class','elev-layer');
 // segsG: strict clip so segments cannot bleed up into annotation space
-// No special clip for segsG â€” just move annG after everything else via JS
+// No special clip for segsG  just move annG after everything else via JS
 const segsG    = clipG.append('g').attr('class','segs-layer');
 // Invisible overlay for mouse tracking
 const overlay  = g.append('rect').attr('width',innerW).attr('height',innerH).attr('fill','none').style('pointer-events','all');
 // Crosshair (inside g)
 const crossG   = g.append('g').attr('class','cross-layer').style('pointer-events','none');
-// annG appended to SVG root â€” guaranteed on top of all chart elements
+// annG appended to SVG root  guaranteed on top of all chart elements
 const annG     = svg.append('g').attr('class','ann-layer')
     .attr('transform',`translate(${MARGIN.left},${ROOT_Y})`);
 const crossV   = crossG.append('line').attr('class','crosshair').attr('y1',0).attr('y2',innerH).style('display','none');
@@ -107,17 +107,17 @@ g.append('text').attr('class','axis-name')
     .attr('x', -innerH/2).attr('y', -48)
     .text('Altitude (m)');
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // STATE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 let activeId       = null;   // currently pinned annotation
 let currentZoom    = d3.zoomIdentity;
 const tooltip      = document.getElementById('tooltip');
 const popupCard    = document.getElementById('popup-card');
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // RENDER FUNCTIONS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 function getXZ() { return currentZoom.rescaleX(xScale); }
 
 function renderAxes(xz) {
@@ -160,7 +160,7 @@ function renderElevation(xz) {
 function renderSegments(xz) {
     segsG.selectAll('*').remove();
 
-    // â”€â”€ Efforts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Efforts 
     chartData.efforts.forEach(effort => {
         const lineGen = d3.line()
             .x(d => xz(d[0])).y(d => Math.max(0, yScale(d[1])))
@@ -175,7 +175,7 @@ function renderSegments(xz) {
             .style('--seg-color', effort.color);
     });
 
-    // â”€â”€ Sprints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Sprints 
     chartData.sprints.forEach((sprint, idx) => {
         const lineGen = d3.line()
             .x(d => xz(d[0])).y(d => Math.max(0, yScale(d[1])))
@@ -203,9 +203,9 @@ function renderSegments(xz) {
     });
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// ANNOTATION COLLISION DETECTION â€” no clustering, X+Y avoidance
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
+// ANNOTATION COLLISION DETECTION  no clustering, X+Y avoidance
+// 
 const PILL_W       = 70;
 const PILL_H       = 30;
 const PILL_PAD     = 6;   // min gap between pills
@@ -250,7 +250,7 @@ function rectsOverlap(x1,y1,w1,h1, x2,y2,w2,h2, pad) {
 }
 
 // Highest terrain Y (smallest SVG Y = top of mountain) under pill X range [px, px+PILL_W]
-// Uses xz scale â€” no dependency on bisect
+// Uses xz scale  no dependency on bisect
 function terrainTopUnder(px, xz) {
     const distL = xz.invert(px);
     const distR = xz.invert(px + PILL_W);
@@ -268,7 +268,7 @@ function terrainTopUnder(px, xz) {
 function resolveCollisions(items, xz) {
     const TERRAIN_GAP = 8; // px clearance above terrain
 
-    // Sort left â†’ right
+    // Sort left  right
     items.sort((a, b) => a.anchorX - b.anchorX);
 
     // Initial placement: 45px above anchor, but never below terrain
@@ -367,7 +367,7 @@ function drawPill(item) {
         .attr('x1', item.anchorX).attr('y1', item.anchorY)
         .attr('x2', item.finalX + PILL_W / 2).attr('y2', item.finalY + PILL_H);
 
-    // Pill rect â€” same color as segment (effort.color or #000000 for sprint)
+    // Pill rect  same color as segment (effort.color or #000000 for sprint)
     pg.append('rect')
         .attr('x', item.finalX).attr('y', item.finalY)
         .attr('width', PILL_W).attr('height', PILL_H)
@@ -394,10 +394,10 @@ function drawPill(item) {
         .text(item.sub);
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// PIN / POPUP CARD â€” morphs from pill, positions above chart area
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-const pillRegistry = {}; // id â†’ {x,y,cx,cy,color}  (set in drawPill)
+// 
+// PIN / POPUP CARD  morphs from pill, positions above chart area
+// 
+const pillRegistry = {}; // id  {x,y,cx,cy,color}  (set in drawPill)
 const CARD_W = 560;      // matches CSS width
 const SIDEBAR_W = 382;
 
@@ -407,7 +407,7 @@ function removeLeader() {
     if (_popupLeader) { _popupLeader.remove(); _popupLeader = null; }
 }
 
-// Track dodged pills: id â†’ amount shifted in g-coords x
+// Track dodged pills: id  amount shifted in g-coords x
 const _dodgeShift = {};
 
 function dodgePills(cardRect) {
@@ -432,7 +432,7 @@ function dodgePills(cardRect) {
 
     // For each pill overlapping card, compute required dodge direction
     // Then resolve cascading collisions among dodged pills
-    const shifts = {}; // id â†’ shift in x (g-coords)
+    const shifts = {}; // id  shift in x (g-coords)
     pills.forEach(p => { shifts[p.id] = 0; });
 
     // Step 1: initial dodge away from card
@@ -457,7 +457,7 @@ function dodgePills(cardRect) {
         }
     });
 
-    // Step 2: resolve pill-pill collisions â€” only cascade pills already being dodged
+    // Step 2: resolve pill-pill collisions  only cascade pills already being dodged
     for (let pass = 0; pass < 10; pass++) {
         let changed = false;
         for (let i = 0; i < pills.length; i++) {
@@ -474,14 +474,14 @@ function dodgePills(cardRect) {
                 // Horizontal overlap after shift?
                 const aR = ax + PILL_W, bR = bx + PILL_W;
                 if (aR + PAD <= bx || bR + PAD <= ax) continue;
-                // They collide â€” only push the already-shifted one further, never pull a resting pill
+                // They collide  only push the already-shifted one further, never pull a resting pill
                 const overlapX = Math.min(aR, bR) - Math.max(ax, bx) + PAD;
                 if (shifts[a.id] !== 0 && shifts[b.id] === 0) {
                     shifts[a.id] += (shifts[a.id] > 0 ? overlapX : -overlapX);
                 } else if (shifts[b.id] !== 0 && shifts[a.id] === 0) {
                     shifts[b.id] += (shifts[b.id] > 0 ? overlapX : -overlapX);
                 } else {
-                    // Both moving â€” push in their respective directions
+                    // Both moving  push in their respective directions
                     if (ax + PILL_W/2 < bx + PILL_W/2) {
                         shifts[b.id] >= 0 ? shifts[b.id] += overlapX : shifts[a.id] -= overlapX;
                     } else {
@@ -549,7 +549,7 @@ function togglePin(id, obj, type) {
     }
     activeId = id;
     highlightId(id);
-    renderAnnotations(getXZ()); // redraws pills â†’ fills pillRegistry
+    renderAnnotations(getXZ()); // redraws pills  fills pillRegistry
     expandPopup(id, obj, type);
 }
 
@@ -584,7 +584,7 @@ function expandPopup(id, obj, type) {
     void popupCard.offsetHeight;
     const CARD_H = popupCard.scrollHeight + 4;
 
-    // Pill center â€” origin of the animation
+    // Pill center  origin of the animation
     let pill_cx, pill_top;
     if (pill) {
         pill_cx  = pill.cx;
@@ -601,7 +601,7 @@ function expandPopup(id, obj, type) {
     const chartH = document.getElementById('chart').offsetHeight;
     let finalLeft = pill_cx - CARD_W / 2;
     finalLeft = Math.max(4, Math.min(finalLeft, chartW - CARD_W - 4));
-    // Always place at very top of chart div â€” maximize space, minimize overlap
+    // Always place at very top of chart div  maximize space, minimize overlap
     let finalTop = MARGIN.top + 4;
     // If card is taller than available space, allow scrolling down but keep near top
     finalTop = Math.max(2, Math.min(finalTop, chartH - CARD_H - 4));
@@ -647,7 +647,7 @@ function expandPopup(id, obj, type) {
     // Highlight on hover over expanded card
     popupCard.onmouseenter = () => { if (activeId) highlightId(activeId); };
     popupCard.onmouseleave = () => { if (activeId) highlightId(activeId); };
-    void popupCard.offsetHeight; // flush â€” browser registers start state
+    void popupCard.offsetHeight; // flush  browser registers start state
 
     setTimeout(() => {
         dodgePills({ left: finalLeft, top: finalTop, right: finalLeft + CARD_W, bottom: finalTop + CARD_H });
@@ -711,131 +711,131 @@ function positionPopup() {
     if (activeId) collapsePopup(activeId);
 }
 
-// â”€â”€ Effort card â€” 3-column horizontal layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Effort card  3-column horizontal layout 
 function buildEffortCard(e) {
     const signErr  = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
     const signDwkg = e.diff_wkg > 0 ? '+' : '';
     const showVamTeor = e.avg_grade >= 4.5;
     const vamSection = showVamTeor
-        ? `<div class="pc-metric"><span class="pc-label">ðŸšµ VAM</span><span class="pc-value">${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h</span></div>
-           <div class="pc-metric"><span class="pc-label">ðŸ§® VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>
-           <div class="pc-metric"><span class="pc-label">ðŸ§® W/kg Teor.</span><span class="pc-value">${e.wkg_teoric} Â· Î”${signDwkg}${e.diff_wkg}</span></div>
+          ? `<div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h</span></div>
+              <div class="pc-metric"><span class="pc-label">🧮 VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>
+              <div class="pc-metric"><span class="pc-label">🧮 W/kg Teor.</span><span class="pc-value">${e.wkg_teoric}  ${signDwkg}${e.diff_wkg}</span></div>
            <div class="pc-metric"><span class="pc-label">Err %</span><span class="pc-value">${signErr}${Math.abs(e.perc_err)}%</span></div>`
-        : `<div class="pc-metric"><span class="pc-label">ðŸšµ VAM</span><span class="pc-value">${e.vam} m/h</span></div>`;
+          : `<div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h</span></div>`;
     return `
     <div class="pc-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
-            <span>E#${e.id + 1} <span style="font-weight:400;font-size:10px;color:#9ca3af">Rank #${e.rank}</span> &nbsp;<span style="font-weight:400;font-size:10.5px;color:#6b7280">${e.start_time} Â· ${fmtDur(e.duration)} Â· ${e.distance_tot} km Â· ${e.elevation_gain}m â†‘</span></span>
+            <span>E#${e.id + 1} <span style="font-weight:400;font-size:10px;color:#9ca3af">Rank #${e.rank}</span> &nbsp;<span style="font-weight:400;font-size:10.5px;color:#6b7280">${e.start_time}  ${fmtDur(e.duration)}  ${e.distance_tot} km  ${e.elevation_gain}m </span></span>
             <div style="color:${e.color};font-size:15px;margin-top: 4px;">${e.avg_power}W <span style="font-size:11px;font-weight:400">(${e.cp_pct}%)</span></div>
         </div>
-        <button class="zoom-stream-btn" onclick="openStreamModal('e-${e.id}', '${e.id}', 'effort')">ðŸ“Š Stream</button>
+        <button class="zoom-stream-btn" onclick="openStreamModal('e-${e.id}', '${e.id}', 'effort')">📊 Stream</button>
     </div>
     <div class="pc-cols">
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">âš¡ Avg</span><span class="pc-value">${e.avg_power}W</span></div>
-            <div class="pc-metric"><span class="pc-label">âš–ï¸ W/kg</span><span class="pc-value">${e.avg_power_per_kg}</span></div>
-            <div class="pc-metric"><span class="pc-label">5â€³ðŸ”º Peak</span><span class="pc-value">${e.best_5s_watt}W Â· ${e.best_5s_watt_kg} W/kg</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸŒ€ Cadence</span><span class="pc-value">${e.avg_cadence} rpm</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸ”€ 1st/2nd</span><span class="pc-value">${e.avg_watts_first}/${e.avg_watts_second} Â· ${e.watts_ratio}</span></div>
+            <div class="pc-metric"><span class="pc-label">⚡ Avg</span><span class="pc-value">${e.avg_power}W</span></div>
+            <div class="pc-metric"><span class="pc-label">⚖️ W/kg</span><span class="pc-value">${e.avg_power_per_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">5 Peak</span><span class="pc-value">${e.best_5s_watt}W  ${e.best_5s_watt_kg} W/kg</span></div>
+            <div class="pc-metric"><span class="pc-label">🌀 Cadence</span><span class="pc-value">${e.avg_cadence} rpm</span></div>
+            <div class="pc-metric"><span class="pc-label">🔀 1st/2nd</span><span class="pc-value">${e.avg_watts_first}/${e.avg_watts_second}  ${e.watts_ratio}</span></div>
         </div>
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">â¤ï¸ HR</span><span class="pc-value">${e.avg_hr > 0 ? e.avg_hr+' bpm' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸ”º HR Max</span><span class="pc-value">${e.max_hr > 0 ? e.max_hr+' bpm' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸš´ Speed</span><span class="pc-value">${e.avg_speed} km/h</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸ“ Grade</span><span class="pc-value">${e.avg_grade}% Â· ðŸ”º${e.max_grade}%</span></div>
+            <div class="pc-metric"><span class="pc-label">❤️ HR</span><span class="pc-value">${e.avg_hr > 0 ? e.avg_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">❤️ HR Max</span><span class="pc-value">${e.max_hr > 0 ? e.max_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">🚴 Speed</span><span class="pc-value">${e.avg_speed} km/h</span></div>
+            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${e.avg_grade}%  ${e.max_grade}%</span></div>
             ${vamSection}
         </div>
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">ðŸ”‹ kJ Total</span><span class="pc-value">${e.kj} kJ</span></div>
+            <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${e.kj} kJ</span></div>
             <div class="pc-metric"><span class="pc-label">kJ &gt; CP</span><span class="pc-value">${e.kj_over_cp} kJ</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸ’ª kJ/kg</span><span class="pc-value">${e.kj_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">💪 kJ/kg</span><span class="pc-value">${e.kj_kg}</span></div>
             <div class="pc-metric"><span class="pc-label">kJ/kg &gt; CP</span><span class="pc-value">${e.kj_kg_over_cp}</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸ”¥ kJ/h/kg</span><span class="pc-value">${e.kj_h_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔥 kJ/h/kg</span><span class="pc-value">${e.kj_h_kg}</span></div>
             <div class="pc-metric"><span class="pc-label">kJ/h/kg &gt; CP</span><span class="pc-value">${e.kj_h_kg_over_cp}</span></div>
         </div>
     </div>`;
 }
 
 
-// â”€â”€ Sprint card â€” 3-column horizontal layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Sprint card  3-column horizontal layout 
 function buildSprintCard(s) {
     const torqAvail = chartData.torque_available;
     const torqRows = torqAvail ? `
-        <div class="pc-metric"><span class="pc-label">âš™ï¸ Avg Torque</span><span class="pc-value">${s.avg_torque > 0 ? s.avg_torque+' Nm' : '-'}</span></div>
-        <div class="pc-metric"><span class="pc-label">âš™ï¸ Min/Max Torque</span><span class="pc-value">${s.min_torque > 0 ? s.min_torque : '-'} / ${s.max_torque > 0 ? s.max_torque : '-'} Nm</span></div>` : '';
+        <div class="pc-metric"><span class="pc-label">⚙️ Avg Torque</span><span class="pc-value">${s.avg_torque > 0 ? s.avg_torque+' Nm' : '-'}</span></div>
+        <div class="pc-metric"><span class="pc-label">⚙️ Min/Max Torque</span><span class="pc-value">${s.min_torque > 0 ? s.min_torque : '-'} / ${s.max_torque > 0 ? s.max_torque : '-'} Nm</span></div>` : '';
     return `
     <div class="pc-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
-            <span>S#${s.rank} &nbsp;<span style="font-weight:400;font-size:11px;color:#6b7280">${s.start_time} Â· ${fmtDur(s.duration)} Â· ${s.distance_tot} km Â· ${s.elevation_gain}m â†‘</span></span>
+            <span>S#${s.rank} &nbsp;<span style="font-weight:400;font-size:11px;color:#6b7280">${s.start_time}  ${fmtDur(s.duration)}  ${s.distance_tot} km  ${s.elevation_gain}m </span></span>
             <div style="font-size:15px;margin-top: 4px;">${s.avg_power}W</div>
         </div>
-        <button class="zoom-stream-btn" onclick="openStreamModal('s-${s.id}', '${s.id}', 'sprint')">ðŸ“Š Stream</button>
+        <button class="zoom-stream-btn" onclick="openStreamModal('s-${s.id}', '${s.id}', 'sprint')">📊 Stream</button>
     </div>
     <div class="pc-cols">
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">âš¡ Avg Power</span><span class="pc-value">${s.avg_power}W</span></div>
-            <div class="pc-metric"><span class="pc-label">âš–ï¸ W/kg</span><span class="pc-value">${s.avg_power_per_kg}</span></div>
-            <div class="pc-metric"><span class="pc-label">âš¡ Max</span><span class="pc-value">${s.max_watt}W${s.rpm_at_max > 0 ? ' @ '+s.rpm_at_max+' rpm' : ''}</span></div>
-            <div class="pc-metric"><span class="pc-label">âš¡ Min</span><span class="pc-value">${s.min_watt}W${s.rpm_at_min > 0 ? ' @ '+s.rpm_at_min+' rpm' : ''}</span></div>
+            <div class="pc-metric"><span class="pc-label">⚡ Avg Power</span><span class="pc-value">${s.avg_power}W</span></div>
+            <div class="pc-metric"><span class="pc-label">⚖️ W/kg</span><span class="pc-value">${s.avg_power_per_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">⚡ Max</span><span class="pc-value">${s.max_watt}W${s.rpm_at_max > 0 ? ' @ '+s.rpm_at_max+' rpm' : ''}</span></div>
+            <div class="pc-metric"><span class="pc-label">⚡ Min</span><span class="pc-value">${s.min_watt}W${s.rpm_at_min > 0 ? ' @ '+s.rpm_at_min+' rpm' : ''}</span></div>
         </div>
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">ðŸŒ€ Avg Cad.</span><span class="pc-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸŒ€ Min/Max</span><span class="pc-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
+            <div class="pc-metric"><span class="pc-label">🌀 Avg Cad.</span><span class="pc-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">🌀 Min/Max</span><span class="pc-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
             ${torqRows}
-            <div class="pc-metric"><span class="pc-label">â¤ï¸ HR Max</span><span class="pc-value">${s.max_hr > 0 ? s.max_hr+' bpm' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">â¤ï¸ HR Min</span><span class="pc-value">${s.min_hr > 0 ? s.min_hr+' bpm' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸ“ Grade</span><span class="pc-value">${s.avg_grade}% Â· max ${s.max_grade}%</span></div>
+            <div class="pc-metric"><span class="pc-label">❤️ HR Max</span><span class="pc-value">${s.max_hr > 0 ? s.max_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">❤️ HR Min</span><span class="pc-value">${s.min_hr > 0 ? s.min_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${s.avg_grade}%  max ${s.max_grade}%</span></div>
         </div>
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">âž¡ï¸ Speed Start</span><span class="pc-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">âž¡ï¸ Speed End</span><span class="pc-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸ”‹ kJ Total</span><span class="pc-value">${s.kj} kJ</span></div>
+            <div class="pc-metric"><span class="pc-label">➡️ Speed Start</span><span class="pc-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">➡️ Speed End</span><span class="pc-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${s.kj} kJ</span></div>
             <div class="pc-metric"><span class="pc-label">kJ &gt; CP</span><span class="pc-value">${s.kj_over_cp} kJ</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸ’ª kJ/kg</span><span class="pc-value">${s.kj_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">💪 kJ/kg</span><span class="pc-value">${s.kj_kg}</span></div>
             <div class="pc-metric"><span class="pc-label">kJ/kg &gt; CP</span><span class="pc-value">${s.kj_kg_over_cp}</span></div>
-            <div class="pc-metric"><span class="pc-label">ðŸ”¥ kJ/h/kg</span><span class="pc-value">${s.kj_h_kg}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔥 kJ/h/kg</span><span class="pc-value">${s.kj_h_kg}</span></div>
             <div class="pc-metric"><span class="pc-label">kJ/h/kg &gt; CP</span><span class="pc-value">${s.kj_h_kg_over_cp}</span></div>
         </div>
     </div>`;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// TOOLTIP (hover) â€” same content as ECharts formatter
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
+// TOOLTIP (hover)  same content as ECharts formatter
+// 
 function buildEffortTooltip(e) {
     let html = `<strong>E#${e.id + 1}</strong> (Rank #${e.rank})<br/>`;
-    html += `âš¡ ${e.avg_power} W | 5"ðŸ”º${e.best_5s_watt} W ðŸŒ€ ${e.avg_cadence} rpm<br/>`;
-    html += `â±ï¸ ${fmtDur(e.duration)} | ðŸ•’ ${e.start_time} | ${e.cp_pct}%<br/>`;
-    html += `âš–ï¸ ${e.avg_power_per_kg} W/kg | 5"ðŸ”º${e.best_5s_watt_kg} W/kg<br/>`;
-    html += `ðŸ”€ ${e.avg_watts_first} W | ${e.avg_watts_second} W | ${e.watts_ratio}<br/>`;
-    if (e.avg_hr > 0) html += `â¤ï¸ âˆ…${e.avg_hr} bpm | ðŸ”º${e.max_hr} bpm<br/>`;
-    html += `ðŸš´â€â™‚ï¸ ${e.avg_speed} km/h ðŸ“ âˆ… ${e.avg_grade}% | ðŸ”º${e.max_grade}%<br/>`;
+    html += ` ${e.avg_power} W | 5"${e.best_5s_watt} W  ${e.avg_cadence} rpm<br/>`;
+    html += ` ${fmtDur(e.duration)} |  ${e.start_time} | ${e.cp_pct}%<br/>`;
+    html += ` ${e.avg_power_per_kg} W/kg | 5"${e.best_5s_watt_kg} W/kg<br/>`;
+    html += ` ${e.avg_watts_first} W | ${e.avg_watts_second} W | ${e.watts_ratio}<br/>`;
+    if (e.avg_hr > 0) html += ` ${e.avg_hr} bpm | ${e.max_hr} bpm<br/>`;
+    html += ` ${e.avg_speed} km/h   ${e.avg_grade}% | ${e.max_grade}%<br/>`;
     if (e.avg_grade >= 4.5) {
         const sign = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
-        html += `ðŸšµâ€â™‚ï¸ ${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h | ${Math.abs(e.diff_wkg).toFixed(2)} W/kg<br/>`;
-        html += `ðŸ§® ${e.vam_teorico} m/h | ${e.wkg_teoric} W/kg | ${sign}${Math.abs(e.perc_err)}%<br/>`;
+        html += ` ${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h | ${Math.abs(e.diff_wkg).toFixed(2)} W/kg<br/>`;
+        html += ` ${e.vam_teorico} m/h | ${e.wkg_teoric} W/kg | ${sign}${Math.abs(e.perc_err)}%<br/>`;
     } else {
-        html += `ðŸšµâ€â™‚ï¸ ${e.vam} m/h<br/>`;
+        html += ` ${e.vam} m/h<br/>`;
     }
-    html += `ðŸ”‹ ${e.kj} kJ | ${e.kj_over_cp} kJ > CP<br/>`;
-    html += `ðŸ’ª ${e.kj_kg} kJ/kg | ${e.kj_kg_over_cp} kJ/kg > CP<br/>`;
-    html += `ðŸ”¥ ${e.kj_h_kg} kJ/h/kg | ${e.kj_h_kg_over_cp} kJ/h/kg > CP`;
+    html += ` ${e.kj} kJ | ${e.kj_over_cp} kJ > CP<br/>`;
+    html += ` ${e.kj_kg} kJ/kg | ${e.kj_kg_over_cp} kJ/kg > CP<br/>`;
+    html += ` ${e.kj_h_kg} kJ/h/kg | ${e.kj_h_kg_over_cp} kJ/h/kg > CP`;
     return html;
 }
 
 function buildSprintTooltip(s) {
     let html = `<strong>S#${s.rank}</strong><br/>`;
-    html += `#${s.rank}    âˆ…${s.avg_cadence} rpm | âˆ…${s.avg_torque} Nm | ${fmtDur(s.duration)}<br/>`;
-    html += `âš¡ ðŸ”º${s.max_watt} W at ${s.rpm_at_max} rpm @ ${s.torque_at_max} Nm<br/>`;
-    html += `âš¡ ðŸ”»${s.min_watt} W at ${s.rpm_at_min} rpm @ ${s.torque_at_min} Nm<br/>`;
-    html += `ðŸŒ€ ðŸ”º${s.max_cadence} rpm | ðŸ”»${s.min_cadence} rpm<br/>`;
-    html += `âš™ï¸ ðŸ”º${s.max_torque} Nm | ðŸ”»${s.min_torque} Nm<br/>`;
-    html += `â¤ï¸ ðŸ”»${s.min_hr} bpm |ðŸ”º${s.max_hr} bpm<br/>`;
-    if (s.v1 > 0 && s.v2 > 0) html += `âž¡ï¸ ${s.v1} km/h | ${s.v2} km/h<br/>`;
-    html += `ðŸ“ âˆ… ${s.avg_grade}% max. ${s.max_grade}%<br/>`;
-    html += `ðŸ•’ ${s.start_time}<br/>`;
-    html += `ðŸ”‹ ${s.kj} kJ | ${s.kj_over_cp} kJ > CP<br/>`;
-    html += `ðŸ”¥ ${s.kj_h_kg} kJ/h/kg | ${s.kj_h_kg_over_cp} kJ/h/kg > CP`;
+    html += `#${s.rank}    ${s.avg_cadence} rpm | ${s.avg_torque} Nm | ${fmtDur(s.duration)}<br/>`;
+    html += ` ${s.max_watt} W at ${s.rpm_at_max} rpm @ ${s.torque_at_max} Nm<br/>`;
+    html += ` ${s.min_watt} W at ${s.rpm_at_min} rpm @ ${s.torque_at_min} Nm<br/>`;
+    html += ` ${s.max_cadence} rpm | ${s.min_cadence} rpm<br/>`;
+    html += ` ${s.max_torque} Nm | ${s.min_torque} Nm<br/>`;
+    html += ` ${s.min_hr} bpm |${s.max_hr} bpm<br/>`;
+    if (s.v1 > 0 && s.v2 > 0) html += ` ${s.v1} km/h | ${s.v2} km/h<br/>`;
+    html += `  ${s.avg_grade}% max. ${s.max_grade}%<br/>`;
+    html += ` ${s.start_time}<br/>`;
+    html += ` ${s.kj} kJ | ${s.kj_over_cp} kJ > CP<br/>`;
+    html += ` ${s.kj_h_kg} kJ/h/kg | ${s.kj_h_kg_over_cp} kJ/h/kg > CP`;
     return html;
 }
 
@@ -855,7 +855,7 @@ function moveTooltip(ev) {
 }
 function hideTooltip() { tooltip.style.display = 'none'; }
 
-// â”€â”€ Elevation crosshair + tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Elevation crosshair + tooltip 
 const bisect = d3.bisector(d => d.dist).left;
 
 // Segment proximity detection: build lookup of effort/sprint data per xz
@@ -911,7 +911,7 @@ overlay
             return;
         }
 
-        // No segment nearby â€” clear segment hover
+        // No segment nearby  clear segment hover
         if (_segHoverActive) {
             _segHoverActive = null;
             hideTooltip();
@@ -930,7 +930,7 @@ overlay
         crossV.attr('x1', mx).attr('x2', mx).style('display', null);
         crossH.attr('y1', yScale(pt.alt)).attr('y2', yScale(pt.alt)).style('display', null);
 
-        showTooltip(ev, `ðŸ“ ${pt.dist} km<br/>ðŸ”ï¸ ${pt.alt} m<br/>â±ï¸ ${pt.time}`);
+        showTooltip(ev, ` ${pt.dist} km<br/> ${pt.alt} m<br/> ${pt.time}`);
     })
     .on('mouseleave', function() {
         crossV.style('display','none');
@@ -956,9 +956,9 @@ overlay
         if (activeId) collapsePopup(activeId);
     });
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // HIGHLIGHT
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 function highlightId(id) {
     d3.selectAll('.effort-seg, .sprint-seg').classed('dimmed', true).classed('highlighted', false);
     d3.selectAll('.sprint-marker').classed('dimmed', true);
@@ -974,9 +974,9 @@ function clearHighlight() {
     document.querySelectorAll('.effort-card, .sprint-card').forEach(c => c.classList.remove('highlighted'));
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // ZOOM
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 const zoom = d3.zoom()
     .scaleExtent([1, 50])
     .translateExtent([[0, 0], [innerW, innerH]])
@@ -993,9 +993,9 @@ const zoom = d3.zoom()
 
 svg.call(zoom);
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// SIDEBAR â€” exact same HTML structure as ECharts version
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
+// SIDEBAR  exact same HTML structure as ECharts version
+// 
 function buildSidebar() {
     // Config section
     document.getElementById('config-section').innerHTML = `
@@ -1028,31 +1028,31 @@ function buildSidebar() {
                 <span style="color:${effort.color}">${effort.avg_power}W (${effort.cp_pct}%)</span>
             </div>
             <div class="eg">
-                <span class="a">ðŸ•’ Start</span><span class="b">${effort.start_time}</span><span class="c">â±ï¸ Dur.</span><span class="d">${fmtDur(effort.duration)}</span>
-                <span class="a">ðŸ“ Dist.</span><span class="b">${effort.distance_tot} km</span><span class="c">ðŸ”ï¸ Elev.</span><span class="d">${effort.elevation_gain} m</span>
+                <span class="a"> Start</span><span class="b">${effort.start_time}</span><span class="c"> Dur.</span><span class="d">${fmtDur(effort.duration)}</span>
+                <span class="a"> Dist.</span><span class="b">${effort.distance_tot} km</span><span class="c"> Elev.</span><span class="d">${effort.elevation_gain} m</span>
                 <div class="sep"></div>
-                <span class="a">âš¡ Avg</span><span class="b">${effort.avg_power}W</span><span class="c">5â€³ðŸ”º Peak</span><span class="d">${effort.best_5s_watt}W</span>
-                <span class="a">âš–ï¸ W/kg</span><span class="b">${effort.avg_power_per_kg}</span><span class="c">5â€³ðŸ”º W/kg</span><span class="d">${effort.best_5s_watt_kg}</span>
-                <span class="a">ðŸŒ€ Cad.</span><span class="b">${effort.avg_cadence} rpm</span><span class="c">ðŸš´ Speed</span><span class="d">${effort.avg_speed} km/h</span>
-                <span class="a">ðŸ”€ 1st/2nd</span><span class="b">${effort.avg_watts_first}/${effort.avg_watts_second}</span><span class="c">Ratio</span><span class="d">${effort.watts_ratio}</span>
+                <span class="a"> Avg</span><span class="b">${effort.avg_power}W</span><span class="c">5 Peak</span><span class="d">${effort.best_5s_watt}W</span>
+                <span class="a"> W/kg</span><span class="b">${effort.avg_power_per_kg}</span><span class="c">5 W/kg</span><span class="d">${effort.best_5s_watt_kg}</span>
+                <span class="a"> Cad.</span><span class="b">${effort.avg_cadence} rpm</span><span class="c"> Speed</span><span class="d">${effort.avg_speed} km/h</span>
+                <span class="a"> 1st/2nd</span><span class="b">${effort.avg_watts_first}/${effort.avg_watts_second}</span><span class="c">Ratio</span><span class="d">${effort.watts_ratio}</span>
                 ${effort.avg_hr > 0 ? `
                 <div class="sep"></div>
-                <span class="a">â¤ï¸ HR</span><span class="b">${effort.avg_hr} bpm</span><span class="c">ðŸ”º HR Max</span><span class="d">${effort.max_hr} bpm</span>
+                <span class="a"> HR</span><span class="b">${effort.avg_hr} bpm</span><span class="c"> HR Max</span><span class="d">${effort.max_hr} bpm</span>
                 ` : ''}
                 <div class="sep"></div>
-                <span class="a">ðŸ“ Grade</span><span class="b">${effort.avg_grade}%</span><span class="c">ðŸ”º Max</span><span class="d">${effort.max_grade}%</span>
+                <span class="a"> Grade</span><span class="b">${effort.avg_grade}%</span><span class="c"> Max</span><span class="d">${effort.max_grade}%</span>
                 <div class="sep"></div>
                 ${effort.avg_grade >= 4.5 ? `
-                <span class="a">ðŸšµ VAM</span><span class="b">${effort.vam} m/h</span><span class="c">Diff</span><span class="d">${effort.vam_arrow} ${effort.diff_vam} m/h</span>
-                <span class="a">ðŸ§® VAM T</span><span class="b">${effort.vam_teorico} m/h</span><span class="c">âš–ï¸ W/kg T</span><span class="d">${effort.wkg_teoric}</span>
-                <span class="a">Î” W/kg</span><span class="b">${signDwkg}${effort.diff_wkg}</span><span class="c">Err %</span><span class="d">${signErr}${effort.perc_err}%</span>
+                <span class="a"> VAM</span><span class="b">${effort.vam} m/h</span><span class="c">Diff</span><span class="d">${effort.vam_arrow} ${effort.diff_vam} m/h</span>
+                <span class="a"> VAM T</span><span class="b">${effort.vam_teorico} m/h</span><span class="c"> W/kg T</span><span class="d">${effort.wkg_teoric}</span>
+                <span class="a"> W/kg</span><span class="b">${signDwkg}${effort.diff_wkg}</span><span class="c">Err %</span><span class="d">${signErr}${effort.perc_err}%</span>
                 ` : `
-                <span class="a">ðŸšµ VAM</span><span class="span2">${effort.vam} m/h</span>
+                <span class="a"> VAM</span><span class="span2">${effort.vam} m/h</span>
                 `}
                 <div class="sep"></div>
-                <span class="a">ðŸ”‹ kJ</span><span class="b">${effort.kj}</span><span class="c">kJ &gt; CP</span><span class="d">${effort.kj_over_cp}</span>
-                <span class="a">ðŸ’ª kJ/kg</span><span class="b">${effort.kj_kg}</span><span class="c">kJ/kg &gt; CP</span><span class="d">${effort.kj_kg_over_cp}</span>
-                <span class="a">ðŸ”¥ kJ/h/kg</span><span class="b">${effort.kj_h_kg}</span><span class="c">kJ/h/kg&gt;CP</span><span class="d">${effort.kj_h_kg_over_cp}</span>
+                <span class="a"> kJ</span><span class="b">${effort.kj}</span><span class="c">kJ &gt; CP</span><span class="d">${effort.kj_over_cp}</span>
+                <span class="a"> kJ/kg</span><span class="b">${effort.kj_kg}</span><span class="c">kJ/kg &gt; CP</span><span class="d">${effort.kj_kg_over_cp}</span>
+                <span class="a"> kJ/h/kg</span><span class="b">${effort.kj_h_kg}</span><span class="c">kJ/h/kg&gt;CP</span><span class="d">${effort.kj_h_kg_over_cp}</span>
             </div>`
         effortsList.appendChild(card);
     });
@@ -1077,67 +1077,67 @@ function buildSidebar() {
                 <span style="color:#000000">${sprint.avg_power}W</span>
             </div>
             <div class="card-row">
-                <div class="card-metric"><span class="metric-label">â±ï¸ Duration</span><span class="metric-value">${fmtDur(sprint.duration)}</span></div>
-                <div class="card-metric"><span class="metric-label">ðŸ“ Distance</span><span class="metric-value">${sprint.distance_tot} km</span></div>
+                <div class="card-metric"><span class="metric-label"> Duration</span><span class="metric-value">${fmtDur(sprint.duration)}</span></div>
+                <div class="card-metric"><span class="metric-label"> Distance</span><span class="metric-value">${sprint.distance_tot} km</span></div>
             </div>
             <div class="card-row">
-                <div class="card-metric"><span class="metric-label">ðŸ”ï¸ Elevation</span><span class="metric-value">${sprint.elevation_gain} m</span></div>
-                <div class="card-metric"><span class="metric-label">ðŸ•’ Start</span><span class="metric-value">${sprint.start_time}</span></div>
+                <div class="card-metric"><span class="metric-label"> Elevation</span><span class="metric-value">${sprint.elevation_gain} m</span></div>
+                <div class="card-metric"><span class="metric-label"> Start</span><span class="metric-value">${sprint.start_time}</span></div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">âš¡ Avg Power</span><span class="metric-value">${sprint.avg_power}W</span></div>
-                    <div class="card-metric"><span class="metric-label">âš–ï¸ W/kg</span><span class="metric-value">${sprint.avg_power_per_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label"> Avg Power</span><span class="metric-value">${sprint.avg_power}W</span></div>
+                    <div class="card-metric"><span class="metric-label"> W/kg</span><span class="metric-value">${sprint.avg_power_per_kg}</span></div>
                 </div>
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">âš¡ Max</span><span class="metric-value">${sprint.max_watt}W${sprint.rpm_at_max > 0 ? ' @ '+sprint.rpm_at_max+' rpm' : ''}</span></div>
-                    <div class="card-metric"><span class="metric-label">âš¡ Min</span><span class="metric-value">${sprint.min_watt}W${sprint.rpm_at_min > 0 ? ' @ '+sprint.rpm_at_min+' rpm' : ''}</span></div>
+                    <div class="card-metric"><span class="metric-label"> Max</span><span class="metric-value">${sprint.max_watt}W${sprint.rpm_at_max > 0 ? ' @ '+sprint.rpm_at_max+' rpm' : ''}</span></div>
+                    <div class="card-metric"><span class="metric-label"> Min</span><span class="metric-value">${sprint.min_watt}W${sprint.rpm_at_min > 0 ? ' @ '+sprint.rpm_at_min+' rpm' : ''}</span></div>
                 </div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">ðŸŒ€ Avg Cad.</span><span class="metric-value">${sprint.avg_cadence > 0 ? sprint.avg_cadence+' rpm' : '-'}</span></div>
-                    ${torqAvail ? `<div class="card-metric"><span class="metric-label">âš™ï¸ Avg Torque</span><span class="metric-value">${sprint.avg_torque > 0 ? sprint.avg_torque+' Nm' : '-'}</span></div>` : ''}
+                    <div class="card-metric"><span class="metric-label"> Avg Cad.</span><span class="metric-value">${sprint.avg_cadence > 0 ? sprint.avg_cadence+' rpm' : '-'}</span></div>
+                    ${torqAvail ? `<div class="card-metric"><span class="metric-label"> Avg Torque</span><span class="metric-value">${sprint.avg_torque > 0 ? sprint.avg_torque+' Nm' : '-'}</span></div>` : ''}
                 </div>
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">ðŸŒ€ Min/Max Cad.</span><span class="metric-value">${sprint.min_cadence > 0 ? sprint.min_cadence : '-'} / ${sprint.max_cadence > 0 ? sprint.max_cadence : '-'} rpm</span></div>
-                    ${torqAvail ? `<div class="card-metric"><span class="metric-label">âš™ï¸ Min/Max Torque</span><span class="metric-value">${sprint.min_torque > 0 ? sprint.min_torque : '-'} / ${sprint.max_torque > 0 ? sprint.max_torque : '-'} Nm</span></div>` : ''}
+                    <div class="card-metric"><span class="metric-label"> Min/Max Cad.</span><span class="metric-value">${sprint.min_cadence > 0 ? sprint.min_cadence : '-'} / ${sprint.max_cadence > 0 ? sprint.max_cadence : '-'} rpm</span></div>
+                    ${torqAvail ? `<div class="card-metric"><span class="metric-label"> Min/Max Torque</span><span class="metric-value">${sprint.min_torque > 0 ? sprint.min_torque : '-'} / ${sprint.max_torque > 0 ? sprint.max_torque : '-'} Nm</span></div>` : ''}
                 </div>
                 ${torqAvail && (sprint.torque_at_max > 0 || sprint.torque_at_min > 0) ? `
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">âš™ï¸ @ Max Power</span><span class="metric-value">${sprint.torque_at_max > 0 ? sprint.torque_at_max+' Nm' : '-'}</span></div>
-                    <div class="card-metric"><span class="metric-label">âš™ï¸ @ Min Power</span><span class="metric-value">${sprint.torque_at_min > 0 ? sprint.torque_at_min+' Nm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> @ Max Power</span><span class="metric-value">${sprint.torque_at_max > 0 ? sprint.torque_at_max+' Nm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> @ Min Power</span><span class="metric-value">${sprint.torque_at_min > 0 ? sprint.torque_at_min+' Nm' : '-'}</span></div>
                 </div>` : ''}
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">â¤ï¸ HR Max</span><span class="metric-value">${sprint.max_hr > 0 ? sprint.max_hr+' bpm' : '-'}</span></div>
-                    <div class="card-metric"><span class="metric-label">â¤ï¸ HR Min</span><span class="metric-value">${sprint.min_hr > 0 ? sprint.min_hr+' bpm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> HR Max</span><span class="metric-value">${sprint.max_hr > 0 ? sprint.max_hr+' bpm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> HR Min</span><span class="metric-value">${sprint.min_hr > 0 ? sprint.min_hr+' bpm' : '-'}</span></div>
                 </div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">âž¡ï¸ Speed Start</span><span class="metric-value">${sprint.v1 > 0 ? sprint.v1+' km/h' : '-'}</span></div>
-                    <div class="card-metric"><span class="metric-label">âž¡ï¸ Speed End</span><span class="metric-value">${sprint.v2 > 0 ? sprint.v2+' km/h' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> Speed Start</span><span class="metric-value">${sprint.v1 > 0 ? sprint.v1+' km/h' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> Speed End</span><span class="metric-value">${sprint.v2 > 0 ? sprint.v2+' km/h' : '-'}</span></div>
                 </div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">ðŸ“ Grade Avg</span><span class="metric-value">${sprint.avg_grade}%</span></div>
-                    <div class="card-metric"><span class="metric-label">ðŸ“ Grade Max</span><span class="metric-value">${sprint.max_grade}%</span></div>
+                    <div class="card-metric"><span class="metric-label"> Grade Avg</span><span class="metric-value">${sprint.avg_grade}%</span></div>
+                    <div class="card-metric"><span class="metric-label"> Grade Max</span><span class="metric-value">${sprint.max_grade}%</span></div>
                 </div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">ðŸ”‹ kJ Total</span><span class="metric-value">${sprint.kj} kJ</span></div>
+                    <div class="card-metric"><span class="metric-label"> kJ Total</span><span class="metric-value">${sprint.kj} kJ</span></div>
                     <div class="card-metric"><span class="metric-label">kJ > CP</span><span class="metric-value">${sprint.kj_over_cp} kJ</span></div>
                 </div>
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">ðŸ’ª kJ/kg</span><span class="metric-value">${sprint.kj_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label"> kJ/kg</span><span class="metric-value">${sprint.kj_kg}</span></div>
                     <div class="card-metric"><span class="metric-label">kJ/kg > CP</span><span class="metric-value">${sprint.kj_kg_over_cp}</span></div>
                 </div>
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label">ðŸ”¥ kJ/h/kg</span><span class="metric-value">${sprint.kj_h_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label"> kJ/h/kg</span><span class="metric-value">${sprint.kj_h_kg}</span></div>
                     <div class="card-metric"><span class="metric-label">kJ/h/kg > CP</span><span class="metric-value">${sprint.kj_h_kg_over_cp}</span></div>
                 </div>
             </div>`;
@@ -1145,9 +1145,9 @@ function buildSidebar() {
     });
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // INIT + RESIZE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 function fullRender() {
     const xz = getXZ();
     renderAxes(xz);
@@ -1189,7 +1189,7 @@ const _resizeObserver = new ResizeObserver(() => {
 });
 _resizeObserver.observe(document.getElementById('chart'));
 
-// Also handle touch tap on segments (mobile â€” no mousemove)
+// Also handle touch tap on segments (mobile  no mousemove)
 svg.on('touchstart', function(ev) {
     if (ev.touches.length !== 1) return;
     const touch = ev.touches[0];
@@ -1209,9 +1209,9 @@ svg.on('touchstart', function(ev) {
     }
 }, { passive: false });
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // STREAM ZOOM MODAL - Display detailed power/HR graphs with D3.js
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 let streamModalData = null; // Current effort/sprint being displayed
 let avg30sSeconds = 30;
 let avg60sSeconds = 60;
@@ -1343,12 +1343,12 @@ function calculateMovingAverage(data, windowSize) {
     return result;
 }
 
-// â”€â”€ Time-based moving average â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Time-based moving average 
 function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
     return window.PEffortCommon.calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds);
 }
 
-// â”€â”€ Unified 3-panel D3 stream chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Unified 3-panel D3 stream chart 
 function buildStreamChartsD3() {
     if (!streamModalData) return;
 
@@ -1434,7 +1434,7 @@ function buildStreamChartsD3() {
         panel._yS = yS;
         yScales.push(yS);
 
-        // Background rect â€” white
+        // Background rect  white
         pg.append('rect').attr('width',innerW).attr('height',panelH)
             .attr('fill','#ffffff').attr('rx',3)
             .attr('stroke','#e5e7eb').attr('stroke-width',0.5);
@@ -1493,7 +1493,7 @@ function buildStreamChartsD3() {
         crossDots.push(cd);
     });
 
-    // â”€â”€ Draw data for a given x domain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Draw data for a given x domain 
     function drawAll(domain) {
         const xS = d3.scaleLinear().domain(domain).range([0, innerW]);
 
@@ -1512,13 +1512,13 @@ function buildStreamChartsD3() {
             pg.select('line.cp-line').attr('y1',yS(cp)).attr('y2',yS(cp));
             pg.select('text.cp-label').attr('y',yS(cp)-3);
 
-            // â”€â”€ Zone-filled area approach â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            //  Zone-filled area approach 
             // Strategy: draw full area from bottom to curve, then per-zone
             // colored strips clipped to each zone's Y band, then white mask above curve
 
             const svgDefs = d3.select(dg.node().closest('svg')).select('defs');
 
-            // 1. Full area from baseline to curve â€” provides the base shape
+            // 1. Full area from baseline to curve  provides the base shape
             const fullAreaPath = d3.area()
                 .x(d=>xS(d.t)).y0(panelH).y1(d=>yS(d.p)).curve(d3.curveMonotoneX)(pts);
 
@@ -1548,7 +1548,7 @@ function buildStreamChartsD3() {
                 .attr('d', d3.area()
                     .x(d=>xS(d.t)).y0(-2).y1(d=>yS(d.p)).curve(d3.curveMonotoneX));
 
-            // 3b. Grid lines drawn on top of white mask â€” visible as faint reference lines
+            // 3b. Grid lines drawn on top of white mask  visible as faint reference lines
             // Horizontal every 100W
             d3.range(0, visMax + 100, 100).forEach(w => {
                 const yy = yS(w);
@@ -1579,14 +1579,14 @@ function buildStreamChartsD3() {
                     .attr('stroke-linecap', 'round');
             }
 
-            // 5. HR line (panel 0 only) â€” drawn LAST so it's on top
+            // 5. HR line (panel 0 only)  drawn LAST so it's on top
             if (pi===0 && hrS && hrYS) {
                 const hrPts = timeS.map((t,i)=>({t,h:hrS[i]}))
                     .filter(d=>d.t>=domain[0]&&d.t<=domain[1]&&d.h>0);
                 if (hrPts.length>1) {
                     dg.append('path').datum(hrPts)
                         .attr('fill','none')
-                        .attr('stroke','#1e3a5f')   // dark navy â€” visible over all zone colors
+                        .attr('stroke','#1e3a5f')   // dark navy  visible over all zone colors
                         .attr('stroke-width', 2.2)
                         .attr('opacity', 1)
                         .attr('d', d3.line().x(d=>xS(d.t)).y(d=>hrYS(d.h)).curve(d3.curveMonotoneX));
@@ -1603,7 +1603,7 @@ function buildStreamChartsD3() {
     }
     drawAll(curDomain);
 
-    // â”€â”€ X axis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  X axis 
     const xAxG = root.append('g').attr('transform',`translate(0,${(panelH+GAP)*3-GAP})`);
     function updateXAxis(dom) {
         xAxG.call(d3.axisBottom(d3.scaleLinear().domain(dom).range([0,innerW])).ticks(8)
@@ -1614,16 +1614,16 @@ function buildStreamChartsD3() {
     }
     updateXAxis(curDomain);
 
-    // â”€â”€ Tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Tooltip 
     const ttEl = document.createElement('div');
     ttEl.style.cssText = 'position:absolute;pointer-events:none;display:none;z-index:999;'+
         'background:rgba(17,24,39,0.95);color:#fff;border-radius:6px;padding:8px 12px;'+
         'font-size:11px;line-height:1.7;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.35);';
     container.appendChild(ttEl);
 
-    // â”€â”€ Mouse overlay (covers all panels) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Mouse overlay (covers all panels) 
     const totalPH = (panelH+GAP)*3-GAP;
-    // Shared pointer update function â€” used by both mouse and touch
+    // Shared pointer update function  used by both mouse and touch
     function updateEffortPointer(mx) {
         const xS = d3.scaleLinear().domain(curDomain).range([0,innerW]);
         const t  = xS.invert(Math.max(0, Math.min(innerW, mx)));
@@ -1640,10 +1640,10 @@ function buildStreamChartsD3() {
         const m=Math.floor(ts/60),s=Math.round(ts%60);
         const tStr=m>0?`${m}m${s}s`:`${Math.round(ts)}s`;
         let html=`<span style="color:#f9fafb;font-weight:700">${tStr}</span><br/>`;
-        html+=`<span style="color:#fbbf24">âš¡ ${Math.round(powS[ci])}W</span>`;
-        html+=` <span style="color:#a78bfa"> âˆ…${avg30sSeconds}s ${Math.round(avg30[ci])}W</span>`;
-        html+=` <span style="color:#6ee7b7"> âˆ…${avg60sSeconds}s ${Math.round(avg60[ci])}W</span>`;
-        if (hrS && hrS[ci]>0) html+=`<br/><span style="color:#fca5a5">â¤ï¸ ${Math.round(hrS[ci])} bpm</span>`;
+        html+=`<span style="color:#fbbf24"> ${Math.round(powS[ci])}W</span>`;
+        html+=` <span style="color:#a78bfa"> ${avg30sSeconds}s ${Math.round(avg30[ci])}W</span>`;
+        html+=` <span style="color:#6ee7b7"> ${avg60sSeconds}s ${Math.round(avg60[ci])}W</span>`;
+        if (hrS && hrS[ci]>0) html+=`<br/><span style="color:#fca5a5"> ${Math.round(hrS[ci])} bpm</span>`;
         ttEl.innerHTML=html;
         ttEl.style.display='block';
         const isTouchE = window.matchMedia('(pointer: coarse)').matches;
@@ -1706,12 +1706,12 @@ function buildStreamChartsD3() {
         });
     }
 
-    // Brush removed â€” buffer is only used internally for avg calculations,
+    // Brush removed  buffer is only used internally for avg calculations,
     // not exposed to the user. The view is locked to the effort range.
 }
 
 
-// â”€â”€ Sprint stream chart: 2 panels â€” Power | Cadence+Torque dual-axis â”€â”€â”€â”€
+//  Sprint stream chart: 2 panels  Power | Cadence+Torque dual-axis 
 function buildSprintStreamCharts() {
     const timeS = streamModalData.timeStream;
     const powS  = streamModalData.powerStream;
@@ -1769,12 +1769,12 @@ function buildSprintStreamCharts() {
     const root = svg.append('g').attr('transform',`translate(${ML},${MT})`);
     const xFull = d3.scaleLinear().domain([0,maxT]).range([0,innerW]);
 
-    // â”€â”€ Scales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Scales 
     const yPow = d3.scaleLinear().domain([0, maxP]).range([panelH, 0]);
     const yCad = d3.scaleLinear().domain([minCad, maxCad]).range([panelH, 0]);
     const yTor = validTor.length ? d3.scaleLinear().domain([minTor, maxTor]).range([panelH, 0]) : null;
 
-    // â”€â”€ Panel 0: Power â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Panel 0: Power 
     const pg0 = root.append('g');
 
     // Shadow
@@ -1815,7 +1815,7 @@ function buildSprintStreamCharts() {
     const cd0spd = pg0.append('circle').attr('r',4)
         .attr('fill','#a855f7').attr('stroke','white').attr('stroke-width',2).style('display','none');
 
-    // â”€â”€ Panel 1: Cadence + Torque dual axis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Panel 1: Cadence + Torque dual axis 
     const ty1 = panelH + GAP;
     const pg1 = root.append('g').attr('transform',`translate(0,${ty1})`);
 
@@ -1869,7 +1869,7 @@ function buildSprintStreamCharts() {
         .attr('rx',4).attr('fill','#10b981').attr('opacity',0.12);
     pg1.append('text').attr('x',8+badgeW/2).attr('y',19).attr('text-anchor','middle')
         .attr('fill','#059669').attr('font-size',10).attr('font-weight',700)
-        .text(yTor ? 'Cadence (rpm)  Â·  Torque (Nm)' : 'Cadence (rpm)');
+        .text(yTor ? 'Cadence (rpm)    Torque (Nm)' : 'Cadence (rpm)');
 
     const dg1 = pg1.append('g').attr('clip-path','url(#sp-clip2)');
 
@@ -1880,7 +1880,7 @@ function buildSprintStreamCharts() {
     const cd1tor = yTor ? pg1.append('circle').attr('r',4)
         .attr('fill','#f59e0b').attr('stroke','white').attr('stroke-width',2).style('display','none') : null;
 
-    // â”€â”€ Draw function â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Draw function 
     function drawAll(domain) {
         const xS = d3.scaleLinear().domain(domain).range([0,innerW]);
 
@@ -1930,7 +1930,7 @@ function buildSprintStreamCharts() {
     }
     drawAll(curDomain);
 
-    // â”€â”€ X axis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  X axis 
     const xAxG = root.append('g').attr('transform',`translate(0,${ty1+panelH})`);
     function updateXAxis(dom) {
         xAxG.call(d3.axisBottom(d3.scaleLinear().domain(dom).range([0,innerW])).ticks(8)
@@ -1941,7 +1941,7 @@ function buildSprintStreamCharts() {
     }
     updateXAxis(curDomain);
 
-    // â”€â”€ Tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Tooltip 
     const ttEl = document.createElement('div');
     ttEl.style.cssText = 'position:absolute;pointer-events:none;display:none;z-index:999;'+
         'background:rgba(15,23,42,0.96);color:#fff;border-radius:8px;padding:9px 13px;'+
@@ -1970,10 +1970,10 @@ function buildSprintStreamCharts() {
         const m=Math.floor(ts/60),s=Math.round(ts%60);
         const tStr=m>0?`${m}m${s}s`:`${Math.round(ts)}s`;
         let html=`<span style="color:#e2e8f0;font-weight:700;font-size:12px">${tStr}</span><br/>`;
-        html+=`<span style="color:#93c5fd">âš¡ ${Math.round(powS[ci]||0)} W</span>`;
-        if (spdS && spdS[ci]>0) html+=`  <span style="color:#d8b4fe">ðŸš´ ${spdS[ci].toFixed(1)} km/h</span>`;
-        if (cadS && cadS[ci]>0) html+=`  <span style="color:#6ee7b7">ðŸŒ€ ${Math.round(cadS[ci])} rpm</span>`;
-        if (torS && torS[ci]>0) html+=`<br/><span style="color:#fcd34d">âš™ï¸ ${Math.round(torS[ci])} Nm</span>`;
+        html+=`<span style="color:#93c5fd"> ${Math.round(powS[ci]||0)} W</span>`;
+        if (spdS && spdS[ci]>0) html+=`  <span style="color:#d8b4fe"> ${spdS[ci].toFixed(1)} km/h</span>`;
+        if (cadS && cadS[ci]>0) html+=`  <span style="color:#6ee7b7"> ${Math.round(cadS[ci])} rpm</span>`;
+        if (torS && torS[ci]>0) html+=`<br/><span style="color:#fcd34d"> ${Math.round(torS[ci])} Nm</span>`;
         ttEl.innerHTML=html;
         ttEl.style.display='block';
         const isTouchS = window.matchMedia('(pointer: coarse)').matches;
@@ -2032,7 +2032,7 @@ function buildSprintStreamCharts() {
         });
     }
 
-    // Brush removed â€” buffer is only used internally for avg calculations,
+    // Brush removed  buffer is only used internally for avg calculations,
     // not exposed to the user. The view is locked to the sprint range.
 }
 
@@ -2079,7 +2079,7 @@ function initializeModalListeners() {
         });
     }
 
-    // Mouse wheel on sliders: Â±1s per notch
+    // Mouse wheel on sliders: 1s per notch
     function addWheelToSlider(slider, valueEl, varSetter) {
         if (!slider) return;
         slider.addEventListener('wheel', function(e) {
@@ -2120,3 +2120,4 @@ window.addEventListener('storage', function(e) {
         buildStreamChartsD3();
     }
 });
+
