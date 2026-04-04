@@ -9,16 +9,15 @@
 
 import uuid
 import logging
-import sys
 import tempfile
+import time
+import os
+from collections import deque
+from threading import Lock
 from pathlib import Path
 from typing import Dict, Any
 
-# Add parent directory to path for PEFFORT package imports
-_project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_project_root))
-
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Request
 from fastapi.responses import RedirectResponse
 
 from utils.effort_analyzer import (
@@ -37,6 +36,25 @@ _shared_sessions: Dict[str, Any] = {}
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "peffort_uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+# Simple in-memory rate limiting per client IP.
+# Keeps abuse under control without introducing external dependencies.
+RATE_LIMIT_MAX_REQUESTS = 10
+RATE_LIMIT_WINDOW_SECONDS = 60
+TRUST_PROXY_HEADERS = os.getenv("UPLOAD_RATE_LIMIT_TRUST_PROXY_HEADERS", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+try:
+    RATE_LIMIT_MAX_REQUESTS = max(1, int(os.getenv("UPLOAD_RATE_LIMIT_MAX_REQUESTS", str(RATE_LIMIT_MAX_REQUESTS))))
+except ValueError:
+    RATE_LIMIT_MAX_REQUESTS = 10
+
+try:
+    RATE_LIMIT_WINDOW_SECONDS = max(1, int(os.getenv("UPLOAD_RATE_LIMIT_WINDOW_SECONDS", str(RATE_LIMIT_WINDOW_SECONDS))))
+except ValueError:
+    RATE_LIMIT_WINDOW_SECONDS = 60
+
+_upload_timestamps: Dict[str, deque] = {}
+_upload_rate_lock = Lock()
+
 router = APIRouter()
 
 
@@ -46,8 +64,36 @@ def setup_upload_router(sessions_dict: Dict[str, Any]):
     _shared_sessions = sessions_dict
 
 
+def _is_upload_rate_limited(client_ip: str) -> bool:
+    now = time.monotonic()
+    with _upload_rate_lock:
+        queue = _upload_timestamps.setdefault(client_ip, deque())
+        while queue and now - queue[0] > RATE_LIMIT_WINDOW_SECONDS:
+            queue.popleft()
+        if len(queue) >= RATE_LIMIT_MAX_REQUESTS:
+            return True
+        queue.append(now)
+        return False
+
+
+def _get_client_ip(request: Request) -> str:
+    if TRUST_PROXY_HEADERS:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            first_ip = forwarded.split(",")[0].strip()
+            if first_ip:
+                return first_ip
+
+        real_ip = request.headers.get("x-real-ip", "").strip()
+        if real_ip:
+            return real_ip
+
+    return request.client.host if request.client and request.client.host else "unknown"
+
+
 @router.post("/upload")
 async def upload_fit(
+    request: Request,
     file: UploadFile = File(...),
     cp: float = Form(250),
     weight: float = Form(60),
@@ -83,6 +129,13 @@ async def upload_fit(
     Returns:
         RedirectResponse to dashboard with session_id
     """
+    client_ip = _get_client_ip(request)
+    if _is_upload_rate_limited(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many uploads. Please wait and try again."
+        )
+
     # Validate file
     if not file.filename or not file.filename.lower().endswith('.fit'):
         raise HTTPException(
@@ -153,14 +206,8 @@ async def upload_fit(
     # Generate secure session ID
     session_id = str(uuid.uuid4())
 
-    # Sanitize filename to prevent path traversal attacks
-    # Only keep the basename and replace any problematic characters
-    safe_filename = Path(file.filename).name
-    # Remove any remaining path separators and special chars
-    safe_filename = safe_filename.replace('/', '_').replace('\\', '_')
-
-    # Save uploaded file with streaming to prevent memory DoS
-    file_path = UPLOAD_DIR / f"{session_id}_{safe_filename}"
+    # Save uploaded file with deterministic server-side name to avoid path tricks.
+    file_path = UPLOAD_DIR / f"{session_id}.fit"
     try:
         # Validate file size (max 50MB for FIT files) while streaming to disk
         max_size = 50 * 1024 * 1024  # 50MB
@@ -207,18 +254,15 @@ async def upload_fit(
     try:
         df = parse_fit(str(file_path))
         logger.info(f"FIT parsed: {len(df)} records")
-        # Clean up uploaded file after successful parse
-        # Data is now in memory, no need to keep the file
-        if file_path.exists():
-            file_path.unlink()
     except Exception as e:
         logger.error(f"Error parsing FIT: {e}")
-        # Clean up
-        if file_path.exists():
-            file_path.unlink()
         raise HTTPException(
             status_code=400, detail="Error parsing FIT file"
         )
+    finally:
+        # Always attempt cleanup, including unexpected parser failures.
+        if file_path.exists():
+            file_path.unlink()
 
     # Create effort config with all parameters
     effort_config = EffortConfig(

@@ -133,19 +133,55 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
     hr_all = df['heartrate'].values if 'heartrate' in df.columns else np.zeros(len(df))
     cadence_all = df['cadence'].values if 'cadence' in df.columns else np.zeros(len(df))
     grade_all = df['grade'].values if 'grade' in df.columns else np.zeros(len(df))
+
+    safe_len = min(
+        len(time_sec),
+        len(power_all),
+        len(hr_all),
+        len(cadence_all),
+        len(grade_all),
+        len(alt_values),
+        len(dist_km_values)
+    )
+
+    if safe_len <= 0:
+        return {
+            'duration': 0,
+            'elevation': 0.0,
+            'w_kg': 0.0,
+            'best_5s': 0,
+            'best_5s_watt_kg': 0.0,
+            'avg_hr': 0.0,
+            'max_hr': 0.0,
+            'avg_cadence': 0.0,
+            'avg_speed': 0.0,
+            'avg_grade': 0.0,
+            'max_grade': 0.0,
+            'vam': 0.0,
+            'watts_first': 0.0,
+            'watts_second': 0.0,
+            'watts_ratio': 0.0,
+            'kj': 0.0,
+            'kj_over_cp': 0.0,
+            'kj_kg': 0.0,
+            'kj_kg_over_cp': 0.0,
+            'kj_h_kg': 0.0,
+            'kj_h_kg_over_cp': 0.0,
+            'vam_teorico': 0.0
+        }
     
     # Segmenti dati (con boundary checks appropriati)
     # Assicura che gli indici siano validi
-    s = max(0, s)
-    e = max(s, min(e, len(power_all)))
+    s = max(0, min(s, safe_len - 1))
+    e = max(s + 1, min(e, safe_len))
     
     seg_power = power_all[s:e]
     seg_time = time_sec[s:e]
-    seg_alt_arr = alt_values[max(0, s):min(e, len(alt_values))]
+    seg_alt_arr = alt_values[s:e]
     seg_hr = hr_all[s:e]
     seg_cadence = cadence_all[s:e]
     seg_grade = grade_all[s:e]
-    seg_dist_km = dist_km_values[max(0, s):min(e, len(dist_km_values))]
+    seg_dist_km = dist_km_values[s:e]
     
     # Durata ed elevazione
     duration = int(seg_time[-1] - seg_time[0] + 1) if len(seg_time) > 0 else 0

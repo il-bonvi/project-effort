@@ -1501,6 +1501,9 @@ function resetView() {
 let streamModalData = null;
 let avg30sSeconds = 30;
 let avg60sSeconds = 60;
+const INSPECTION_ZONES_KEY = `inspection_zones_v2_${session_id}`;
+const INSPECTION_ZONES_KEY_LEGACY_VERSION = 'inspection_zones_v2';
+const INSPECTION_ZONES_LEGACY_KEY = 'inspection_zones';
 
 function debounce(func, wait) {
     let timeout;
@@ -1520,7 +1523,9 @@ if (storedAvg30s) avg30sSeconds = parseInt(storedAvg30s, 10);
 if (storedAvg60s) avg60sSeconds = parseInt(storedAvg60s, 10);
 
 function getIntensityZones() {
-    const stored = localStorage.getItem('inspection_zones');
+    const stored = localStorage.getItem(INSPECTION_ZONES_KEY)
+        || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY_VERSION)
+        || localStorage.getItem(INSPECTION_ZONES_LEGACY_KEY);
     if (stored) {
         try {
             return JSON.parse(stored);
@@ -2359,7 +2364,12 @@ if (document.readyState === 'loading') {
 }
 
 window.addEventListener('storage', function(e) {
-    if (e.key === 'inspection_zones' && streamModalData) {
+    if (
+        (e.key === INSPECTION_ZONES_KEY
+            || e.key === INSPECTION_ZONES_KEY_LEGACY_VERSION
+            || e.key === INSPECTION_ZONES_LEGACY_KEY)
+        && streamModalData
+    ) {
         buildStreamChartsD3();
     }
 });

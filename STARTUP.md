@@ -51,6 +51,12 @@ cd webapp
 python -m uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
+**Opzione C: Compatibile con Render (usa variabile PORT)**
+```bash
+cd webapp
+uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}
+```
+
 ### 4️⃣ Controlla che Funzioni
 
 Vedrai output come:

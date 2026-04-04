@@ -7,6 +7,8 @@ import logging
 import numpy as np
 import pandas as pd
 from typing import List, Tuple, Dict, Any
+from pathlib import Path
+import importlib.util
 
 # Import moduli locali
 from .map3d_core import (
@@ -26,13 +28,22 @@ def _get_maptiler_key() -> str:
     if key:
         return key
     try:
-        import sys
-        from pathlib import Path
-        _root_path = str(Path(__file__).parent.parent.parent)
-        if _root_path not in sys.path:
-            sys.path.insert(0, _root_path)
-        from config import get_maptiler_key  # type: ignore
-        return get_maptiler_key()
+        # Local development fallback without mutating global sys.path.
+        config_path = Path(__file__).resolve().parents[2] / "config.py"
+        if not config_path.exists():
+            raise ImportError("config.py not found")
+
+        spec = importlib.util.spec_from_file_location("peffort_local_config", str(config_path))
+        if spec is None or spec.loader is None:
+            raise ImportError("Unable to load config.py")
+
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        get_key = getattr(module, "get_maptiler_key", None)
+        if callable(get_key):
+            return get_key()
+        raise ImportError("get_maptiler_key missing in config.py")
     except ImportError:
         logger.warning(
             "MAPTILER_API_KEY not found. Configure env var or local config.py."
@@ -165,6 +176,8 @@ def generate_3d_map_html(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]
             efforts_data_json=efforts_data_json,
             elevation_data_json=elevation_graph_data,
             geojson_str=geojson_str,
+            # MapTiler keys used client-side are visible in page source.
+            # Restrict the key by allowed domain in your MapTiler dashboard.
             maptiler_key=_get_maptiler_key(),
             center_lat=center_lat,
             center_lon=center_lon,

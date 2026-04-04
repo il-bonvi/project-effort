@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: peffort-web
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd webapp && uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MAPTILER_API_KEY
+        sync: false
+      - key: MAPTILER_KEY_DOMAIN_RESTRICTED
+        value: "true"
+      - key: LOG_LEVEL
+        value: WARNING
+      - key: UPLOAD_RATE_LIMIT_MAX_REQUESTS
+        value: "10"
+      - key: UPLOAD_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: UPLOAD_RATE_LIMIT_TRUST_PROXY_HEADERS
+        value: "true"
+      - key: SESSION_PERSIST_DIR
+        value: /data/peffort_sessions

@@ -4,9 +4,10 @@ Main entry point - Imports and registers modular routes from /routes directory
 Each route module handles a specific functional area and uses APIRouter pattern
 """
 
-import sys
+import os
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Dict, Any
 
@@ -31,8 +32,17 @@ from routes.map2d import router as map2d_router, setup_map2d_router
 from routes.api import router as api_router, setup_api_router
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+_log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+_log_level = getattr(logging, _log_level_name, logging.INFO)
+logging.basicConfig(level=_log_level)
 logger = logging.getLogger(__name__)
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 # ============================================================================
 # FASTAPI APPLICATION INITIALIZATION
@@ -40,9 +50,30 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    async def cleanup_task():
+        while True:
+            await asyncio.sleep(3600)
+            sessions.cleanup()
+            logger.info("Periodic session cleanup completed")
+
+    task = asyncio.create_task(cleanup_task())
+
+    maptiler_key_present = bool(os.getenv("MAPTILER_API_KEY", "").strip())
+    maptiler_restriction_ack = _env_bool("MAPTILER_KEY_DOMAIN_RESTRICTED", default=False)
+    if maptiler_key_present and not maptiler_restriction_ack:
+        logger.warning(
+            "MAPTILER_API_KEY is configured but MAPTILER_KEY_DOMAIN_RESTRICTED is false. "
+            "Restrict the key by domain/referrer in MapTiler dashboard."
+        )
+
     logger.info("PEFFORT Web app started on http://localhost:8001")
-    yield
-    logger.info("PEFFORT Web app shut down")
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+        logger.info("PEFFORT Web app shut down")
 
 
 app = FastAPI(
@@ -112,10 +143,14 @@ logger.info(
 
 @app.get("/health")
 async def health():
+    maptiler_key_present = bool(os.getenv("MAPTILER_API_KEY", "").strip())
+    maptiler_restriction_ack = _env_bool("MAPTILER_KEY_DOMAIN_RESTRICTED", default=False)
     return {
         "status": "ok",
         "sessions_active": len(sessions),
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "maptiler_key_present": maptiler_key_present,
+        "maptiler_domain_restriction_ack": maptiler_restriction_ack,
     }
 
 

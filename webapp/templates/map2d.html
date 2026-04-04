@@ -236,11 +236,18 @@
         const center_lon  = {{ center_lon }};
         const initial_zoom = {{ zoom }};
 
-        const effortUpdateChannel = new BroadcastChannel('peffort_{{ session_id }}');
-        effortUpdateChannel.onmessage = (event) => {
-            if (event?.data?.type === 'efforts_updated') { location.reload(); }
-        };
-        window.addEventListener('beforeunload', () => effortUpdateChannel.close());
+        let effortUpdateChannel = null;
+        try {
+            effortUpdateChannel = new BroadcastChannel('peffort_{{ session_id }}');
+            effortUpdateChannel.onmessage = (event) => {
+                if (event?.data?.type === 'efforts_updated') { location.reload(); }
+            };
+        } catch (e) {
+            console.warn('BroadcastChannel not supported on this browser', e);
+        }
+        window.addEventListener('beforeunload', () => {
+            if (effortUpdateChannel) effortUpdateChannel.close();
+        });
     </script>
     <script>
     // ════════════════════════════════════════════════════════
@@ -338,8 +345,13 @@
     const emptyFC = { type: 'FeatureCollection', features: [] };
 
     // ── Zone colors ──
+    const INSPECTION_ZONES_KEY = 'inspection_zones_v2_{{ session_id }}';
+    const INSPECTION_ZONES_KEY_LEGACY_VERSION = 'inspection_zones_v2';
+    const INSPECTION_ZONES_LEGACY_KEY = 'inspection_zones';
     function getIntensityZones() {
-        const stored = localStorage.getItem('inspection_zones');
+        const stored = localStorage.getItem(INSPECTION_ZONES_KEY)
+            || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY_VERSION)
+            || localStorage.getItem(INSPECTION_ZONES_LEGACY_KEY);
         if (stored) { try { return JSON.parse(stored); } catch(e) {} }
         if (chartData.intensity_zones && chartData.intensity_zones.length > 0) return chartData.intensity_zones;
         return [

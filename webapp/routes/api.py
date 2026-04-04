@@ -9,7 +9,6 @@
 API ROUTES - RESTful endpoints for effort/sprint manipulation and data export
 """
 
-import sys
 import re
 import html as html_module
 import json
@@ -21,13 +20,9 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from io import StringIO, BytesIO
 
-# Add parent directory to path for PEFFORT package imports
-_project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_project_root))
-
 from fastapi import APIRouter, HTTPException, Body, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from utils.effort_analyzer import (
     create_efforts, merge_extend, split_included, detect_sprints
@@ -39,6 +34,13 @@ logger = logging.getLogger(__name__)
 
 # Shared sessions dict - set by setup_api_router()
 _shared_sessions: Dict[str, Dict[str, Any]] = {}
+
+
+def _invalidate_session_caches(session: Dict[str, Any]) -> None:
+    """Drop derived per-session caches after any mutation of core session data."""
+    session.pop('_chart_data_cache', None)
+    session.pop('_map2d_html_cache', None)
+    session.pop('_map3d_html_cache', None)
 
 
 def setup_api_router(sessions_dict: Dict[str, Dict[str, Any]]) -> APIRouter:
@@ -117,6 +119,38 @@ class LocalModificationsRequest(BaseModel):
     deleted_sprint_indices: list[int] = []
 
 
+class DashboardImportEffort(BaseModel):
+    """Effort record used by dashboard JSON import."""
+    index: Optional[int] = None
+    new_start: float
+    new_end: float
+    avg_power: float = 0.0
+    deleted: bool = False
+
+
+class DashboardImportRequest(BaseModel):
+    """Validated payload for dashboard JSON import."""
+    session_id: str
+    efforts: list[DashboardImportEffort]
+    deleted_efforts: list[int] = Field(default_factory=list)
+    deleted_sprints: list[int] = Field(default_factory=list)
+
+
+class LegacyImportEffort(BaseModel):
+    """Effort item for legacy /{session_id}/import payload."""
+    index: int
+    new_start: float
+    new_end: float
+    avg_power: float = 0.0
+
+
+class LegacyImportRequest(BaseModel):
+    """Validated legacy import payload."""
+    efforts: list[LegacyImportEffort] = Field(default_factory=list)
+    deleted_efforts: list[int] = Field(default_factory=list)
+    deleted_sprints: list[int] = Field(default_factory=list)
+
+
 # =============================================================================
 # SESSION DATA ENDPOINTS
 # =============================================================================
@@ -178,6 +212,9 @@ async def get_session_status(session_id: str):
         raise HTTPException(status_code=404, detail="Session not found")
 
     session = _shared_sessions[session_id]
+    sprint_detection_error = session.get('sprint_detection_error')
+    if sprint_detection_error:
+        logger.warning("Session %s has sprint_detection_error: %s", session_id, sprint_detection_error)
 
     return {
         "session_id": session_id,
@@ -186,7 +223,8 @@ async def get_session_status(session_id: str):
         "total_efforts": len(session['efforts']),
         "total_sprints": len(session.get('sprints', [])),
         "cp": session.get('cp', 250),
-        "weight": session.get('weight', 60)
+        "weight": session.get('weight', 60),
+        "sprint_detection_error": sprint_detection_error
     }
 
 
@@ -256,6 +294,8 @@ async def update_cp_weight(session_id: str, request: UpdateCpWeightRequest):
         efforts = split_included(df=df, efforts=efforts)
         session['efforts'] = efforts
 
+    _invalidate_session_caches(session)
+
     logger.info(f"Updated session {session_id}: CP={request.cp}W, Weight={request.weight}kg")
 
     return {
@@ -305,6 +345,7 @@ async def merge_efforts(session_id: str, request: MergeRequest):
     new_efforts.sort(key=lambda x: x[0])
 
     session['efforts'] = new_efforts
+    _invalidate_session_caches(session)
 
     return {
         "success": True,
@@ -347,6 +388,7 @@ async def extend_effort(session_id: str, request: ExtendRequest):
     new_avg_power = extended_data['power'].mean() if len(extended_data) > 0 else effort[2]
 
     efforts[request.effort_idx] = (new_start, new_end, new_avg_power)
+    _invalidate_session_caches(session)
 
     return {
         "success": True,
@@ -401,6 +443,7 @@ async def split_effort(session_id: str, request: SplitRequest):
     new_efforts.sort(key=lambda x: x[0])
 
     session['efforts'] = new_efforts
+    _invalidate_session_caches(session)
 
     return {
         "success": True,
@@ -451,6 +494,7 @@ async def trim_effort(session_id: str, request: TrimRequest):
     new_avg_power = trimmed_data['power'].mean() if len(trimmed_data) > 0 else effort[2]
 
     efforts[request.effort_idx] = (new_start, new_end, new_avg_power)
+    _invalidate_session_caches(session)
 
     return {
         "success": True,
@@ -486,6 +530,7 @@ async def delete_effort(session_id: str, effort_idx: int):
         raise HTTPException(status_code=400, detail="Invalid effort index")
 
     deleted = efforts.pop(effort_idx)
+    _invalidate_session_caches(session)
 
     return {
         "success": True,
@@ -520,6 +565,7 @@ async def delete_sprint(session_id: str, sprint_idx: int):
         raise HTTPException(status_code=400, detail="Invalid sprint index")
 
     deleted = sprints.pop(sprint_idx)
+    _invalidate_session_caches(session)
 
     return {
         "success": True,
@@ -542,7 +588,7 @@ async def delete_session(session_id: str):
 
 
 @router.post("/{session_id}/import")
-async def import_modifications(session_id: str, modifications: Dict[str, Any]):
+async def import_modifications(session_id: str, modifications: LegacyImportRequest):
     """
     Import effort modifications from exported JSON
 
@@ -562,16 +608,16 @@ async def import_modifications(session_id: str, modifications: Dict[str, Any]):
     session = _shared_sessions[session_id]
     df = session['df']
 
-    deleted_effort_indices = set(modifications.get('deleted_efforts', []))
-    deleted_sprint_indices = set(modifications.get('deleted_sprints', []))
+    deleted_effort_indices = set(modifications.deleted_efforts)
+    deleted_sprint_indices = set(modifications.deleted_sprints)
 
     new_efforts = []
-    for effort_mod in modifications.get('efforts', []):
-        if effort_mod['index'] in deleted_effort_indices:
+    for effort_mod in modifications.efforts:
+        if effort_mod.index in deleted_effort_indices:
             continue
 
-        start_time = effort_mod['new_start']
-        end_time = effort_mod['new_end']
+        start_time = effort_mod.new_start
+        end_time = effort_mod.new_end
 
         start_idx_list = df[df['time_sec'] >= start_time].index.tolist()
         start_idx = start_idx_list[0] if start_idx_list else 0
@@ -580,7 +626,7 @@ async def import_modifications(session_id: str, modifications: Dict[str, Any]):
         end_idx = (end_idx_list[-1] + 1) if end_idx_list else len(df)
 
         segment_data = df.iloc[start_idx:end_idx]
-        avg_power = segment_data['power'].mean() if len(segment_data) > 0 else effort_mod.get('avg_power', 0)
+        avg_power = segment_data['power'].mean() if len(segment_data) > 0 else effort_mod.avg_power
 
         new_efforts.append((start_idx, end_idx, avg_power))
 
@@ -590,6 +636,7 @@ async def import_modifications(session_id: str, modifications: Dict[str, Any]):
     sprints = session.get('sprints', [])
     new_sprints = [sprint for i, sprint in enumerate(sprints) if i not in deleted_sprint_indices]
     session['sprints'] = new_sprints
+    _invalidate_session_caches(session)
 
     return {
         "success": True,
@@ -649,6 +696,7 @@ async def redetect_efforts_impl(
         efforts = split_included(df=df, efforts=efforts)
 
         session['efforts'] = efforts
+        _invalidate_session_caches(session)
 
         if 'effort_config' not in session:
             session['effort_config'] = EffortConfig()
@@ -705,6 +753,7 @@ async def redetect_sprints_impl(
         )
 
         session['sprints'] = sprints
+        _invalidate_session_caches(session)
 
         if 'sprint_config' not in session:
             session['sprint_config'] = SprintConfig()
@@ -905,6 +954,7 @@ async def apply_local_modifications(session_id: str, data: LocalModificationsReq
         # Update session with new efforts and sprints
         session['efforts'] = new_efforts
         session['sprints'] = new_sprints
+        _invalidate_session_caches(session)
         
         logger.info(f"Applied local modifications for session {session_id}: {len(new_efforts)} efforts, {len(new_sprints)} sprints")
         
@@ -1106,7 +1156,7 @@ async def export_csv_data(session_id: str):
 
 
 @router.post("/import-modifications/{session_id}")
-async def import_dashboard_modifications(session_id: str, modifications: Dict[str, Any]):
+async def import_dashboard_modifications(session_id: str, modifications: DashboardImportRequest):
     """
     Import effort modifications from JSON file for dashboard.
     Validates that modifications are for the correct session/file.
@@ -1118,21 +1168,15 @@ async def import_dashboard_modifications(session_id: str, modifications: Dict[st
         raise HTTPException(status_code=404, detail="Session not found")
 
     try:
-        # Validate JSON structure
-        required_fields = ['session_id', 'efforts', 'deleted_efforts', 'deleted_sprints']
-        for field in required_fields:
-            if field not in modifications:
-                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
-
         # Double-check session ID matches
-        if modifications['session_id'] != session_id:
+        if modifications.session_id != session_id:
             raise HTTPException(status_code=400, detail="Session ID mismatch - this JSON is from a different FIT file")
 
         session = _shared_sessions[session_id]
 
         # Normalize deleted indices for efforts and sprints
-        deleted_efforts = set(modifications.get('deleted_efforts') or [])
-        deleted_sprints = set(modifications.get('deleted_sprints') or [])
+        deleted_efforts = set(modifications.deleted_efforts)
+        deleted_sprints = set(modifications.deleted_sprints)
 
         # Apply modifications to efforts
         original_efforts = session.get('efforts', [])
@@ -1145,13 +1189,13 @@ async def import_dashboard_modifications(session_id: str, modifications: Dict[st
         has_power_column = 'power' in df.columns  # Check once outside the loop
 
         # Reconstruct efforts with modifications
-        for effort_data in modifications['efforts']:
+        for effort_data in modifications.efforts:
             # Skip if this effort is marked as deleted in the payload
-            if effort_data.get('deleted', False):
+            if effort_data.deleted:
                 continue
 
             # Find original effort by index if available, otherwise create new
-            effort_idx = effort_data.get('index')
+            effort_idx = effort_data.index
 
             # If the original index is explicitly listed as deleted, do not reintroduce it
             if effort_idx is not None and effort_idx in deleted_efforts:
@@ -1162,8 +1206,8 @@ async def import_dashboard_modifications(session_id: str, modifications: Dict[st
                 orig_start_idx, orig_end_idx, orig_avg_power = original_efforts[effort_idx]
 
                 # Convert time back to indices (efficiently using numpy)
-                new_start_idx = int(np.argmin(np.abs(time_array - effort_data['new_start'])))
-                new_end_idx = int(np.argmin(np.abs(time_array - effort_data['new_end'])))
+                new_start_idx = int(np.argmin(np.abs(time_array - effort_data.new_start)))
+                new_end_idx = int(np.argmin(np.abs(time_array - effort_data.new_end)))
 
                 # Clamp to valid bounds
                 new_start_idx = max(0, min(new_start_idx, max_idx))
@@ -1202,8 +1246,8 @@ async def import_dashboard_modifications(session_id: str, modifications: Dict[st
                 modified_efforts.append((new_start_idx, new_end_idx, avg_power))
             else:
                 # This is a new effort - convert times to indices (efficiently using numpy)
-                start_idx = int(np.argmin(np.abs(time_array - effort_data['new_start'])))
-                end_idx = int(np.argmin(np.abs(time_array - effort_data['new_end'])))
+                start_idx = int(np.argmin(np.abs(time_array - effort_data.new_start)))
+                end_idx = int(np.argmin(np.abs(time_array - effort_data.new_end)))
 
                 # Clamp to valid bounds
                 start_idx = max(0, min(start_idx, max_idx))
@@ -1232,10 +1276,10 @@ async def import_dashboard_modifications(session_id: str, modifications: Dict[st
                     if not effort_slice.empty:
                         avg_power = float(effort_slice['power'].mean())
                     else:
-                        avg_power = float(effort_data.get('avg_power', 0.0))
+                        avg_power = float(effort_data.avg_power)
                 else:
                     # Fallback to any provided avg_power, if present
-                    avg_power = float(effort_data.get('avg_power', 0.0))
+                    avg_power = float(effort_data.avg_power)
 
                 modified_efforts.append((start_idx, end_idx, avg_power))
 
@@ -1250,8 +1294,12 @@ async def import_dashboard_modifications(session_id: str, modifications: Dict[st
                 if idx not in deleted_sprints
             ]
 
+        _invalidate_session_caches(session)
+
         return {"success": True, "message": f"Imported {len(modified_efforts)} efforts successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error importing modifications: {e}")
         raise HTTPException(status_code=400, detail=f"Error importing modifications: {str(e)}")
@@ -1319,7 +1367,7 @@ async def export_html_report(session_id: str, request: Request = None):
     session = _shared_sessions[session_id]
 
     try:
-        from routes.altimetria_d3 import prepare_chart_data, convert_to_python_types
+        from routes.altimetria_d3 import get_chart_data_json
 
         # Default zones — identical to inspection.html defaultZones.
         # Used whenever the browser does not send valid custom zones.
@@ -1333,8 +1381,7 @@ async def export_html_report(session_id: str, request: Request = None):
             {'min': 300, 'max': 999, 'color': '#504861', 'name': 'Z7'},
         ]
 
-        chart_data = prepare_chart_data(session)
-        chart_data = convert_to_python_types(chart_data)
+        chart_data = json.loads(get_chart_data_json(session))
 
         # Always start with defaults, then override with user's custom values from browser
         chart_data['intensity_zones'] = DEFAULT_ZONES
@@ -1378,24 +1425,15 @@ async def export_html_report(session_id: str, request: Request = None):
         # Remove Jinja2 block tags left in the template
         html = html.replace('{% raw %}', '').replace('{% endraw %}', '')
 
-        # The report is a self-contained snapshot: zones injected at export time
-        # from the user localStorage. Only return the embedded value — immutable.
-        html = html.replace(
-            """function getIntensityZones() {
-    const stored = localStorage.getItem('inspection_zones');
-    if (stored) {
-        try {
-            return JSON.parse(stored);
-        } catch (e) {
-            console.log('Failed to parse stored zones');
-        }
-    }
-    // Fallback to chart data zones
-    return chartData.intensity_zones || [];
-}""",
+        # The report is a self-contained snapshot: zones injected at export time.
+        html = re.sub(
+            r"function\s+getIntensityZones\s*\(\)\s*\{.*?\}",
             """function getIntensityZones() {
     return chartData.intensity_zones;
-}"""
+}""",
+            html,
+            count=1,
+            flags=re.DOTALL,
         )
 
         # Add a slim header banner
@@ -1432,4 +1470,12 @@ async def export_html_report(session_id: str, request: Request = None):
         raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
 
 
-__all__ = ['router', 'setup_api_router', 'redetect_efforts_impl', 'redetect_sprints_impl', 'import_modifications', 'export_modifications']
+__all__ = [
+    'router',
+    'setup_api_router',
+    'redetect_efforts_impl',
+    'redetect_sprints_impl',
+    'import_modifications',
+    'import_dashboard_modifications',
+    'export_modifications',
+]

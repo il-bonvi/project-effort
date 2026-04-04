@@ -727,6 +727,67 @@
     
     <script>
         const sessionId = '{{ session_id }}';
+        const INSPECTION_ZONES_KEY = `inspection_zones_v2_${sessionId}`;
+        const INSPECTION_ZONES_KEY_LEGACY_VERSION = 'inspection_zones_v2';
+        const INSPECTION_ZONES_LEGACY_KEY = 'inspection_zones';
+        const DASHBOARD_UI_STATE_KEY = `peffort_dashboard_ui_${sessionId}`;
+
+        function saveDashboardUiState(tabNameOverride = null) {
+            const activeTab = tabNameOverride || document.querySelector('.tab.active')?.getAttribute('data-tab') || 'overview';
+            const tabContent = document.querySelector('.tab-content');
+            const state = {
+                activeTab,
+                scrollTop: tabContent ? tabContent.scrollTop : 0
+            };
+            sessionStorage.setItem(DASHBOARD_UI_STATE_KEY, JSON.stringify(state));
+        }
+
+        function activateTab(tabName, persist = true) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+            const targetTabBtn = document.querySelector(`.tab[data-tab="${tabName}"]`);
+            const targetPane = document.getElementById(tabName);
+            if (!targetTabBtn || !targetPane) return;
+
+            targetTabBtn.classList.add('active');
+            targetPane.classList.add('active');
+
+            if (tabName === 'map2d') {
+                ensureMap2DLoaded();
+            }
+
+            if (persist) {
+                saveDashboardUiState(tabName);
+            }
+        }
+
+        function restoreDashboardUiState() {
+            const raw = sessionStorage.getItem(DASHBOARD_UI_STATE_KEY);
+            if (!raw) return;
+
+            try {
+                const state = JSON.parse(raw);
+                if (state?.activeTab) {
+                    activateTab(state.activeTab, false);
+                }
+                if (typeof state?.scrollTop === 'number') {
+                    const tabContent = document.querySelector('.tab-content');
+                    if (tabContent) tabContent.scrollTop = state.scrollTop;
+                }
+            } catch (e) {
+                console.warn('Failed to restore dashboard UI state', e);
+            }
+        }
+
+        function reloadDashboardPreserveUi(delayMs = 0) {
+            saveDashboardUiState();
+            if (delayMs > 0) {
+                setTimeout(() => location.reload(), delayMs);
+                return;
+            }
+            location.reload();
+        }
         
         async function redetectEfforts() {
             const params = {
@@ -745,11 +806,15 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(params)
                 });
+                if (!response.ok) {
+                    const message = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${message || response.statusText}`);
+                }
                 
                 const result = await response.json();
                 if (result.success) {
                     alert(`✅ Re-detected ${result.total_efforts} efforts!`);
-                    location.reload();
+                    reloadDashboardPreserveUi();
                 } else {
                     alert(`❌ Error: ${result.message}`);
                 }
@@ -772,11 +837,15 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(params)
                 });
+                if (!response.ok) {
+                    const message = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${message || response.statusText}`);
+                }
                 
                 const result = await response.json();
                 if (result.success) {
                     alert(`✅ Re-detected ${result.total_sprints} sprints!`);
-                    location.reload();
+                    reloadDashboardPreserveUi();
                 } else {
                     alert(`❌ Error: ${result.message}`);
                 }
@@ -797,11 +866,15 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(params)
                 });
+                if (!response.ok) {
+                    const message = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${message || response.statusText}`);
+                }
                 
                 const result = await response.json();
                 if (result.status === 'success') {
                     alert(`✅ ${result.message}\n\nEfforts have been re-detected with the new parameters.`);
-                    location.reload();
+                    reloadDashboardPreserveUi();
                 } else {
                     alert(`❌ Error: ${result.message}`);
                 }
@@ -853,12 +926,16 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(jsonData)
                 });
+                if (!response.ok) {
+                    const message = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${message || response.statusText}`);
+                }
                 
                 const result = await response.json();
                 if (result.success) {
                     importStatus.textContent = '✅ Modifications imported successfully! Reloading page...';
                     importStatus.style.color = '#22c55e';
-                    setTimeout(() => location.reload(), 1500);
+                    reloadDashboardPreserveUi(1500);
                 } else {
                     importStatus.textContent = `❌ Error: ${result.message}`;
                     importStatus.style.color = '#ef4444';
@@ -919,7 +996,9 @@
                 // Read zones from localStorage (set in Inspection tab), fall back to defaults
                 let zones = DEFAULT_ZONES;
                 try {
-                    const zonesRaw = localStorage.getItem('inspection_zones');
+                    const zonesRaw = localStorage.getItem(INSPECTION_ZONES_KEY)
+                        || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY_VERSION)
+                        || localStorage.getItem(INSPECTION_ZONES_LEGACY_KEY);
                     if (zonesRaw) {
                         const parsed = JSON.parse(zonesRaw);
                         if (Array.isArray(parsed) && parsed.length > 0) zones = parsed;
@@ -1094,16 +1173,11 @@
                 }
                 
                 const tabName = this.getAttribute('data-tab');
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-                this.classList.add('active');
-                document.getElementById(tabName).classList.add('active');
-
-                if (tabName === 'map2d') {
-                    ensureMap2DLoaded();
-                }
+                activateTab(tabName);
             });
         });
+
+        restoreDashboardUiState();
 
         // ESC key to exit fullscreen
         document.addEventListener('keydown', function(e) {

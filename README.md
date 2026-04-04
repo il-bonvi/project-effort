@@ -53,8 +53,73 @@ Apri il browser:
 Da root progetto:
 
 ```powershell
-run_server.bat
+start_server.bat
 ```
+
+## Sicurezza MapTiler
+
+La mappa 3D usa la chiave MapTiler nel codice client JavaScript.
+Questo significa che la chiave e' visibile nel sorgente della pagina.
+
+Per uso sicuro:
+
+1. Imposta sempre restrizioni dominio/referrer nella dashboard MapTiler.
+2. Non riutilizzare la stessa chiave su progetti non correlati.
+3. Ruota periodicamente la chiave in caso di sospetto abuso.
+
+Checklist operativa consigliata:
+
+1. In MapTiler Cloud, limita la key al dominio di produzione e localhost di sviluppo.
+2. Imposta in ambiente `MAPTILER_KEY_DOMAIN_RESTRICTED=true` dopo aver verificato la restrizione.
+3. Controlla endpoint health: `maptiler_domain_restriction_ack` deve risultare `true`.
+
+## Deployment su Render
+
+1. Push del repository su GitHub.
+2. Crea un nuovo Web Service su Render.
+3. Build Command:
+
+```bash
+pip install -r requirements.txt
+```
+
+4. Start Command:
+
+```bash
+cd webapp && uvicorn app:app --host 0.0.0.0 --port $PORT
+```
+
+5. Environment Variables:
+- `MAPTILER_API_KEY=<tua_chiave>`
+- `MAPTILER_KEY_DOMAIN_RESTRICTED=true` (impostare solo dopo aver ristretto il dominio in MapTiler)
+- `LOG_LEVEL=INFO` (oppure `WARNING` in produzione)
+- `UPLOAD_RATE_LIMIT_MAX_REQUESTS=10`
+- `UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60`
+- `UPLOAD_RATE_LIMIT_TRUST_PROXY_HEADERS=true` (consigliato dietro proxy/reverse proxy)
+- `SESSION_PERSIST_DIR=/data/peffort_sessions` (consigliato con Render Persistent Disk)
+
+## Decisione Rate Limiting Produzione
+
+Scelta validata:
+
+1. Sviluppo/local: limiter in-memory integrato (gia' attivo).
+2. Produzione: usare reverse proxy + header real IP (`UPLOAD_RATE_LIMIT_TRUST_PROXY_HEADERS=true`).
+3. Evoluzione opzionale: migrazione a SlowAPI/Redis se servono quote condivise su istanze multiple.
+
+Nota: il limiter in-memory non e' condiviso tra processi/istanze multiple.
+
+## Decisione Persistenza Sessioni su Render
+
+Scelta validata:
+
+1. Baseline consigliata: disco persistente Render montato su `/data`, con `SESSION_PERSIST_DIR=/data/peffort_sessions`.
+2. Alternativa premium: Redis (maggiore complessita', migliore scalabilita').
+3. Fallback economico: `/tmp` (non persistente tra restart, ma funzionale nel breve periodo).
+
+Stima costi orientativa:
+
+1. Persistent Disk Render: circa $0.25/GB/mese (dipende dal piano).
+2. Redis gestito: costo maggiore ma migliore per multi-instance/concorrenza.
 
 ## Troubleshooting minimo
 

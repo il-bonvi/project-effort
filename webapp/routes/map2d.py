@@ -1,19 +1,15 @@
 """Map2D route - 2D map visualization with Leaflet.js + OpenStreetMap (free, no API key)"""
 
 import logging
-import sys
 import json
 from pathlib import Path
 from typing import Dict, Any
-
-_project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_project_root))
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from routes.altimetria_d3 import prepare_chart_data, convert_to_python_types
+from routes.altimetria_d3 import get_chart_data_json
 from utils.effort_analyzer import format_time_hhmmss, format_time_mmss
 
 logger = logging.getLogger(__name__)
@@ -21,6 +17,36 @@ logger = logging.getLogger(__name__)
 _shared_sessions: Dict[str, Any] = {}
 
 router = APIRouter()
+
+
+def _build_map2d_cache_signature(session: Dict[str, Any]) -> tuple[Any, ...]:
+    efforts = tuple((int(s), int(e), round(float(avg), 3)) for s, e, avg in session.get('efforts', []))
+    sprints = tuple(
+        (
+            int(s.get('start', 0)),
+            int(s.get('end', 0)),
+            round(float(s.get('avg', 0.0)), 3)
+        )
+        for s in session.get('sprints', [])
+    )
+    df = session.get('df')
+    df_len = int(len(df)) if df is not None else 0
+    effort_config = session.get('effort_config')
+    sprint_config = session.get('sprint_config')
+
+    return (
+        df_len,
+        round(float(session.get('cp', session.get('ftp', 250))), 3),
+        round(float(session.get('weight', 0)), 3),
+        round(float(getattr(effort_config, 'window_seconds', 0)), 3),
+        round(float(getattr(effort_config, 'merge_power_diff_percent', 0)), 3),
+        round(float(getattr(effort_config, 'min_effort_intensity_cp', 0)), 3),
+        round(float(getattr(sprint_config, 'min_power', 0)), 3),
+        round(float(getattr(sprint_config, 'window_seconds', 0)), 3),
+        round(float(getattr(sprint_config, 'merge_gap_sec', 0)), 3),
+        efforts,
+        sprints,
+    )
 
 
 def setup_map2d_router(sessions_dict: Dict[str, Any]):
@@ -52,8 +78,13 @@ async def map2d_view(session_id: str):
         )
 
     try:
+        signature = _build_map2d_cache_signature(session)
+        cache = session.get('_map2d_html_cache')
+        if isinstance(cache, dict) and cache.get('signature') == signature and isinstance(cache.get('html'), str):
+            logger.info(f"2D Map cache hit for session {session_id}")
+            return HTMLResponse(content=cache['html'])
+
         # Reuse the same data-preparation pipeline as the 3D map
-        from utils.map3d_generator import generate_3d_map_html as _gen3d
         import numpy as np
 
         # ── Build GeoJSON track ──
@@ -120,7 +151,7 @@ async def map2d_view(session_id: str):
 
         # Chart data (zones, cp, sprints with stream data)
         try:
-            chart_data_json = json.dumps(convert_to_python_types(prepare_chart_data(session)))
+            chart_data_json = get_chart_data_json(session)
         except Exception as e:
             logger.warning(f"Could not prepare chart data: {e}")
             chart_data_json = '{}'
@@ -144,6 +175,11 @@ async def map2d_view(session_id: str):
             zoom          = zoom,
             session_id    = session_id,
         )
+
+        session['_map2d_html_cache'] = {
+            'signature': signature,
+            'html': html,
+        }
 
         logger.info(f"2D Map generated for session {session_id}")
         return HTMLResponse(content=html)

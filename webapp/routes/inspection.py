@@ -10,17 +10,12 @@ INSPECTION ROUTES - Interactive Effort Editor Interface
 Handles the inspection/effort editor view with ECharts visualization
 """
 
-import sys
 import json
 import logging
 import numpy as np
 from html import escape
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
-
-# Add parent directory to path for PEFFORT package imports
-_project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_project_root))
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse

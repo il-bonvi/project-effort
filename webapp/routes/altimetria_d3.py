@@ -8,16 +8,11 @@
 """Altimetria D3.js route - Elevation profile visualization with D3.js"""
 
 import logging
-import sys
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 
 import numpy as np
-
-# Add parent directory to path for PEFFORT package imports
-_project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_project_root))
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -37,6 +32,76 @@ templates = Jinja2Templates(directory=str(_templates_dir))
 _shared_sessions: Dict[str, Any] = {}
 
 router = APIRouter()
+
+
+def _round_sig(value: Any, digits: int = 3) -> Any:
+    if isinstance(value, float):
+        return round(value, digits)
+    return value
+
+
+def _build_chart_cache_signature(session: Dict[str, Any]) -> Tuple[Any, ...]:
+    efforts = session.get('efforts', [])
+    sprints = session.get('sprints', [])
+    effort_sig = tuple((int(s), int(e), _round_sig(float(avg))) for s, e, avg in efforts)
+    sprint_sig = tuple(
+        (
+            int(s.get('start', 0)),
+            int(s.get('end', 0)),
+            _round_sig(float(s.get('avg', 0.0)))
+        )
+        for s in sprints
+    )
+
+    effort_config = session.get('effort_config')
+    sprint_config = session.get('sprint_config')
+
+    effort_cfg_sig = (
+        _round_sig(float(getattr(effort_config, 'window_seconds', 0))),
+        _round_sig(float(getattr(effort_config, 'merge_power_diff_percent', 0))),
+        _round_sig(float(getattr(effort_config, 'min_effort_intensity_cp', 0))),
+        _round_sig(float(getattr(effort_config, 'trim_window_seconds', 0))),
+        _round_sig(float(getattr(effort_config, 'trim_low_percent', 0))),
+        _round_sig(float(getattr(effort_config, 'extend_window_seconds', 0))),
+        _round_sig(float(getattr(effort_config, 'extend_low_percent', 0))),
+    )
+    sprint_cfg_sig = (
+        _round_sig(float(getattr(sprint_config, 'min_power', 0))),
+        _round_sig(float(getattr(sprint_config, 'window_seconds', 0))),
+        _round_sig(float(getattr(sprint_config, 'merge_gap_sec', 0))),
+    )
+
+    df = session.get('df')
+    df_len = int(len(df)) if df is not None else 0
+
+    return (
+        df_len,
+        _round_sig(float(session.get('cp', session.get('ftp', 250)))),
+        _round_sig(float(session.get('weight', 0))),
+        effort_sig,
+        sprint_sig,
+        effort_cfg_sig,
+        sprint_cfg_sig,
+    )
+
+
+def get_chart_data_json(session: Dict[str, Any]) -> str:
+    """Return chart_data JSON, reusing cached value when session inputs are unchanged."""
+    signature = _build_chart_cache_signature(session)
+    cache = session.get('_chart_data_cache')
+    if isinstance(cache, dict) and cache.get('signature') == signature:
+        cached_json = cache.get('json')
+        if isinstance(cached_json, str):
+            return cached_json
+
+    chart_data = prepare_chart_data(session)
+    chart_data = convert_to_python_types(chart_data)
+    chart_data_json = json.dumps(chart_data)
+    session['_chart_data_cache'] = {
+        'signature': signature,
+        'json': chart_data_json,
+    }
+    return chart_data_json
 
 
 def convert_to_python_types(obj: Any) -> Any:
@@ -494,9 +559,6 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'cadence_stream': cadence_stream,
             'torque_stream': torque_stream,
             'speed_stream': speed_stream,
-            # Track sprint position: ACTUAL times relative to buffer start (not indices)
-            'stream_effort_start': 0.0,
-            'stream_effort_end':   float(time_sec[end - 1] - time_sec[start]),
             'stream_effort_duration': int(duration)     # Actual sprint duration (not including buffer)
         }
         sprints_data.append(sprint_info)
@@ -553,14 +615,8 @@ async def altimetria_d3_view(request: Request, session_id: str):
     session = _shared_sessions[session_id]
 
     try:
-        # Prepare all chart data
-        chart_data = prepare_chart_data(session)
-        
-        # Convert numpy types to Python native types for JSON serialization
-        chart_data = convert_to_python_types(chart_data)
-        
-        # Convert to JSON for embedding in HTML
-        chart_data_json = json.dumps(chart_data)
+        # Prepare all chart data (cached by session signature)
+        chart_data_json = get_chart_data_json(session)
         
         # Return the D3 template
         logger.info(f"Altimetria D3 visualization generated for session {session_id}")
