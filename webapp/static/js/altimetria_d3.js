@@ -247,7 +247,21 @@ const ANN_MIN_Y    = -(ANN_SPACE - 8); // topmost allowed Y (in g coords)
 function buildAnnotationItems(xz) {
     const items = [];
 
+    function traceIntersectsViewport(lineData) {
+        if (!lineData || lineData.length === 0) return false;
+        const v0 = xz.invert(0);
+        const v1 = xz.invert(innerW);
+        const viewMin = Math.min(v0, v1);
+        const viewMax = Math.max(v0, v1);
+        const firstDist = lineData[0][0];
+        const lastDist = lineData[lineData.length - 1][0];
+        const traceMin = Math.min(firstDist, lastDist);
+        const traceMax = Math.max(firstDist, lastDist);
+        return !(traceMax < viewMin || traceMin > viewMax);
+    }
+
     chartData.efforts.forEach(effort => {
+        if (!traceIntersectsViewport(effort.line_data)) return;
         const mid = effort.line_data[Math.floor(effort.line_data.length / 2)];
         const ax = xz(mid[0]);
         const ay = yScale(mid[1]);
@@ -262,6 +276,7 @@ function buildAnnotationItems(xz) {
     });
 
     chartData.sprints.forEach((sprint, idx) => {
+        if (!traceIntersectsViewport(sprint.line_data)) return;
         const mid = sprint.line_data[Math.floor(sprint.line_data.length / 2)];
         const ax = xz(mid[0]);
         const ay = yScale(mid[1]);
@@ -300,13 +315,19 @@ function terrainTopUnder(px, xz) {
 
 function resolveCollisions(items, xz) {
     const TERRAIN_GAP = 8; // px clearance above terrain
+    const X_MIN = 0;
+    const X_MAX = Math.max(X_MIN, innerW - PILL_W);
+
+    function clampX(x) {
+        return Math.max(X_MIN, Math.min(X_MAX, x));
+    }
 
     // Sort left  right
     items.sort((a, b) => a.anchorX - b.anchorX);
 
     // Initial placement: 45px above anchor, but never below terrain
     items.forEach(item => {
-        item.finalX = item.anchorX - PILL_W / 2;
+        item.finalX = clampX(item.anchorX - PILL_W / 2);
         const terrain = terrainTopUnder(item.finalX, xz);
         const safeY   = isFinite(terrain) ? terrain - PILL_H - TERRAIN_GAP : item.anchorY - 45;
         item.finalY   = Math.min(item.anchorY - 45, safeY);
@@ -315,6 +336,7 @@ function resolveCollisions(items, xz) {
 
     // Returns true if position (tx,ty) is clear of placed pills AND terrain
     function ok(tx, ty) {
+        if (tx < X_MIN || tx > X_MAX) return false;
         if (!placed.every(p => !rectsOverlap(tx, ty, PILL_W, PILL_H, p.finalX, p.finalY, PILL_W, PILL_H, PILL_PAD))) return false;
         const terrain = terrainTopUnder(tx, xz);
         if (isFinite(terrain) && (ty + PILL_H + TERRAIN_GAP) > terrain) return false;
@@ -331,7 +353,7 @@ function resolveCollisions(items, xz) {
 
         // 1. Vertical only
         for (let lvl = 0; lvl < MAX_LVL; lvl++) {
-            const tx = item.finalX;
+            const tx = clampX(item.finalX);
             const ty = Math.max(ANN_MIN_Y, item.finalY - lvl * STEP_Y);
             if (ok(tx, ty)) { item.finalX = tx; item.finalY = ty; resolved = true; break; }
         }
@@ -342,7 +364,7 @@ function resolveCollisions(items, xz) {
             outer:
             for (const xs of nudges) {
                 for (let lvl = 0; lvl < MAX_LVL; lvl++) {
-                    const tx = item.finalX + xs;
+                    const tx = clampX(item.finalX + xs);
                     const ty = Math.max(ANN_MIN_Y, item.finalY - lvl * STEP_Y);
                     if (ok(tx, ty)) { item.finalX = tx; item.finalY = ty; resolved = true; break outer; }
                 }
@@ -440,7 +462,7 @@ function removeLeader() {
     if (_popupLeader) { _popupLeader.remove(); _popupLeader = null; }
 }
 
-// Track dodged pills: id  amount shifted in g-coords x
+// Track dodged pills: id  amount shifted in g-coords {x,y}
 const _dodgeShift = {};
 
 function dodgePills(cardRect) {
@@ -460,89 +482,126 @@ function dodgePills(cardRect) {
         const reg = pillRegistry[id];
         if (!reg) return;
         const baseX = reg.x - MARGIN.left; // original finalX in g-coords
-        pills.push({ id, el: this, baseX, reg });
+        const baseY = reg.y - ROOT_Y;
+        pills.push({ id, el: this, baseX, baseY, reg });
     });
 
-    // For each pill overlapping card, compute required dodge direction
-    // Then resolve cascading collisions among dodged pills
-    const shifts = {}; // id  shift in x (g-coords)
-    pills.forEach(p => { shifts[p.id] = 0; });
+    const xz = getXZ();
+    const xMin = 0;
+    const xMax = Math.max(xMin, innerW - PILL_W);
+    const yMin = ANN_MIN_Y;
+    const yMax = Math.max(yMin, innerH - PILL_H);
+    const cardW = cR - cL;
+    const cardH = cB - cT;
+    const cardCx = (cL + cR) / 2;
 
-    // Step 1: initial dodge away from card
-    pills.forEach(p => {
-        const px = p.baseX;
-        const pillL = px, pillR = px + PILL_W;
-        const pillT = p.reg.y - ROOT_Y, pillB = pillT + PILL_H;
-        // Never dodge pills that are entirely in annotation space (above chart top = y<0)
-        // Those pills are visually above the card which always renders at chart top
-        if (pillB <= 0) return;
-        const overlapsCard = pillR + PAD > cL && pillL - PAD < cR &&
-                             pillB + PAD > cT && pillT - PAD < cB;
-        if (!overlapsCard) return;
-        const pillCx = px + PILL_W / 2;
-        const cardCx = (cL + cR) / 2;
-        if (pillCx < cardCx) {
-            // Push left: pill right must clear card left
-            shifts[p.id] = cL - PAD - PILL_W - px - 4;
-        } else {
-            // Push right: pill left must clear card right
-            shifts[p.id] = cR + PAD + 4 - px;
-        }
-    });
-
-    // Step 2: resolve pill-pill collisions  only cascade pills already being dodged
-    for (let pass = 0; pass < 10; pass++) {
-        let changed = false;
-        for (let i = 0; i < pills.length; i++) {
-            for (let j = i + 1; j < pills.length; j++) {
-                const a = pills[i], b = pills[j];
-                // Only act if at least one pill is already being shifted
-                if (shifts[a.id] === 0 && shifts[b.id] === 0) continue;
-                const ax = a.baseX + shifts[a.id];
-                const bx = b.baseX + shifts[b.id];
-                const aT = a.reg.y - ROOT_Y, aB = aT + PILL_H;
-                const bT = b.reg.y - ROOT_Y, bB = bT + PILL_H;
-                // Vertical overlap?
-                if (aB + PAD <= bT || bB + PAD <= aT) continue;
-                // Horizontal overlap after shift?
-                const aR = ax + PILL_W, bR = bx + PILL_W;
-                if (aR + PAD <= bx || bR + PAD <= ax) continue;
-                // They collide  only push the already-shifted one further, never pull a resting pill
-                const overlapX = Math.min(aR, bR) - Math.max(ax, bx) + PAD;
-                if (shifts[a.id] !== 0 && shifts[b.id] === 0) {
-                    shifts[a.id] += (shifts[a.id] > 0 ? overlapX : -overlapX);
-                } else if (shifts[b.id] !== 0 && shifts[a.id] === 0) {
-                    shifts[b.id] += (shifts[b.id] > 0 ? overlapX : -overlapX);
-                } else {
-                    // Both moving  push in their respective directions
-                    if (ax + PILL_W/2 < bx + PILL_W/2) {
-                        shifts[b.id] >= 0 ? shifts[b.id] += overlapX : shifts[a.id] -= overlapX;
-                    } else {
-                        shifts[a.id] >= 0 ? shifts[a.id] += overlapX : shifts[b.id] -= overlapX;
-                    }
-                }
-                changed = true;
-            }
-        }
-        if (!changed) break;
+    function clampPos(x, y) {
+        return {
+            x: Math.max(xMin, Math.min(xMax, x)),
+            y: Math.max(yMin, Math.min(yMax, y))
+        };
     }
 
-    // Step 3: animate each pill to its new position
+    function overlapsCardAt(x, y) {
+        return rectsOverlap(x, y, PILL_W, PILL_H, cL, cT, cardW, cardH, PAD);
+    }
+
+    function overlapDepthWithCard(x, y) {
+        const ox = Math.max(0, Math.min(x + PILL_W, cR) - Math.max(x, cL));
+        const oy = Math.max(0, Math.min(y + PILL_H, cB) - Math.max(y, cT));
+        return ox * oy;
+    }
+
+    function overlapsAnyPill(id, x, y, posMap) {
+        for (const other of pills) {
+            if (other.id === id) continue;
+            const p = posMap[other.id];
+            if (!p) continue;
+            if (rectsOverlap(x, y, PILL_W, PILL_H, p.x, p.y, PILL_W, PILL_H, PAD)) return true;
+        }
+        return false;
+    }
+
+    function clearsTerrain(x, y) {
+        const terrain = terrainTopUnder(x, xz);
+        return !isFinite(terrain) || (y + PILL_H + 6) <= terrain;
+    }
+
+    const pos = {};
     pills.forEach(p => {
-        const shift = shifts[p.id];
-        if (shift === 0) return;
-        _dodgeShift[p.id] = shift;
+        const cp = clampPos(p.baseX, p.baseY);
+        pos[p.id] = { x: cp.x, y: cp.y };
+    });
+
+    // Move only pills that overlap the popup card, prioritizing the deepest overlaps.
+    const movers = pills
+        .filter(p => overlapsCardAt(pos[p.id].x, pos[p.id].y))
+        .sort((a, b) => overlapDepthWithCard(pos[b.id].x, pos[b.id].y) - overlapDepthWithCard(pos[a.id].x, pos[a.id].y));
+
+    const X_STEP = 14;
+    const Y_STEP = 12;
+    const MAX_RING = 30;
+    const candidateOffsets = [{ dx: 0, dy: 0 }];
+    for (let ring = 1; ring <= MAX_RING; ring++) {
+        for (let ix = -ring; ix <= ring; ix++) {
+            const ay = ring - Math.abs(ix);
+            const dx = ix * X_STEP;
+            const dyA = ay * Y_STEP;
+            candidateOffsets.push({ dx, dy: dyA });
+            if (dyA !== 0) candidateOffsets.push({ dx, dy: -dyA });
+        }
+    }
+
+    movers.forEach(p => {
+        const baseX = p.baseX;
+        const baseY = p.baseY;
+        const awaySign = (baseX + PILL_W / 2) < cardCx ? -1 : 1;
+        let best = null;
+
+        for (const off of candidateOffsets) {
+            const clamped = clampPos(baseX + off.dx, baseY + off.dy);
+            const dx = clamped.x - baseX;
+            const dy = clamped.y - baseY;
+            const tx = baseX + dx;
+            const ty = baseY + dy;
+
+            if (overlapsCardAt(tx, ty)) continue;
+            if (overlapsAnyPill(p.id, tx, ty, pos)) continue;
+            if (!clearsTerrain(tx, ty)) continue;
+
+            const towardCardPenalty = dx === 0 ? 0 : ((dx > 0 ? 1 : -1) === awaySign ? 0 : 5);
+            const score = Math.hypot(dx, dy) + towardCardPenalty;
+
+            if (!best || score < best.score) {
+                best = { x: tx, y: ty, score };
+            }
+        }
+
+        if (best) pos[p.id] = { x: best.x, y: best.y };
+    });
+
+    // Animate each pill to its new position (both X and Y) with minimal displacement.
+    pills.forEach(p => {
+        const target = pos[p.id];
+        const shiftX = target.x - p.baseX;
+        const shiftY = target.y - p.baseY;
+        if (shiftX === 0 && shiftY === 0) return;
+        _dodgeShift[p.id] = { x: shiftX, y: shiftY };
         const origX = p.baseX;
+        const origY = p.baseY;
         const sel = d3.select(p.el);
         sel.select('line.ann-leader')
             .transition().duration(280).ease(d3.easeCubicOut)
-            .attr('x2', origX + PILL_W / 2 + shift);
+            .attr('x2', origX + PILL_W / 2 + shiftX)
+            .attr('y2', origY + PILL_H + shiftY);
         sel.select('rect')
             .transition().duration(280).ease(d3.easeCubicOut)
-            .attr('x', origX + shift);
+            .attr('x', origX + shiftX)
+            .attr('y', origY + shiftY);
         sel.selectAll('text')
             .transition().duration(280).ease(d3.easeCubicOut)
-            .attr('x', origX + PILL_W / 2 + shift);
+            .attr('x', origX + PILL_W / 2 + shiftX)
+            .attr('y', (_, i) => origY + (i === 0 ? 10 : 22) + shiftY);
     });
 }
 
@@ -553,17 +612,21 @@ function undodgePills() {
         const reg = pillRegistry[id];
         if (!reg) return;
         const origX = reg.x - MARGIN.left;
+        const origY = reg.y - ROOT_Y;
         delete _dodgeShift[id];
         const sel = d3.select(this);
         sel.select('line.ann-leader')
             .transition().duration(220).ease(d3.easeCubicInOut)
-            .attr('x2', origX + PILL_W / 2);
+            .attr('x2', origX + PILL_W / 2)
+            .attr('y2', origY + PILL_H);
         sel.select('rect')
             .transition().duration(220).ease(d3.easeCubicInOut)
-            .attr('x', origX);
+            .attr('x', origX)
+            .attr('y', origY);
         sel.selectAll('text')
             .transition().duration(220).ease(d3.easeCubicInOut)
-            .attr('x', origX + PILL_W / 2);
+            .attr('x', origX + PILL_W / 2)
+            .attr('y', (_, i) => origY + (i === 0 ? 10 : 22));
     });
 }
 
