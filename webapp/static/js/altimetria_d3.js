@@ -815,13 +815,13 @@ function buildEffortCard(e) {
     const vamSection = showVamTeor
           ? `<div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h</span></div>
               <div class="pc-metric"><span class="pc-label">🧮 VAM Teor.</span><span class="pc-value">${e.vam_teorico} m/h</span></div>
-              <div class="pc-metric"><span class="pc-label">🧮 W/kg Teor.</span><span class="pc-value">${e.wkg_teoric}  ${signDwkg}${e.diff_wkg}</span></div>
-           <div class="pc-metric"><span class="pc-label">Err %</span><span class="pc-value">${signErr}${Math.abs(e.perc_err)}%</span></div>`
+              <div class="pc-metric"><span class="pc-label">🧮 W/kg Teor.</span><span class="pc-value">${e.wkg_teoric} · Δ${signDwkg}${e.diff_wkg}</span></div>
+              <div class="pc-metric"><span class="pc-label">Err %</span><span class="pc-value">${signErr}${Math.abs(e.perc_err)}%</span></div>`
           : `<div class="pc-metric"><span class="pc-label">🚵 VAM</span><span class="pc-value">${e.vam} m/h</span></div>`;
     return `
     <div class="pc-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
-            <span>E#${e.id + 1} <span style="font-weight:400;font-size:10px;color:#9ca3af">Rank #${e.rank}</span> &nbsp;<span style="font-weight:400;font-size:10.5px;color:#6b7280">${e.start_time}  ${fmtDur(e.duration)}  ${e.distance_tot} km  ${e.elevation_gain}m </span></span>
+            <span>E#${e.id + 1} <span style="font-weight:400;font-size:10px;color:#9ca3af">Rank #${e.rank}</span> &nbsp;<span style="font-weight:400;font-size:10.5px;color:#6b7280">${e.start_time} · ${e.duration}s · ${e.distance_tot} km · ${e.elevation_gain}m ↑</span></span>
             <div style="color:${e.color};font-size:15px;margin-top: 4px;">${e.avg_power}W <span style="font-size:11px;font-weight:400">(${e.cp_pct}%)</span></div>
         </div>
         <button class="zoom-stream-btn" onclick="openStreamModal('e-${e.id}', '${e.id}', 'effort')">📊 Stream</button>
@@ -830,24 +830,24 @@ function buildEffortCard(e) {
         <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">⚡ Avg</span><span class="pc-value">${e.avg_power}W</span></div>
             <div class="pc-metric"><span class="pc-label">⚖️ W/kg</span><span class="pc-value">${e.avg_power_per_kg}</span></div>
-            <div class="pc-metric"><span class="pc-label">5 Peak</span><span class="pc-value">${e.best_5s_watt}W  ${e.best_5s_watt_kg} W/kg</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 5″ Peak</span><span class="pc-value">${e.best_5s_watt}W · ${e.best_5s_watt_kg} W/kg</span></div>
             <div class="pc-metric"><span class="pc-label">🌀 Cadence</span><span class="pc-value">${e.avg_cadence} rpm</span></div>
-            <div class="pc-metric"><span class="pc-label">🔀 1st/2nd</span><span class="pc-value">${e.avg_watts_first}/${e.avg_watts_second}  ${e.watts_ratio}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔀 1st/2nd</span><span class="pc-value">${e.avg_watts_first}/${e.avg_watts_second} · ${e.watts_ratio}</span></div>
         </div>
         <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">❤️ HR</span><span class="pc-value">${e.avg_hr > 0 ? e.avg_hr+' bpm' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">❤️ HR Max</span><span class="pc-value">${e.max_hr > 0 ? e.max_hr+' bpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 HR Max</span><span class="pc-value">${e.max_hr > 0 ? e.max_hr+' bpm' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">🚴 Speed</span><span class="pc-value">${e.avg_speed} km/h</span></div>
-            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${e.avg_grade}%  ${e.max_grade}%</span></div>
+            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${e.avg_grade}% · 🔺${e.max_grade}%</span></div>
             ${vamSection}
         </div>
         <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${e.kj} kJ</span></div>
-            <div class="pc-metric"><span class="pc-label">kJ &gt; CP</span><span class="pc-value">${e.kj_over_cp} kJ</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 kJ &gt; CP</span><span class="pc-value">${e.kj_over_cp} kJ</span></div>
             <div class="pc-metric"><span class="pc-label">💪 kJ/kg</span><span class="pc-value">${e.kj_kg}</span></div>
-            <div class="pc-metric"><span class="pc-label">kJ/kg &gt; CP</span><span class="pc-value">${e.kj_kg_over_cp}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 kJ/kg &gt; CP</span><span class="pc-value">${e.kj_kg_over_cp}</span></div>
             <div class="pc-metric"><span class="pc-label">🔥 kJ/h/kg</span><span class="pc-value">${e.kj_h_kg}</span></div>
-            <div class="pc-metric"><span class="pc-label">kJ/h/kg &gt; CP</span><span class="pc-value">${e.kj_h_kg_over_cp}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 kJ/h/kg &gt; CP</span><span class="pc-value">${e.kj_h_kg_over_cp}</span></div>
         </div>
     </div>`;
 }
@@ -862,7 +862,7 @@ function buildSprintCard(s) {
     return `
     <div class="pc-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
-            <span>S#${s.rank} &nbsp;<span style="font-weight:400;font-size:11px;color:#6b7280">${s.start_time}  ${fmtDur(s.duration)}  ${s.distance_tot} km  ${s.elevation_gain}m </span></span>
+            <span>S#${s.rank} &nbsp;<span style="font-weight:400;font-size:11px;color:#6b7280">${s.start_time} · ${s.duration}s · ${s.distance_tot} km · ${s.elevation_gain}m ↑</span></span>
             <div style="font-size:15px;margin-top: 4px;">${s.avg_power}W</div>
         </div>
         <button class="zoom-stream-btn" onclick="openStreamModal('s-${s.id}', '${s.id}', 'sprint')">📊 Stream</button>
@@ -875,22 +875,22 @@ function buildSprintCard(s) {
             <div class="pc-metric"><span class="pc-label">⚡ Min</span><span class="pc-value">${s.min_watt}W${s.rpm_at_min > 0 ? ' @ '+s.rpm_at_min+' rpm' : ''}</span></div>
         </div>
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">🌀 Avg Cad.</span><span class="pc-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">🌀 Avg Cad</span><span class="pc-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">🌀 Min/Max</span><span class="pc-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
             ${torqRows}
             <div class="pc-metric"><span class="pc-label">❤️ HR Max</span><span class="pc-value">${s.max_hr > 0 ? s.max_hr+' bpm' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">❤️ HR Min</span><span class="pc-value">${s.min_hr > 0 ? s.min_hr+' bpm' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${s.avg_grade}%  max ${s.max_grade}%</span></div>
+            <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${s.avg_grade}% · max ${s.max_grade}%</span></div>
         </div>
         <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">➡️ Speed Start</span><span class="pc-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">➡️ Speed End</span><span class="pc-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${s.kj} kJ</span></div>
-            <div class="pc-metric"><span class="pc-label">kJ &gt; CP</span><span class="pc-value">${s.kj_over_cp} kJ</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 kJ &gt; CP</span><span class="pc-value">${s.kj_over_cp} kJ</span></div>
             <div class="pc-metric"><span class="pc-label">💪 kJ/kg</span><span class="pc-value">${s.kj_kg}</span></div>
-            <div class="pc-metric"><span class="pc-label">kJ/kg &gt; CP</span><span class="pc-value">${s.kj_kg_over_cp}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 kJ/kg &gt; CP</span><span class="pc-value">${s.kj_kg_over_cp}</span></div>
             <div class="pc-metric"><span class="pc-label">🔥 kJ/h/kg</span><span class="pc-value">${s.kj_h_kg}</span></div>
-            <div class="pc-metric"><span class="pc-label">kJ/h/kg &gt; CP</span><span class="pc-value">${s.kj_h_kg_over_cp}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 kJ/h/kg &gt; CP</span><span class="pc-value">${s.kj_h_kg_over_cp}</span></div>
         </div>
     </div>`;
 }
@@ -900,38 +900,38 @@ function buildSprintCard(s) {
 // 
 function buildEffortTooltip(e) {
     let html = `<strong>E#${e.id + 1}</strong> (Rank #${e.rank})<br/>`;
-    html += ` ${e.avg_power} W | 5"${e.best_5s_watt} W  ${e.avg_cadence} rpm<br/>`;
-    html += ` ${fmtDur(e.duration)} |  ${e.start_time} | ${e.cp_pct}%<br/>`;
-    html += ` ${e.avg_power_per_kg} W/kg | 5"${e.best_5s_watt_kg} W/kg<br/>`;
-    html += ` ${e.avg_watts_first} W | ${e.avg_watts_second} W | ${e.watts_ratio}<br/>`;
-    if (e.avg_hr > 0) html += ` ${e.avg_hr} bpm | ${e.max_hr} bpm<br/>`;
-    html += ` ${e.avg_speed} km/h   ${e.avg_grade}% | ${e.max_grade}%<br/>`;
+    html += `⚡ ${e.avg_power} W | 5"🔺${e.best_5s_watt} W 🌀 ${e.avg_cadence} rpm<br/>`;
+    html += `⏱️ ${e.duration}s | 🕒 ${e.start_time} | ${e.cp_pct}%<br/>`;
+    html += `⚖️ ${e.avg_power_per_kg} W/kg | 5"🔺${e.best_5s_watt_kg} W/kg<br/>`;
+    html += `🔀 ${e.avg_watts_first} W | ${e.avg_watts_second} W | ${e.watts_ratio}<br/>`;
+    if (e.avg_hr > 0) html += `❤️ ∅${e.avg_hr} bpm | 🔺${e.max_hr} bpm<br/>`;
+    html += `🚴‍♂️ ${e.avg_speed} km/h 📏 ∅ ${e.avg_grade}% | 🔺${e.max_grade}%<br/>`;
     if (e.avg_grade >= 4.5) {
         const sign = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
-        html += ` ${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h | ${Math.abs(e.diff_wkg).toFixed(2)} W/kg<br/>`;
-        html += ` ${e.vam_teorico} m/h | ${e.wkg_teoric} W/kg | ${sign}${Math.abs(e.perc_err)}%<br/>`;
+        html += `🚵‍♂️ ${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h | ${Math.abs(e.diff_wkg).toFixed(2)} W/kg<br/>`;
+        html += `🧮 ${e.vam_teorico} m/h | ${e.wkg_teoric} W/kg | ${sign}${Math.abs(e.perc_err)}%<br/>`;
     } else {
-        html += ` ${e.vam} m/h<br/>`;
+        html += `🚵‍♂️ ${e.vam} m/h<br/>`;
     }
-    html += ` ${e.kj} kJ | ${e.kj_over_cp} kJ > CP<br/>`;
-    html += ` ${e.kj_kg} kJ/kg | ${e.kj_kg_over_cp} kJ/kg > CP<br/>`;
-    html += ` ${e.kj_h_kg} kJ/h/kg | ${e.kj_h_kg_over_cp} kJ/h/kg > CP`;
+    html += `🔋 ${e.kj} kJ | ${e.kj_over_cp} kJ > CP<br/>`;
+    html += `💪 ${e.kj_kg} kJ/kg | ${e.kj_kg_over_cp} kJ/kg > CP<br/>`;
+    html += `🔥 ${e.kj_h_kg} kJ/h/kg | ${e.kj_h_kg_over_cp} kJ/h/kg > CP`;
     return html;
 }
 
 function buildSprintTooltip(s) {
     let html = `<strong>S#${s.rank}</strong><br/>`;
-    html += `#${s.rank}    ${s.avg_cadence} rpm | ${s.avg_torque} Nm | ${fmtDur(s.duration)}<br/>`;
-    html += ` ${s.max_watt} W at ${s.rpm_at_max} rpm @ ${s.torque_at_max} Nm<br/>`;
-    html += ` ${s.min_watt} W at ${s.rpm_at_min} rpm @ ${s.torque_at_min} Nm<br/>`;
-    html += ` ${s.max_cadence} rpm | ${s.min_cadence} rpm<br/>`;
-    html += ` ${s.max_torque} Nm | ${s.min_torque} Nm<br/>`;
-    html += ` ${s.min_hr} bpm |${s.max_hr} bpm<br/>`;
-    if (s.v1 > 0 && s.v2 > 0) html += ` ${s.v1} km/h | ${s.v2} km/h<br/>`;
-    html += `  ${s.avg_grade}% max. ${s.max_grade}%<br/>`;
-    html += ` ${s.start_time}<br/>`;
-    html += ` ${s.kj} kJ | ${s.kj_over_cp} kJ > CP<br/>`;
-    html += ` ${s.kj_h_kg} kJ/h/kg | ${s.kj_h_kg_over_cp} kJ/h/kg > CP`;
+    html += `#${s.rank}    ∅${s.avg_cadence} rpm | ∅${s.avg_torque} Nm | ${s.duration} s<br/>`;
+    html += `⚡ 🔺${s.max_watt} W at ${s.rpm_at_max} rpm @ ${s.torque_at_max} Nm<br/>`;
+    html += `⚡ 🔻${s.min_watt} W at ${s.rpm_at_min} rpm @ ${s.torque_at_min} Nm<br/>`;
+    html += `🌀 🔺${s.max_cadence} rpm | 🔻${s.min_cadence} rpm<br/>`;
+    html += `⚙️ 🔺${s.max_torque} Nm | 🔻${s.min_torque} Nm<br/>`;
+    html += `❤️ 🔻${s.min_hr} bpm |🔺${s.max_hr} bpm<br/>`;
+    if (s.v1 > 0 && s.v2 > 0) html += `➡️ ${s.v1} km/h | ${s.v2} km/h<br/>`;
+    html += `📏 ∅ ${s.avg_grade}% max. ${s.max_grade}%<br/>`;
+    html += `🕒 ${s.start_time}<br/>`;
+    html += `🔋 ${s.kj} kJ | ${s.kj_over_cp} kJ > CP<br/>`;
+    html += `🔥 ${s.kj_h_kg} kJ/h/kg | ${s.kj_h_kg_over_cp} kJ/h/kg > CP`;
     return html;
 }
 
@@ -1124,31 +1124,29 @@ function buildSidebar() {
                 <span style="color:${effort.color}">${effort.avg_power}W (${effort.cp_pct}%)</span>
             </div>
             <div class="eg">
-                <span class="a"> Start</span><span class="b">${effort.start_time}</span><span class="c"> Dur.</span><span class="d">${fmtDur(effort.duration)}</span>
-                <span class="a"> Dist.</span><span class="b">${effort.distance_tot} km</span><span class="c"> Elev.</span><span class="d">${effort.elevation_gain} m</span>
+                <span class="a">🕒 Start</span><span class="b">${effort.start_time}</span><span class="c">⏱️ Dur.</span><span class="d">${effort.duration}s</span>
+                <span class="a">📏 Dist.</span><span class="b">${effort.distance_tot} km</span><span class="c">🏔️ Elev.</span><span class="d">${effort.elevation_gain} m</span>
                 <div class="sep"></div>
-                <span class="a"> Avg</span><span class="b">${effort.avg_power}W</span><span class="c">5 Peak</span><span class="d">${effort.best_5s_watt}W</span>
-                <span class="a"> W/kg</span><span class="b">${effort.avg_power_per_kg}</span><span class="c">5 W/kg</span><span class="d">${effort.best_5s_watt_kg}</span>
-                <span class="a"> Cad.</span><span class="b">${effort.avg_cadence} rpm</span><span class="c"> Speed</span><span class="d">${effort.avg_speed} km/h</span>
-                <span class="a"> 1st/2nd</span><span class="b">${effort.avg_watts_first}/${effort.avg_watts_second}</span><span class="c">Ratio</span><span class="d">${effort.watts_ratio}</span>
-                ${effort.avg_hr > 0 ? `
+                <span class="a"> ⚡ Avg</span><span class="b">${effort.avg_power}W</span><span class="c">🔺 5″ Peak</span><span class="d">${effort.best_5s_watt}W</span>
+                <span class="a"> ⚖️ W/kg</span><span class="b">${effort.avg_power_per_kg}</span><span class="c">🔺 5″ W/kg</span><span class="d">${effort.best_5s_watt_kg}</span>
+                <span class="a"> 🌀 Cad</span><span class="b">${effort.avg_cadence} rpm</span><span class="c"> 🚴 Speed</span><span class="d">${effort.avg_speed} km/h</span>
+                <span class="a"> 🔀 1st/2nd</span><span class="b">${effort.avg_watts_first}/${effort.avg_watts_second}</span><span class="c">Ratio</span><span class="d">${effort.watts_ratio}</span>
                 <div class="sep"></div>
-                <span class="a"> HR</span><span class="b">${effort.avg_hr} bpm</span><span class="c"> HR Max</span><span class="d">${effort.max_hr} bpm</span>
-                ` : ''}
+                <span class="a"> ❤️ HR</span><span class="b">${effort.avg_hr > 0 ? effort.avg_hr+' bpm' : '-'}</span><span class="c"> 🔺 HR Max</span><span class="d">${effort.max_hr > 0 ? effort.max_hr+' bpm' : '-'}</span>
                 <div class="sep"></div>
-                <span class="a"> Grade</span><span class="b">${effort.avg_grade}%</span><span class="c"> Max</span><span class="d">${effort.max_grade}%</span>
+                <span class="a"> 📏 Grade</span><span class="b">${effort.avg_grade}%</span><span class="c">🔺 Max</span><span class="d">${effort.max_grade}%</span>
                 <div class="sep"></div>
                 ${effort.avg_grade >= 4.5 ? `
-                <span class="a"> VAM</span><span class="b">${effort.vam} m/h</span><span class="c">Diff</span><span class="d">${effort.vam_arrow} ${effort.diff_vam} m/h</span>
-                <span class="a"> VAM T</span><span class="b">${effort.vam_teorico} m/h</span><span class="c"> W/kg T</span><span class="d">${effort.wkg_teoric}</span>
-                <span class="a"> W/kg</span><span class="b">${signDwkg}${effort.diff_wkg}</span><span class="c">Err %</span><span class="d">${signErr}${effort.perc_err}%</span>
+                <span class="a"> 🚵 VAM</span><span class="b">${effort.vam} m/h</span><span class="c">Diff</span><span class="d">${effort.vam_arrow} ${effort.diff_vam} m/h</span>
+                <span class="a"> 🧮 VAM T</span><span class="b">${effort.vam_teorico} m/h</span><span class="c"> W/kg T</span><span class="d">${effort.wkg_teoric}</span>
+                <span class="a"> Δ W/kg</span><span class="b">${signDwkg}${effort.diff_wkg}</span><span class="c">Err %</span><span class="d">${signErr}${effort.perc_err}%</span>
                 ` : `
-                <span class="a"> VAM</span><span class="span2">${effort.vam} m/h</span>
+                <span class="a"> 🚵 VAM</span><span class="span2">${effort.vam} m/h</span>
                 `}
                 <div class="sep"></div>
-                <span class="a"> kJ</span><span class="b">${effort.kj}</span><span class="c">kJ &gt; CP</span><span class="d">${effort.kj_over_cp}</span>
-                <span class="a"> kJ/kg</span><span class="b">${effort.kj_kg}</span><span class="c">kJ/kg &gt; CP</span><span class="d">${effort.kj_kg_over_cp}</span>
-                <span class="a"> kJ/h/kg</span><span class="b">${effort.kj_h_kg}</span><span class="c">kJ/h/kg&gt;CP</span><span class="d">${effort.kj_h_kg_over_cp}</span>
+                <span class="a"> 🔋 kJ</span><span class="b">${effort.kj}</span><span class="c">kJ &gt; CP</span><span class="d">${effort.kj_over_cp}</span>
+                <span class="a"> 💪 kJ/kg</span><span class="b">${effort.kj_kg}</span><span class="c">kJ/kg &gt; CP</span><span class="d">${effort.kj_kg_over_cp}</span>
+                <span class="a"> 🔥 kJ/h/kg</span><span class="b">${effort.kj_h_kg}</span><span class="c">kJ/h/kg&gt;CP</span><span class="d">${effort.kj_h_kg_over_cp}</span>
             </div>`
         effortsList.appendChild(card);
     });
@@ -1173,67 +1171,67 @@ function buildSidebar() {
                 <span style="color:#000000">${sprint.avg_power}W</span>
             </div>
             <div class="card-row">
-                <div class="card-metric"><span class="metric-label"> Duration</span><span class="metric-value">${fmtDur(sprint.duration)}</span></div>
-                <div class="card-metric"><span class="metric-label"> Distance</span><span class="metric-value">${sprint.distance_tot} km</span></div>
+                    <div class="card-metric"><span class="metric-label">⏱️ Duration</span><span class="metric-value">${sprint.duration}s</span></div>
+                    <div class="card-metric"><span class="metric-label">📏 Distance</span><span class="metric-value">${sprint.distance_tot} km</span></div>
             </div>
             <div class="card-row">
-                <div class="card-metric"><span class="metric-label"> Elevation</span><span class="metric-value">${sprint.elevation_gain} m</span></div>
-                <div class="card-metric"><span class="metric-label"> Start</span><span class="metric-value">${sprint.start_time}</span></div>
+                    <div class="card-metric"><span class="metric-label">🏔️ Elevation</span><span class="metric-value">${sprint.elevation_gain} m</span></div>
+                    <div class="card-metric"><span class="metric-label">🕒 Start</span><span class="metric-value">${sprint.start_time}</span></div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> Avg Power</span><span class="metric-value">${sprint.avg_power}W</span></div>
-                    <div class="card-metric"><span class="metric-label"> W/kg</span><span class="metric-value">${sprint.avg_power_per_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label">⚡ Avg Power</span><span class="metric-value">${sprint.avg_power}W</span></div>
+                    <div class="card-metric"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${sprint.avg_power_per_kg}</span></div>
                 </div>
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> Max</span><span class="metric-value">${sprint.max_watt}W${sprint.rpm_at_max > 0 ? ' @ '+sprint.rpm_at_max+' rpm' : ''}</span></div>
-                    <div class="card-metric"><span class="metric-label"> Min</span><span class="metric-value">${sprint.min_watt}W${sprint.rpm_at_min > 0 ? ' @ '+sprint.rpm_at_min+' rpm' : ''}</span></div>
+                    <div class="card-metric"><span class="metric-label">⚡ Max</span><span class="metric-value">${sprint.max_watt}W${sprint.rpm_at_max > 0 ? ' @ '+sprint.rpm_at_max+' rpm' : ''}</span></div>
+                    <div class="card-metric"><span class="metric-label">⚡ Min</span><span class="metric-value">${sprint.min_watt}W${sprint.rpm_at_min > 0 ? ' @ '+sprint.rpm_at_min+' rpm' : ''}</span></div>
                 </div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> Avg Cad.</span><span class="metric-value">${sprint.avg_cadence > 0 ? sprint.avg_cadence+' rpm' : '-'}</span></div>
-                    ${torqAvail ? `<div class="card-metric"><span class="metric-label"> Avg Torque</span><span class="metric-value">${sprint.avg_torque > 0 ? sprint.avg_torque+' Nm' : '-'}</span></div>` : ''}
+                    <div class="card-metric"><span class="metric-label">🌀 Avg Cad</span><span class="metric-value">${sprint.avg_cadence > 0 ? sprint.avg_cadence+' rpm' : '-'}</span></div>
+                    ${torqAvail ? `<div class="card-metric"><span class="metric-label">⚙️ Avg Torque</span><span class="metric-value">${sprint.avg_torque > 0 ? sprint.avg_torque+' Nm' : '-'}</span></div>` : ''}
                 </div>
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> Min/Max Cad.</span><span class="metric-value">${sprint.min_cadence > 0 ? sprint.min_cadence : '-'} / ${sprint.max_cadence > 0 ? sprint.max_cadence : '-'} rpm</span></div>
-                    ${torqAvail ? `<div class="card-metric"><span class="metric-label"> Min/Max Torque</span><span class="metric-value">${sprint.min_torque > 0 ? sprint.min_torque : '-'} / ${sprint.max_torque > 0 ? sprint.max_torque : '-'} Nm</span></div>` : ''}
+                    <div class="card-metric"><span class="metric-label">🌀 Min/Max Cad</span><span class="metric-value">${sprint.min_cadence > 0 ? sprint.min_cadence : '-'} / ${sprint.max_cadence > 0 ? sprint.max_cadence : '-'} rpm</span></div>
+                    ${torqAvail ? `<div class="card-metric"><span class="metric-label">⚙️ Min/Max Torque</span><span class="metric-value">${sprint.min_torque > 0 ? sprint.min_torque : '-'} / ${sprint.max_torque > 0 ? sprint.max_torque : '-'} Nm</span></div>` : ''}
                 </div>
                 ${torqAvail && (sprint.torque_at_max > 0 || sprint.torque_at_min > 0) ? `
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> @ Max Power</span><span class="metric-value">${sprint.torque_at_max > 0 ? sprint.torque_at_max+' Nm' : '-'}</span></div>
-                    <div class="card-metric"><span class="metric-label"> @ Min Power</span><span class="metric-value">${sprint.torque_at_min > 0 ? sprint.torque_at_min+' Nm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label">⚙️ @ Max Power</span><span class="metric-value">${sprint.torque_at_max > 0 ? sprint.torque_at_max+' Nm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label">⚙️ @ Min Power</span><span class="metric-value">${sprint.torque_at_min > 0 ? sprint.torque_at_min+' Nm' : '-'}</span></div>
                 </div>` : ''}
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> HR Max</span><span class="metric-value">${sprint.max_hr > 0 ? sprint.max_hr+' bpm' : '-'}</span></div>
-                    <div class="card-metric"><span class="metric-label"> HR Min</span><span class="metric-value">${sprint.min_hr > 0 ? sprint.min_hr+' bpm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> ❤️ HR Max</span><span class="metric-value">${sprint.max_hr > 0 ? sprint.max_hr+' bpm' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> ❤️ HR Min</span><span class="metric-value">${sprint.min_hr > 0 ? sprint.min_hr+' bpm' : '-'}</span></div>
                 </div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> Speed Start</span><span class="metric-value">${sprint.v1 > 0 ? sprint.v1+' km/h' : '-'}</span></div>
-                    <div class="card-metric"><span class="metric-label"> Speed End</span><span class="metric-value">${sprint.v2 > 0 ? sprint.v2+' km/h' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> ➡️ Speed Start</span><span class="metric-value">${sprint.v1 > 0 ? sprint.v1+' km/h' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> ➡️ Speed End</span><span class="metric-value">${sprint.v2 > 0 ? sprint.v2+' km/h' : '-'}</span></div>
                 </div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> Grade Avg</span><span class="metric-value">${sprint.avg_grade}%</span></div>
-                    <div class="card-metric"><span class="metric-label"> Grade Max</span><span class="metric-value">${sprint.max_grade}%</span></div>
+                    <div class="card-metric"><span class="metric-label"> 📏 Grade Avg</span><span class="metric-value">${sprint.avg_grade}%</span></div>
+                    <div class="card-metric"><span class="metric-label"> 📏 Grade Max</span><span class="metric-value">${sprint.max_grade}%</span></div>
                 </div>
             </div>
             <div class="card-divider">
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> kJ Total</span><span class="metric-value">${sprint.kj} kJ</span></div>
+                    <div class="card-metric"><span class="metric-label"> 🔋 kJ Total</span><span class="metric-value">${sprint.kj} kJ</span></div>
                     <div class="card-metric"><span class="metric-label">kJ > CP</span><span class="metric-value">${sprint.kj_over_cp} kJ</span></div>
                 </div>
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> kJ/kg</span><span class="metric-value">${sprint.kj_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label"> 💪 kJ/kg</span><span class="metric-value">${sprint.kj_kg}</span></div>
                     <div class="card-metric"><span class="metric-label">kJ/kg > CP</span><span class="metric-value">${sprint.kj_kg_over_cp}</span></div>
                 </div>
                 <div class="card-row">
-                    <div class="card-metric"><span class="metric-label"> kJ/h/kg</span><span class="metric-value">${sprint.kj_h_kg}</span></div>
+                    <div class="card-metric"><span class="metric-label"> 🔥 kJ/h/kg</span><span class="metric-value">${sprint.kj_h_kg}</span></div>
                     <div class="card-metric"><span class="metric-label">kJ/h/kg > CP</span><span class="metric-value">${sprint.kj_h_kg_over_cp}</span></div>
                 </div>
             </div>`;

@@ -36,6 +36,32 @@ class SegmentMetrics(TypedDict):
     diff_vam: float
 
 
+def _compute_robust_max_grade(
+    seg_grade: np.ndarray,
+    seg_alt: np.ndarray,
+    seg_dist_m: np.ndarray,
+) -> float:
+    """Return a stable max uphill gradient even when source grade stream is flat/invalid."""
+    max_grade = 0.0
+
+    if len(seg_grade) > 0:
+        valid_grade = seg_grade[np.isfinite(seg_grade)]
+        if len(valid_grade) > 0:
+            max_grade = float(valid_grade.max())
+
+    # Fallback: derive local slope from altitude/distance when grade stream is unusable.
+    if max_grade <= 0.05 and len(seg_alt) >= 2 and len(seg_dist_m) >= 2:
+        d_alt = np.diff(seg_alt.astype(float))
+        d_dist = np.diff(seg_dist_m.astype(float))
+        valid = np.isfinite(d_alt) & np.isfinite(d_dist) & (d_dist > 0.5)
+        if np.any(valid):
+            local_grade = (d_alt[valid] / d_dist[valid]) * 100.0
+            if len(local_grade) > 0 and np.isfinite(local_grade).any():
+                max_grade = float(np.nanmax(local_grade))
+
+    return float(max(0.0, max_grade))
+
+
 def compute_segment_metrics(
     *,
     seg_power: np.ndarray,
@@ -90,7 +116,7 @@ def compute_segment_metrics(
     dist_tot_m = float(seg_dist_m[-1] - seg_dist_m[0]) if len(seg_dist_m) > 0 else 0.0
     avg_speed = float(dist_tot_m / (duration / 3600) / 1000) if duration > 0 else 0.0
     avg_grade = float((elevation_gain / dist_tot_m * 100) if dist_tot_m > 0 else 0.0)
-    max_grade = float(seg_grade.max()) if len(seg_grade) > 0 else 0.0
+    max_grade = _compute_robust_max_grade(seg_grade, seg_alt, seg_dist_m)
     vam = float(elevation_gain / (duration / 3600)) if duration > 0 else 0.0
 
     half = len(seg_power) // 2

@@ -379,7 +379,17 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         max_hr = float(valid_hr.max()) if len(valid_hr) > 0 else 0.0
         min_watt = float(seg_power.min()) if len(seg_power) > 0 else 0.0
         max_watt = float(seg_power.max()) if len(seg_power) > 0 else 0.0
-        max_grade = float(seg_grade.max()) if len(seg_grade) > 0 else 0.0
+        valid_grade = seg_grade[np.isfinite(seg_grade)] if len(seg_grade) > 0 else np.array([])
+        max_grade = float(valid_grade.max()) if len(valid_grade) > 0 else 0.0
+        if max_grade <= 0.05 and len(seg_alt) >= 2 and len(seg_dist) >= 2:
+            d_alt = np.diff(seg_alt.astype(float))
+            d_dist = np.diff(seg_dist.astype(float))
+            valid_slope = np.isfinite(d_alt) & np.isfinite(d_dist) & (d_dist > 0.5)
+            if np.any(valid_slope):
+                slope_pct = (d_alt[valid_slope] / d_dist[valid_slope]) * 100.0
+                if len(slope_pct) > 0 and np.isfinite(slope_pct).any():
+                    max_grade = float(np.nanmax(slope_pct))
+        max_grade = float(max(0.0, max_grade))
         
         # Torque metrics
         valid_torque = seg_torque[seg_torque > 0]

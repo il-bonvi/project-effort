@@ -14,6 +14,7 @@ import html as html_module
 import json
 import logging
 import csv
+import urllib.request
 from datetime import datetime, timezone
 import numpy as np
 from pathlib import Path
@@ -1418,6 +1419,46 @@ async def export_html_report(session_id: str, request: Request, sessions: Sessio
         html = html.replace('{{ filename }}', filename_escaped)
         html = html.replace('{{ chart_data_json | safe }}', safe_chart_data_json)
 
+        # Best effort: inline D3 so the exported report does not depend on network/CDN.
+        d3_url = "https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
+        d3_tag_pattern = r'<script\s+src="https://cdnjs\.cloudflare\.com/ajax/libs/d3/7\.9\.0/d3\.min\.js"></script>'
+        try:
+            with urllib.request.urlopen(d3_url, timeout=8) as resp:
+                d3_js = resp.read().decode('utf-8')
+            html = re.sub(
+                d3_tag_pattern,
+                lambda _m: f"<script>\n{d3_js}\n</script>",
+                html,
+                count=1,
+            )
+        except Exception:
+            logger.warning("Could not inline d3.min.js in exported HTML; keeping CDN reference", exc_info=True)
+
+        # Inline local scripts so the exported report works fully offline.
+        # Without this, /static/js URLs are broken when opening the file directly.
+        static_js_dir = Path(__file__).resolve().parent.parent / "static" / "js"
+        try:
+            peffort_common_js = (static_js_dir / "peffort_common.js").read_text(encoding='utf-8')
+            html = re.sub(
+                r'<script\s+src="/static/js/peffort_common\.js(?:\?v=[^"]+)?"></script>',
+                lambda _m: f"<script>\n{peffort_common_js}\n</script>",
+                html,
+                count=1,
+            )
+        except Exception:
+            logger.warning("Could not inline peffort_common.js in exported HTML", exc_info=True)
+
+        try:
+            altimetria_d3_js = (static_js_dir / "altimetria_d3.js").read_text(encoding='utf-8')
+            html = re.sub(
+                r'<script\s+src="/static/js/altimetria_d3\.js(?:\?v=[^"]+)?"></script>',
+                lambda _m: f"<script>\n{altimetria_d3_js}\n</script>",
+                html,
+                count=1,
+            )
+        except Exception:
+            logger.warning("Could not inline altimetria_d3.js in exported HTML", exc_info=True)
+
         # Remove the storage listener (irrelevant in a standalone file)
         storage_block = re.search(
             r'<script>\s*// ── storage listener.*?</script>',
@@ -1429,16 +1470,9 @@ async def export_html_report(session_id: str, request: Request, sessions: Sessio
         # Remove Jinja2 block tags left in the template
         html = html.replace('{% raw %}', '').replace('{% endraw %}', '')
 
-        # The report is a self-contained snapshot: zones injected at export time.
-        html = re.sub(
-            r"function\s+getIntensityZones\s*\(\)\s*\{.*?\}",
-            """function getIntensityZones() {
-    return chartData.intensity_zones;
-}""",
-            html,
-            count=1,
-            flags=re.DOTALL,
-        )
+        # Replace session placeholder also after script inlining
+        # because inline JS may contain the same token.
+        html = html.replace('{{ session_id }}', session_id)
 
         # Add a slim header banner
         export_banner = f"""

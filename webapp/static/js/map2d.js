@@ -243,40 +243,40 @@
     // SIDEBAR CARDS (same structure as map3d.js)
     // 
     function buildEffortSidebarCard(e) {
-        const showVamTeor = e.avg_grade >= 4.5;
-        const signErr  = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
+        const signErr = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
         const signDwkg = e.diff_wkg > 0 ? '+' : '';
-        const vamSection = showVamTeor ? `
-            <div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h</span></div>
-            <div class="metric-row"><span class="metric-label">🧮 VAM Teor.</span><span class="metric-value">${e.vam_teorico} m/h</span></div>
-            <div class="metric-row"><span class="metric-label">🧮 W/kg Teor.</span><span class="metric-value">${e.wkg_teoric}  ${signDwkg}${e.diff_wkg}</span></div>
-            <div class="metric-row"><span class="metric-label">Err %</span><span class="metric-value">${signErr}${Math.abs(e.perc_err)}%</span></div>
-        ` : `<div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${e.vam} m/h</span></div>`;
+        const showVamTeor = e.avg_grade >= 4.5;
+        const vamSection = `
+        <div class="metric-row"><span class="metric-label">🚵 VAM</span><span class="metric-value">${showVamTeor ? `${e.vam} m/h ${e.vam_arrow} ${e.diff_vam} m/h` : `${e.vam} m/h`}</span></div>
+        <div class="metric-row"><span class="metric-label">🧮 VAM Teor.</span><span class="metric-value">${showVamTeor ? `${e.vam_teorico} m/h` : '-'}</span></div>
+        <div class="metric-row"><span class="metric-label">🧮 W/kg Teor.</span><span class="metric-value">${showVamTeor ? `${e.wkg_teoric} · Δ${signDwkg}${e.diff_wkg}` : '-'}</span></div>
+        <div class="metric-row"><span class="metric-label">Err %</span><span class="metric-value">${showVamTeor ? `${signErr}${Math.abs(e.perc_err)}%` : '-'}</span></div>
+    `;
         return `
         <div class="selected-header">
             <div>
-                <div class="selected-title">E#${e.id+1}  Rank #${e.rank}</div>
+                <div class="selected-title">E#${e.id + 1} · Rank #${e.rank}</div>
                 <div class="selected-subtitle-line">${e.start_time}</div>
-                <div class="selected-subtitle-line">${fmtDur(e.duration)}  ${e.distance_tot} km  ${e.elevation_gain}m </div>
+                <div class="selected-subtitle-line">${fmtDur(e.duration)} · ${e.distance_tot} km · ${e.elevation_gain}m ↑</div>
                 <div class="selected-power" style="color:${e.color}">${e.avg_power}W <span>(${e.cp_pct}%)</span></div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <button class="stream-btn" onclick="openStreamModal('e-${e.id}', '${e.id}', 'effort')">📊 Stream</button>
-                <button class="sidebar-close-btn" onclick="closeSidebar()">✕</button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="stream-btn" onclick="openStreamModal('e-${e.id}','${e.id}','effort')">📊 Stream</button>
+                <button class="sidebar-close-btn" onclick="closeEffortDetailAndShowSelection()">✕</button>
             </div>
         </div>
         <div class="selected-grid">
             <div class="metric-col">
                 <div class="metric-row"><span class="metric-label">⚡ Avg</span><span class="metric-value">${e.avg_power}W</span></div>
                 <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${e.avg_power_per_kg}</span></div>
-                <div class="metric-row"><span class="metric-label">5″🔺 Peak</span><span class="metric-value">${e.best_5s_watt}W  ${e.best_5s_watt_kg} W/kg</span></div>
+                <div class="metric-row"><span class="metric-label">5″🔺 Peak</span><span class="metric-value">${e.best_5s_watt}W · ${e.best_5s_watt_kg} W/kg</span></div>
                 <div class="metric-row"><span class="metric-label">🌀 Cadence</span><span class="metric-value">${e.avg_cadence} rpm</span></div>
-                <div class="metric-row"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${e.avg_watts_first}/${e.avg_watts_second}  ${e.watts_ratio}</span></div>
+                <div class="metric-row"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${e.avg_watts_first}/${e.avg_watts_second} · ${e.watts_ratio}</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${e.avg_hr > 0 ? e.avg_hr+' bpm  '+(e.max_hr||'-')+' bpm' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${e.avg_hr > 0 ? `${e.avg_hr} bpm · 🔺${e.max_hr > 0 ? e.max_hr : '-'} bpm` : '-'}</span></div>
                 <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${e.avg_speed} km/h</span></div>
-                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${e.avg_grade}%  ${e.max_grade}%</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${e.avg_grade}% · 🔺${e.max_grade}%</span></div>
                 ${vamSection}
             </div>
             <div class="metric-col">
@@ -292,44 +292,48 @@
 
     function buildSprintSidebarCard(s) {
         const torqAvail = chartData.torque_available;
-        const torqRows = torqAvail ? `
-            <div class="metric-row"><span class="metric-label">⚙️ Avg Torque</span><span class="metric-value">${s.avg_torque > 0 ? s.avg_torque+' Nm' : '-'}</span></div>
+        const torqRows = torqAvail
+            ? `
+            <div class="metric-row"><span class="metric-label">⚙️ Avg Torque</span><span class="metric-value">${s.avg_torque > 0 ? `${s.avg_torque} Nm` : '-'}</span></div>
             <div class="metric-row"><span class="metric-label">⚙️ Min/Max Torque</span><span class="metric-value">${s.min_torque > 0 ? s.min_torque : '-'} / ${s.max_torque > 0 ? s.max_torque : '-'} Nm</span></div>
-        ` : '';
+        `
+            : '';
         return `
         <div class="selected-header">
             <div>
                 <div class="selected-title">S#${s.rank}</div>
                 <div class="selected-subtitle-line">${s.start_time}</div>
-                <div class="selected-subtitle-line">${fmtDur(s.duration)}  ${s.distance_tot} km  ${s.elevation_gain}m </div>
+                <div class="selected-subtitle-line">${fmtDur(s.duration)} · ${s.distance_tot} km · ${s.elevation_gain}m ↑</div>
                 <div class="selected-power">${s.avg_power}W</div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <button class="stream-btn" onclick="openStreamModal('s-${s.id}', '${s.id}', 'sprint')">📊 Stream</button>
-                <button class="sidebar-close-btn" onclick="closeSidebar()">✕</button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="stream-btn" onclick="openStreamModal('s-${s.id}','${s.id}','sprint')">📊 Stream</button>
+                <button class="sidebar-close-btn" onclick="closeEffortDetailAndShowSelection()">✕</button>
             </div>
         </div>
         <div class="selected-grid">
             <div class="metric-col">
                 <div class="metric-row"><span class="metric-label">⚡ Avg Power</span><span class="metric-value">${s.avg_power}W</span></div>
                 <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${s.avg_power_per_kg}</span></div>
-                <div class="metric-row"><span class="metric-label">⚡ Max</span><span class="metric-value">${s.max_watt}W${s.rpm_at_max > 0 ? ' @ '+s.rpm_at_max+' rpm' : ''}</span></div>
-                <div class="metric-row"><span class="metric-label">⚡ Min</span><span class="metric-value">${s.min_watt}W${s.rpm_at_min > 0 ? ' @ '+s.rpm_at_min+' rpm' : ''}</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Max</span><span class="metric-value">${s.max_watt}W${s.rpm_at_max > 0 ? ` @ ${s.rpm_at_max} rpm` : ''}</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Min</span><span class="metric-value">${s.min_watt}W${s.rpm_at_min > 0 ? ` @ ${s.rpm_at_min} rpm` : ''}</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">🌀 Avg Cad.</span><span class="metric-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🌀 Avg Cad.</span><span class="metric-value">${s.avg_cadence > 0 ? `${s.avg_cadence} rpm` : '-'}</span></div>
                 <div class="metric-row"><span class="metric-label">🌀 Min/Max</span><span class="metric-value">${s.min_cadence > 0 ? s.min_cadence : '-'} / ${s.max_cadence > 0 ? s.max_cadence : '-'} rpm</span></div>
                 ${torqRows}
-                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${s.max_hr > 0 ? (s.min_hr > 0 ? s.min_hr : '-')+' bpm  '+s.max_hr+' bpm' : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${s.avg_grade}%  ${s.max_grade}%</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${s.max_hr > 0 ? `${s.min_hr > 0 ? s.min_hr : '-'} bpm · 🔺${s.max_hr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${s.avg_grade}% · 🔺${s.max_grade}%</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">➡️ Speed Start</span><span class="metric-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">➡️ Speed End</span><span class="metric-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">➡️ Speed Start</span><span class="metric-value">${s.v1 > 0 ? `${s.v1} km/h` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">➡️ Speed End</span><span class="metric-value">${s.v2 > 0 ? `${s.v2} km/h` : '-'}</span></div>
                 <div class="metric-row"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${s.kj} kJ</span></div>
                 <div class="metric-row"><span class="metric-label">kJ &gt; CP</span><span class="metric-value">${s.kj_over_cp} kJ</span></div>
                 <div class="metric-row"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${s.kj_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/kg &gt; CP</span><span class="metric-value">${s.kj_kg_over_cp}</span></div>
                 <div class="metric-row"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${s.kj_h_kg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/h/kg &gt; CP</span><span class="metric-value">${s.kj_h_kg_over_cp}</span></div>
             </div>
         </div>`;
     }
@@ -371,6 +375,10 @@
         else showFullRideMetricsCard();
     }
 
+    function closeEffortDetailAndShowSelection() {
+        closeSidebar();
+    }
+
     // 
     // TOGGLE BUTTONS
     // 
@@ -378,14 +386,14 @@
         showEfforts = !showEfforts;
         updateEffortVisibility();
         const btn = document.getElementById('toggleEfforts');
-        btn.textContent = showEfforts ? '🚴 Efforts: ON' : '🚴 Efforts: OFF';
+        btn.textContent = showEfforts ? '👊 Efforts: ON' : '👊 Efforts: OFF';
         btn.style.backgroundColor = showEfforts ? '#10b981' : '#ef4444';
     }
     function toggleSprints() {
         showSprints = !showSprints;
         updateEffortVisibility();
         const btn = document.getElementById('toggleSprints');
-        btn.textContent = showSprints ? '⚡ Sprints: ON' : '⚡ Sprints: OFF';
+        btn.textContent = showSprints ? '🏃 Sprints: ON' : '🏃 Sprints: OFF';
         btn.style.backgroundColor = showSprints ? '#10b981' : '#ef4444';
     }
     function resetView() {
@@ -523,10 +531,11 @@
         const timeSec = Array.isArray(elevation_data_json.time_sec) ? elevation_data_json.time_sec : [];
         const power = Array.isArray(elevation_data_json.power) ? elevation_data_json.power : [];
         const hr = Array.isArray(elevation_data_json.heartrate) ? elevation_data_json.heartrate : [];
+        const cadence = Array.isArray(elevation_data_json.cadence) ? elevation_data_json.cadence : [];
         const distances = Array.isArray(elevation_data_json.distance) ? elevation_data_json.distance : [];
         const altitudes = Array.isArray(elevation_data_json.altitude) ? elevation_data_json.altitude : [];
         const n = Math.min(timeSec.length, power.length);
-        if (!n || e <= s) return null;
+        if (!n || e <= s || e >= power.length) return null;
         const durationSec = Math.max(0, timeSec[e] - timeSec[s]);
         const distStart = distances[s]||0, distEnd = distances[e]||distStart;
         const distTot = Math.abs(distEnd - distStart);
@@ -534,21 +543,79 @@
         const elevationGain = Math.max(0, altEnd - altStart);
         const powerSlice = power.slice(s, e+1);
         const avgPower = powerSlice.length ? Math.round(powerSlice.reduce((a,b)=>a+b,0)/powerSlice.length) : 0;
+
+        let peak5s = 0;
+        if (powerSlice.length >= 5) {
+            let maxAvg = 0;
+            for (let i = 0; i <= powerSlice.length - 5; i++) {
+                const avg5 = (powerSlice[i] + powerSlice[i + 1] + powerSlice[i + 2] + powerSlice[i + 3] + powerSlice[i + 4]) / 5;
+                if (avg5 > maxAvg) maxAvg = avg5;
+            }
+            peak5s = Math.round(maxAvg);
+        } else if (powerSlice.length > 0) {
+            peak5s = Math.max(...powerSlice);
+        }
+
         const hrSlice = hr.slice(s, e+1).filter(h=>h>0&&!isNaN(h));
         const avgHr = hrSlice.length ? Math.round(hrSlice.reduce((a,b)=>a+b,0)/hrSlice.length) : 0;
         const maxHr = hrSlice.length ? Math.max(...hrSlice) : 0;
         const w = Number(chartData.weight||0);
         const avgWkg = w > 0 ? (avgPower/w).toFixed(2) : 0;
+        const peak5sWkg = w > 0 ? (peak5s / w).toFixed(2) : 0;
+
         const avgSpeed = durationSec > 0 ? (distTot/(durationSec/3600)).toFixed(1) : 0;
+
+        const rawSpeed = [0];
+        for (let i = s + 1; i <= e; i++) {
+            const dt = Number(timeSec[i] || 0) - Number(timeSec[i - 1] || 0);
+            const dd = Number(distances[i] || 0) - Number(distances[i - 1] || 0);
+            if (dt > 0 && dd >= 0) {
+                const speedKmh = dd / (dt / 3600);
+                rawSpeed.push(Number.isFinite(speedKmh) && speedKmh <= 110 ? speedKmh : 0);
+            } else {
+                rawSpeed.push(0);
+            }
+        }
+        const win = Math.min(3, rawSpeed.length);
+        const smoothSpeed = rawSpeed.map((_, i) => {
+            const start = Math.max(0, i - Math.floor(win / 2));
+            const end = Math.min(rawSpeed.length, i + Math.floor(win / 2) + 1);
+            const slice = rawSpeed.slice(start, end);
+            return slice.length ? (slice.reduce((a, b) => a + b, 0) / slice.length) : 0;
+        });
+        const maxSpeed = Number((smoothSpeed.length ? Math.max(...smoothSpeed) : 0).toFixed(1));
+
         const avgGrade = distTot > 0 ? ((elevationGain/(distTot*1000))*100).toFixed(1) : 0;
+        let maxGrade = 0;
+        for (let i = s + 1; i <= e; i++) {
+            const dDistKm = Number(distances[i] || 0) - Number(distances[i - 1] || 0);
+            const dAlt = Number(altitudes[i] || 0) - Number(altitudes[i - 1] || 0);
+            if (dDistKm > 0) {
+                const g = (dAlt / (dDistKm * 1000)) * 100;
+                if (Number.isFinite(g) && g > maxGrade) maxGrade = g;
+            }
+        }
+        maxGrade = Number(maxGrade.toFixed(1));
+
         const vam = durationSec > 0 ? Math.round(elevationGain/(durationSec/3600)) : 0;
         const cp = Number(chartData.cp||0);
         let kJOverCp = 0;
         if (cp > 0) kJOverCp = Math.round(powerSlice.reduce((sum,p)=>(p>cp?sum+p:sum),0)*durationSec/powerSlice.length/1000);
         const kJ = Math.round(powerSlice.reduce((a,b)=>a+b,0)*durationSec/powerSlice.length/1000);
         const kJkg = w > 0 ? (kJ/w).toFixed(1) : 0;
+        const kJkgOverCp = w > 0 ? (kJOverCp / w).toFixed(1) : 0;
         const hours = durationSec/3600;
         const kJhKg = w > 0 && hours > 0 ? ((kJ/w)/hours).toFixed(1) : 0;
+        const kJhKgOverCp = w > 0 && hours > 0 ? ((kJOverCp / w) / hours).toFixed(1) : 0;
+
+        const cadSlice = cadence.slice(s, e + 1).filter((c) => Number(c) > 0);
+        const avgCadence = cadSlice.length ? Math.round(cadSlice.reduce((a, b) => a + Number(b), 0) / cadSlice.length) : 0;
+        const half = Math.floor(powerSlice.length / 2);
+        const firstHalf = half > 0 ? powerSlice.slice(0, half) : [];
+        const secondHalf = half > 0 ? powerSlice.slice(half) : [];
+        const avgWattsFirst = firstHalf.length ? Math.round(firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length) : 0;
+        const avgWattsSecond = secondHalf.length ? Math.round(secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length) : 0;
+        const wattsRatio = avgWattsSecond > 0 ? (avgWattsFirst / avgWattsSecond).toFixed(2) : '0.00';
         
         // Theoretical values aligned with effort formulas
         const avgGradeNum = Number(avgGrade);
@@ -558,17 +625,51 @@
         const wkgTeoricoNum = gradientFactor > 0 ? (vam / (gradientFactor * 100)) : 0;
         const diffWkgNum = Math.abs(avgWkgNum - wkgTeoricoNum);
         const percErrNum = avgWkgNum !== 0 ? (((wkgTeoricoNum - avgWkgNum) / avgWkgNum) * 100) : 0;
-        const vamArrow = (vamTeorico - vam) > 0 ? '' : ((vamTeorico - vam) < 0 ? '' : '');
+        const vamArrow = (vamTeorico - vam) > 0 ? '⬆️' : ((vamTeorico - vam) < 0 ? '⬇️' : '');
         const diffVam = Math.round(Math.abs(vamTeorico - vam));
         const wkgTeorico = wkgTeoricoNum.toFixed(2);
         const diffWkg = diffWkgNum.toFixed(2);
-        const percErr = Math.abs(percErrNum).toFixed(1);
-        
-        return { durationDisplay: fmtDur(durationSec), distDisplay: distTot.toFixed(2),
-            elevationDisplay: Math.round(elevationGain), avgPower, avgWkg, avgHr, maxHr,
-            avgSpeed, avgGrade, vam, kJ, kJOverCp, kJkg, kJhKg,
-            distStart, distEnd,
-            vamTeorico, vamArrow, diffVam, wkgTeorico, diffWkg, percErr, percErrNum };
+        const percErr = (percErrNum >= 0 ? '+' : '-') + Math.abs(percErrNum).toFixed(1);
+
+        return {
+            label: `SEL ${distStart.toFixed(2)}-${distEnd.toFixed(2)} km`,
+            startDist: distStart,
+            endDist: distEnd,
+            durationSec,
+            durationDisplay: fmtDur(durationSec),
+            distTot,
+            distDisplay: distTot.toFixed(2),
+            elevationGain,
+            elevationDisplay: Math.round(elevationGain),
+            avgPower,
+            avgWkg,
+            peak5s,
+            peak5sWkg,
+            avgHr,
+            maxHr,
+            avgSpeed,
+            maxSpeed,
+            avgGrade,
+            maxGrade,
+            vam,
+            vamTeorico,
+            vamArrow,
+            diffVam,
+            kJ,
+            kJOverCp,
+            kJkg,
+            kJkgOverCp,
+            kJhKg,
+            kJhKgOverCp,
+            avgCadence,
+            avgWattsFirst,
+            avgWattsSecond,
+            wattsRatio,
+            wkgTeorico,
+            diffWkg,
+            percErr,
+            percErrNum,
+        };
     }
 
     function calculateSelectionMetrics() {
@@ -580,12 +681,11 @@
         if (!m) return '';
         const showVamTeor = Number(m.avgGrade) >= 4.5;
         const signDwkg = Number(m.diffWkg) > 0 ? '+' : '';
-        const signPercErr = Number(m.percErrNum) > 0 ? '+' : (Number(m.percErrNum) < 0 ? '-' : '');
         const theoreticalRows = showVamTeor
             ? `
         <div class="metric-row"><span class="metric-label">🧮 VAM Teor.</span><span class="metric-value">${m.vamTeorico} m/h</span></div>
-        <div class="metric-row"><span class="metric-label">🧮 W/kg Teor.</span><span class="metric-value">${m.wkgTeorico}  ${signDwkg}${m.diffWkg}</span></div>
-        <div class="metric-row"><span class="metric-label">Err %</span><span class="metric-value">${signPercErr}${m.percErr}%</span></div>
+        <div class="metric-row"><span class="metric-label">🧮 W/kg Teor.</span><span class="metric-value">${m.wkgTeorico} · Δ${signDwkg}${m.diffWkg}</span></div>
+        <div class="metric-row"><span class="metric-label">Err %</span><span class="metric-value">${m.percErr}%</span></div>
     `
             : '';
         const vamSection = `
@@ -596,7 +696,7 @@
         <div class="selected-header">
             <div>
                 <div class="selected-title">${m.cardTitle || '🔍 Selection'}</div>
-                <div class="selected-subtitle-line">${m.distDisplay} km  ${m.elevationDisplay}m </div>
+                <div class="selected-subtitle-line">${m.distDisplay} km · ${m.elevationDisplay}m ↑</div>
                 <div class="selected-subtitle-line">${m.durationDisplay}</div>
                 <div class="selected-power">${m.avgPower}W <span>(${m.avgWkg} W/kg)</span></div>
             </div>
@@ -604,20 +704,25 @@
         </div>
         <div class="selected-grid">
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">⚡ Avg Power</span><span class="metric-value">${m.avgPower}W</span></div>
+                <div class="metric-row"><span class="metric-label">⚡ Avg</span><span class="metric-value">${m.avgPower}W</span></div>
                 <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${m.avgWkg}</span></div>
-                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${m.avgHr > 0 ? m.avgHr+' bpm  '+m.maxHr+' bpm' : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">5″🔺 Peak</span><span class="metric-value">${m.peak5s}W · ${m.peak5sWkg} W/kg</span></div>
+                <div class="metric-row"><span class="metric-label">🌀 Cadence</span><span class="metric-value">${m.avgCadence > 0 ? `${m.avgCadence} rpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🔀 1st/2nd</span><span class="metric-value">${m.avgWattsFirst}/${m.avgWattsSecond} · ${m.wattsRatio}</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${m.avgSpeed} km/h</span></div>
-                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${m.avgGrade}%</span></div>
+                <div class="metric-row"><span class="metric-label">❤️ HR</span><span class="metric-value">${m.avgHr > 0 ? `${m.avgHr} bpm · 🔺${m.maxHr} bpm` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🚴 Speed</span><span class="metric-value">${m.avgSpeed} km/h · 🔺${m.maxSpeed} km/h</span></div>
+                <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${m.avgGrade}% · 🔺${m.maxGrade}%</span></div>
                 ${vamSection}
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">🔋 kJ</span><span class="metric-value">${m.kJ} kJ</span></div>
+                <div class="metric-row"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${m.kJ} kJ</span></div>
                 <div class="metric-row"><span class="metric-label">kJ &gt; CP</span><span class="metric-value">${m.kJOverCp} kJ</span></div>
                 <div class="metric-row"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${m.kJkg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/kg &gt; CP</span><span class="metric-value">${m.kJkgOverCp}</span></div>
                 <div class="metric-row"><span class="metric-label">🔥 kJ/h/kg</span><span class="metric-value">${m.kJhKg}</span></div>
+                <div class="metric-row"><span class="metric-label">kJ/h/kg &gt; CP</span><span class="metric-value">${m.kJhKgOverCp}</span></div>
             </div>
         </div>`;
     }
