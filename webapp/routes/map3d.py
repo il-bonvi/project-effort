@@ -13,13 +13,11 @@ from typing import Dict, Any, Tuple
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
+from dependencies import SessionsDep
 from utils.map3d_generator import generate_3d_map_html
 from routes.altimetria_d3 import get_chart_data_json
 
 logger = logging.getLogger(__name__)
-
-# This will be set by app.py
-_shared_sessions: Dict[str, Any] = {}
 
 router = APIRouter()
 
@@ -56,12 +54,11 @@ def _build_map3d_cache_signature(session: Dict[str, Any]) -> Tuple[Any, ...]:
 
 def setup_map3d_router(sessions_dict: Dict[str, Any]):
     """Setup the map3d router with shared sessions dictionary"""
-    global _shared_sessions
-    _shared_sessions = sessions_dict
+    _ = sessions_dict
 
 
 @router.get("/map3d/{session_id}", response_class=HTMLResponse)
-async def map3d_view(session_id: str):
+async def map3d_view(session_id: str, sessions: SessionsDep):
     """
     Generate 3D map visualization with terrain, efforts markers and elevation chart.
     Uses the same MapLibre GL JS implementation as the original PEFFORT desktop app.
@@ -73,10 +70,10 @@ async def map3d_view(session_id: str):
         HTMLResponse with interactive 3D map
     """
     # Check session exists
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found. Please upload a FIT file first.")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
 
     # Extract session data
     df = session['df']

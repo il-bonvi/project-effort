@@ -24,6 +24,8 @@ from fastapi import APIRouter, HTTPException, Body, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from dependencies import SessionsDep
+
 from utils.effort_analyzer import (
     create_efforts, merge_extend, split_included, detect_sprints
 )
@@ -31,10 +33,6 @@ from utils.analysis_config import EffortConfig, SprintConfig
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-# Shared sessions dict - set by setup_api_router()
-_shared_sessions: Dict[str, Dict[str, Any]] = {}
-
 
 def _invalidate_session_caches(session: Dict[str, Any]) -> None:
     """Drop derived per-session caches after any mutation of core session data."""
@@ -53,8 +51,7 @@ def setup_api_router(sessions_dict: Dict[str, Dict[str, Any]]) -> APIRouter:
     Returns:
         Configured APIRouter instance
     """
-    global _shared_sessions
-    _shared_sessions = sessions_dict
+    _ = sessions_dict
     return router
 
 
@@ -156,18 +153,18 @@ class LegacyImportRequest(BaseModel):
 # =============================================================================
 
 @router.get("/session-data/{session_id}")
-async def get_session_data(session_id: str):
+async def get_session_data(session_id: str, sessions: SessionsDep):
     """
     Get FIT data for inspection chart (time_sec, power, efforts, cp)
 
     Returns:
         JSON with time_sec, power arrays and effort list
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
     try:
-        session = _shared_sessions[session_id]
+        session = sessions[session_id]
         df = session.get('df')
         efforts = session.get('efforts', [])
         cp = session.get('cp', 250)
@@ -201,17 +198,17 @@ async def get_session_data(session_id: str):
 
 
 @router.get("/{session_id}/status")
-async def get_session_status(session_id: str):
+async def get_session_status(session_id: str, sessions: SessionsDep):
     """
     Get current session status and effort/sprint counts
 
     Returns:
         JSON with session_id, filename, record count, effort/sprint counts, CP, weight
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     sprint_detection_error = session.get('sprint_detection_error')
     if sprint_detection_error:
         logger.warning("Session %s has sprint_detection_error: %s", session_id, sprint_detection_error)
@@ -233,7 +230,7 @@ class UpdateCpWeightRequest(BaseModel):
     weight: float
 
 @router.post("/{session_id}/update-cp-weight")
-async def update_cp_weight(session_id: str, request: UpdateCpWeightRequest):
+async def update_cp_weight(session_id: str, request: UpdateCpWeightRequest, sessions: SessionsDep):
     """
     Update CP and weight values for a session
 
@@ -244,10 +241,10 @@ async def update_cp_weight(session_id: str, request: UpdateCpWeightRequest):
     Returns:
         JSON confirmation
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
 
     # Validate inputs
     if not (50 <= request.cp <= 500):
@@ -311,7 +308,7 @@ async def update_cp_weight(session_id: str, request: UpdateCpWeightRequest):
 # =============================================================================
 
 @router.post("/{session_id}/merge")
-async def merge_efforts(session_id: str, request: MergeRequest):
+async def merge_efforts(session_id: str, request: MergeRequest, sessions: SessionsDep):
     """
     Merge two efforts into one, creating new effort spanning both
 
@@ -321,10 +318,10 @@ async def merge_efforts(session_id: str, request: MergeRequest):
     Returns:
         JSON confirmation with new total effort count
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     efforts = session['efforts']
 
     if request.effort_idx1 >= len(efforts) or request.effort_idx2 >= len(efforts):
@@ -355,7 +352,7 @@ async def merge_efforts(session_id: str, request: MergeRequest):
 
 
 @router.post("/{session_id}/extend")
-async def extend_effort(session_id: str, request: ExtendRequest):
+async def extend_effort(session_id: str, request: ExtendRequest, sessions: SessionsDep):
     """
     Extend an effort before and/or after
 
@@ -365,10 +362,10 @@ async def extend_effort(session_id: str, request: ExtendRequest):
     Returns:
         JSON confirmation with new time boundaries and duration
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     efforts = session['efforts']
     df = session['df']
 
@@ -400,7 +397,7 @@ async def extend_effort(session_id: str, request: ExtendRequest):
 
 
 @router.post("/{session_id}/split")
-async def split_effort(session_id: str, request: SplitRequest):
+async def split_effort(session_id: str, request: SplitRequest, sessions: SessionsDep):
     """
     Split an effort at a specific time
 
@@ -410,10 +407,10 @@ async def split_effort(session_id: str, request: SplitRequest):
     Returns:
         JSON confirmation with new total effort count
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     efforts = session['efforts']
     df = session['df']
 
@@ -453,7 +450,7 @@ async def split_effort(session_id: str, request: SplitRequest):
 
 
 @router.post("/{session_id}/trim")
-async def trim_effort(session_id: str, request: TrimRequest):
+async def trim_effort(session_id: str, request: TrimRequest, sessions: SessionsDep):
     """
     Trim an effort by removing seconds from start and/or end
 
@@ -465,10 +462,10 @@ async def trim_effort(session_id: str, request: TrimRequest):
     Returns:
         JSON confirmation with new time boundaries
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     efforts = session['efforts']
     df = session['df']
 
@@ -510,7 +507,7 @@ async def trim_effort(session_id: str, request: TrimRequest):
 
 
 @router.delete("/{session_id}/effort/{effort_idx}")
-async def delete_effort(session_id: str, effort_idx: int):
+async def delete_effort(session_id: str, effort_idx: int, sessions: SessionsDep):
     """
     Delete a specific effort by index
 
@@ -520,10 +517,10 @@ async def delete_effort(session_id: str, effort_idx: int):
     Returns:
         JSON confirmation with effort data that was deleted
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     efforts = session['efforts']
 
     if effort_idx >= len(efforts) or effort_idx < 0:
@@ -545,7 +542,7 @@ async def delete_effort(session_id: str, effort_idx: int):
 
 
 @router.delete("/{session_id}/sprint/{sprint_idx}")
-async def delete_sprint(session_id: str, sprint_idx: int):
+async def delete_sprint(session_id: str, sprint_idx: int, sessions: SessionsDep):
     """
     Delete a specific sprint by index
 
@@ -555,10 +552,10 @@ async def delete_sprint(session_id: str, sprint_idx: int):
     Returns:
         JSON confirmation with sprint data that was deleted
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     sprints = session['sprints']
 
     if sprint_idx >= len(sprints) or sprint_idx < 0:
@@ -579,16 +576,16 @@ async def delete_sprint(session_id: str, sprint_idx: int):
     }
 
 @router.delete("/{session_id}")
-async def delete_session(session_id: str):
+async def delete_session(session_id: str, sessions: SessionsDep):
     """Delete an in-memory session and free related memory."""
-    deleted = _shared_sessions.pop(session_id, None)
+    deleted = sessions.pop(session_id, None)
     if deleted is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"status": "deleted", "session_id": session_id}
 
 
 @router.post("/{session_id}/import")
-async def import_modifications(session_id: str, modifications: LegacyImportRequest):
+async def import_modifications(session_id: str, modifications: LegacyImportRequest, sessions: SessionsDep):
     """
     Import effort modifications from exported JSON
 
@@ -602,10 +599,10 @@ async def import_modifications(session_id: str, modifications: LegacyImportReque
     Returns:
         JSON confirmation with import results
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     df = session['df']
 
     deleted_effort_indices = set(modifications.deleted_efforts)
@@ -654,6 +651,7 @@ async def import_modifications(session_id: str, modifications: LegacyImportReque
 
 async def redetect_efforts_impl(
     session_id: str,
+    sessions: Dict[str, Dict[str, Any]],
     window_sec: int = 60,
     min_cp_pct: float = 100,
     merge_pct: float = 15,
@@ -665,10 +663,10 @@ async def redetect_efforts_impl(
     """
     Re-detect efforts with new parameters without re-uploading file.
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     df = session['df']
     cp = session.get('cp', 250)
 
@@ -730,6 +728,7 @@ async def redetect_efforts_impl(
 
 async def redetect_sprints_impl(
     session_id: str,
+    sessions: Dict[str, Dict[str, Any]],
     min_power: int = 500,
     min_duration_sec: int = 5,
     merge_gap_sec: int = 3,
@@ -738,10 +737,10 @@ async def redetect_sprints_impl(
     """
     Re-detect sprints with new parameters.
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     df = session['df']
 
     try:
@@ -780,12 +779,13 @@ async def redetect_sprints_impl(
 
 
 @router.post("/{session_id}/redetect-efforts")
-async def redetect_efforts_json(session_id: str, params: Dict[str, Any]):
+async def redetect_efforts_json(session_id: str, params: Dict[str, Any], sessions: SessionsDep):
     """
     Re-detect efforts with new parameters via JSON body (called from dashboard).
     """
     return await redetect_efforts_impl(
         session_id=session_id,
+        sessions=sessions,
         window_sec=int(params.get('window_sec', 60)),
         min_cp_pct=float(params.get('min_cp_pct', params.get('min_ftp_pct', 100))),
         merge_pct=float(params.get('merge_pct', 15)),
@@ -797,12 +797,13 @@ async def redetect_efforts_json(session_id: str, params: Dict[str, Any]):
 
 
 @router.post("/{session_id}/redetect-sprints")
-async def redetect_sprints_json(session_id: str, params: Dict[str, Any]):
+async def redetect_sprints_json(session_id: str, params: Dict[str, Any], sessions: SessionsDep):
     """
     Re-detect sprints with new parameters via JSON body (called from dashboard).
     """
     return await redetect_sprints_impl(
         session_id=session_id,
+        sessions=sessions,
         min_power=int(params.get('min_power', 500)),
         min_duration_sec=int(params.get('min_duration_sec', 5)),
         merge_gap_sec=int(params.get('merge_gap_sec', 3)),
@@ -811,7 +812,7 @@ async def redetect_sprints_json(session_id: str, params: Dict[str, Any]):
 
 
 @router.post("/{session_id}/apply-local-modifications")
-async def apply_local_modifications(session_id: str, data: LocalModificationsRequest):
+async def apply_local_modifications(session_id: str, data: LocalModificationsRequest, sessions: SessionsDep):
     """
     Apply effort/sprint modifications from inspection.html.
     Takes the modified efforts and sprints with new timestamps and updates the session.
@@ -831,12 +832,12 @@ async def apply_local_modifications(session_id: str, data: LocalModificationsReq
     logger.info(f"Received {len(data.efforts)} efforts and {len(data.sprints)} sprints")
     logger.info(f"Deleted indices - efforts: {data.deleted_effort_indices}, sprints: {data.deleted_sprint_indices}")
     
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         logger.error(f"Session {session_id} not found")
         raise HTTPException(status_code=404, detail="Session not found")
 
     try:
-        session = _shared_sessions[session_id]
+        session = sessions[session_id]
         df = session['df']
         
         logger.info(f"DataFrame shape: {df.shape}")
@@ -976,14 +977,14 @@ async def apply_local_modifications(session_id: str, data: LocalModificationsReq
 # =============================================================================
 
 @router.get("/export/{session_id}/json")
-async def export_json_data(session_id: str):
+async def export_json_data(session_id: str, sessions: SessionsDep):
     """
     Export all data as JSON: efforts, sprints, statistics, parameters
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     df = session['df']
 
     efforts_export = []
@@ -1053,14 +1054,14 @@ async def export_json_data(session_id: str):
 
 
 @router.get("/export/{session_id}/gpx")
-async def export_gpx_file(session_id: str):
+async def export_gpx_file(session_id: str, sessions: SessionsDep):
     """
     Export GPS track as GPX file if GPS data is available
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     df = session['df']
 
     if 'position_lat' not in df.columns or 'position_long' not in df.columns:
@@ -1107,14 +1108,14 @@ async def export_gpx_file(session_id: str):
 
 
 @router.get("/export/{session_id}/csv")
-async def export_csv_data(session_id: str):
+async def export_csv_data(session_id: str, sessions: SessionsDep):
     """
     Export efforts and sprints data as CSV for analysis in Excel/Sheets
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     df = session['df']
 
     csv_buffer = StringIO()
@@ -1156,7 +1157,7 @@ async def export_csv_data(session_id: str):
 
 
 @router.post("/import-modifications/{session_id}")
-async def import_dashboard_modifications(session_id: str, modifications: DashboardImportRequest):
+async def import_dashboard_modifications(session_id: str, modifications: DashboardImportRequest, sessions: SessionsDep):
     """
     Import effort modifications from JSON file for dashboard.
     Validates that modifications are for the correct session/file.
@@ -1164,7 +1165,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
     Note: This is a separate endpoint from /{session_id}/import. This one is used
     by the dashboard UI and includes additional validation and session_id matching.
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
     try:
@@ -1172,7 +1173,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
         if modifications.session_id != session_id:
             raise HTTPException(status_code=400, detail="Session ID mismatch - this JSON is from a different FIT file")
 
-        session = _shared_sessions[session_id]
+        session = sessions[session_id]
 
         # Normalize deleted indices for efforts and sprints
         deleted_efforts = set(modifications.deleted_efforts)
@@ -1306,15 +1307,15 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
 
 
 @router.get("/export-modifications/{session_id}")
-async def export_modifications(session_id: str):
+async def export_modifications(session_id: str, sessions: SessionsDep):
     """
     Export current effort/sprint modifications as JSON (for dashboard download).
     Returns original efforts/sprints as "modifications" that can be imported.
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     df = session['df']
     efforts = session['efforts']
     sprints = session['sprints']
@@ -1352,7 +1353,7 @@ async def export_modifications(session_id: str):
 
 
 @router.api_route("/export/{session_id}/html-report", methods=["GET", "POST"])
-async def export_html_report(session_id: str, request: Request = None):
+async def export_html_report(session_id: str, request: Request, sessions: SessionsDep):
     """
     Export a fully standalone interactive HTML report identical to the Altimetria D3 tab.
     All data is embedded — no server needed to open it.
@@ -1361,10 +1362,10 @@ async def export_html_report(session_id: str, request: Request = None):
     read from localStorage in the browser. If provided, these override the server
     defaults so the report matches exactly what the user sees in the Inspection tab.
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
 
     try:
         from routes.altimetria_d3 import get_chart_data_json

@@ -18,18 +18,18 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from dependencies import SessionsDep
+
 from utils.effort_analyzer import (
     format_time_hhmmss, format_time_mmss, get_zone_color
 )
+from utils.segment_metrics import compute_segment_metrics
 
 logger = logging.getLogger(__name__)
 
 # Setup Jinja2 templates using an absolute path based on this file's location
 _templates_dir = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_templates_dir))
-
-# This will be set by app.py
-_shared_sessions: Dict[str, Any] = {}
 
 router = APIRouter()
 
@@ -194,8 +194,6 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         avg_power = avg
         color = get_zone_color(avg_power, cp)
         
-        duration = float(seg_time[-1] - seg_time[0] + 1)
-        
         # Extended stream data for moving averages (includes buffer before/after effort)
         # This allows 30s/60s moving averages to have proper context at effort boundaries
         buffer_seconds = 120  # Look 120s before and after effort
@@ -215,44 +213,23 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             seg_torque_ext = df["torque"].values[s_ext:e_ext]
         else:
             seg_torque_ext = np.zeros_like(seg_power_ext)
-        elevation_gain = float(seg_alt[-1] - seg_alt[0])
-        dist_tot = float(seg_dist[-1] - seg_dist[0])
-        avg_speed = float(dist_tot / (duration / 3600) / 1000) if duration > 0 else 0.0
-        vam = float(elevation_gain / (duration / 3600)) if duration > 0 else 0.0
-        avg_grade = float((elevation_gain / dist_tot * 100) if dist_tot > 0 else 0)
-        
-        half = len(seg_power) // 2
-        avg_watts_first = float(seg_power[:half].mean()) if half > 0 else 0.0
-        avg_watts_second = float(seg_power[half:].mean()) if len(seg_power) > half else 0.0
-        watts_ratio = float(avg_watts_first / avg_watts_second) if avg_watts_second > 0 else 0.0
-        
-        valid_hr = seg_hr[seg_hr > 0]
-        avg_hr = float(valid_hr.mean()) if len(valid_hr) > 0 else 0.0
-        max_hr = float(valid_hr.max()) if len(valid_hr) > 0 else 0.0
-        max_grade = float(seg_grade.max()) if len(seg_grade) > 0 else 0.0
-        
-        best_5s_watt = 0
-        best_5s_watt_kg = 0
-        if len(seg_power) >= 5 and weight > 0:
-            moving_avgs = [seg_power[i:i+5].mean() for i in range(len(seg_power)-4)]
-            best_5s = max(moving_avgs) if moving_avgs else 0
-            best_5s_watt = int(best_5s)
-            best_5s_watt_kg = best_5s / weight
-        
-        avg_power_per_kg = float(avg_power / weight) if weight > 0 else 0.0
-        valid_cadence = seg_cadence[seg_cadence > 0]
-        avg_cadence = float(valid_cadence.mean()) if len(valid_cadence) > 0 else 0.0
-        
-        hours = float(time_sec[s] / 3600) if time_sec[s] > 0 else 0.0
         kj = float(joules_cumulative[s] / 1000) if s < len(joules_cumulative) else 0.0
         kj_over_cp = float(joules_over_cp_cumulative[s] / 1000) if s < len(joules_over_cp_cumulative) else 0.0
-        kj_kg = float((kj / weight) if weight > 0 else 0)
-        kj_kg_over_cp = float((kj_over_cp / weight) if weight > 0 else 0)
-        kj_h_kg = float((kj_kg / hours) if hours > 0 else 0)
-        kj_h_kg_over_cp = float((kj_kg_over_cp / hours) if hours > 0 else 0)
-        
-        gradient_factor = 2 + (avg_grade / 10)
-        vam_teorico = (avg_power / weight) * (gradient_factor * 100) if weight > 0 else 0
+        metrics = compute_segment_metrics(
+            seg_power=seg_power,
+            seg_time=seg_time,
+            seg_alt=seg_alt,
+            seg_dist_m=seg_dist,
+            seg_hr=seg_hr,
+            seg_grade=seg_grade,
+            seg_cadence=seg_cadence,
+            avg_power=float(avg_power),
+            cp=float(cp),
+            weight=float(weight),
+            start_time_sec=float(time_sec[s]) if s < len(time_sec) else 0.0,
+            kj=kj,
+            kj_over_cp=kj_over_cp,
+        )
         
         # Line data for this effort
         line_data = []
@@ -305,36 +282,36 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'label_y': round(seg_alt.max(), 1),
             'color': color,
             'avg_power': round(avg_power, 0),
-            'duration': int(duration),
+            'duration': int(metrics['duration']),
             'start_time': format_time_hhmmss(time_sec[s]) if s < len(time_sec) else '',
             'cp_pct': round((avg_power / cp * 100), 0),
-            'avg_power_per_kg': round(avg_power_per_kg, 2),
-            'best_5s_watt': best_5s_watt,
-            'best_5s_watt_kg': round(best_5s_watt_kg, 2),
-            'avg_cadence': round(avg_cadence, 0) if avg_cadence > 0 else 0,
-            'avg_watts_first': round(avg_watts_first, 0),
-            'avg_watts_second': round(avg_watts_second, 0),
-            'watts_ratio': round(watts_ratio, 2),
-            'avg_hr': round(avg_hr, 0) if avg_hr > 0 else 0,
-            'max_hr': round(max_hr, 0) if max_hr > 0 else 0,
-            'avg_speed': round(avg_speed, 1),
-            'avg_grade': round(avg_grade, 1),
-            'max_grade': round(max_grade, 1),
-            'elevation_gain': round(elevation_gain, 1),
-            'distance_tot': round(dist_tot / 1000, 2),
-            'vam': round(vam, 0),
-            'vam_arrow': '⬆️' if vam_teorico - vam > 0 else ('⬇️' if vam_teorico - vam < 0 else ''),
-            'diff_vam': round(abs(vam_teorico - vam), 0) if avg_grade >= 4.5 else 0,
-            'vam_teorico': round(vam_teorico, 0),
-            'wkg_teoric': round((vam / (gradient_factor * 100) if gradient_factor > 0 else 0), 2),
-            'diff_wkg': round(abs(avg_power_per_kg - (vam / (gradient_factor * 100) if gradient_factor > 0 else 0)), 2),
-            'perc_err': round((((vam / (gradient_factor * 100) if gradient_factor > 0 else 0) - avg_power_per_kg) / avg_power_per_kg * 100) if avg_power_per_kg != 0 else 0, 1) if avg_grade >= 4.5 else 0,
-            'kj': round(kj, 0),
-            'kj_over_cp': round(kj_over_cp, 0),
-            'kj_kg': round(kj_kg, 1),
-            'kj_kg_over_cp': round(kj_kg_over_cp, 1),
-            'kj_h_kg': round(kj_h_kg, 1),
-            'kj_h_kg_over_cp': round(kj_h_kg_over_cp, 1),
+            'avg_power_per_kg': round(metrics['avg_power_per_kg'], 2),
+            'best_5s_watt': int(metrics['best_5s_watt']),
+            'best_5s_watt_kg': round(metrics['best_5s_watt_kg'], 2),
+            'avg_cadence': round(metrics['avg_cadence'], 0) if metrics['avg_cadence'] > 0 else 0,
+            'avg_watts_first': round(metrics['avg_watts_first'], 0),
+            'avg_watts_second': round(metrics['avg_watts_second'], 0),
+            'watts_ratio': round(metrics['watts_ratio'], 2),
+            'avg_hr': round(metrics['avg_hr'], 0) if metrics['avg_hr'] > 0 else 0,
+            'max_hr': round(metrics['max_hr'], 0) if metrics['max_hr'] > 0 else 0,
+            'avg_speed': round(metrics['avg_speed'], 1),
+            'avg_grade': round(metrics['avg_grade'], 1),
+            'max_grade': round(metrics['max_grade'], 1),
+            'elevation_gain': round(metrics['elevation_gain'], 1),
+            'distance_tot': round(metrics['dist_tot_m'] / 1000, 2),
+            'vam': round(metrics['vam'], 0),
+            'vam_arrow': metrics['vam_arrow'],
+            'diff_vam': round(metrics['diff_vam'], 0) if metrics['avg_grade'] >= 4.5 else 0,
+            'vam_teorico': round(metrics['vam_teorico'], 0),
+            'wkg_teoric': round(metrics['wkg_teoric'], 2),
+            'diff_wkg': round(metrics['diff_wkg'], 2),
+            'perc_err': round(metrics['perc_err'], 1) if metrics['avg_grade'] >= 4.5 else 0,
+            'kj': round(metrics['kj'], 0),
+            'kj_over_cp': round(metrics['kj_over_cp'], 0),
+            'kj_kg': round(metrics['kj_kg'], 1),
+            'kj_kg_over_cp': round(metrics['kj_kg_over_cp'], 1),
+            'kj_h_kg': round(metrics['kj_h_kg'], 1),
+            'kj_h_kg_over_cp': round(metrics['kj_h_kg_over_cp'], 1),
             # Stream data for zoom modal (extended with 120s buffer before/after)
             'time_stream': time_stream,
             'power_stream': power_stream,
@@ -346,7 +323,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             # Track effort position: ACTUAL times relative to buffer start (not indices)
             'stream_effort_start': 0.0,  # Effort always starts at t=0
             'stream_effort_end':   float(time_sec[e - 1] - effort_t0 + 1),
-            'stream_effort_duration': int(duration)  # Actual effort duration (not including buffer)
+            'stream_effort_duration': int(metrics['duration'])  # Actual effort duration (not including buffer)
         }
         efforts_data.append(effort_info)
     
@@ -593,12 +570,11 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
 
 def setup_altimetria_d3_router(sessions_dict: Dict[str, Any]):
     """Setup the altimetria D3 router with shared sessions dictionary"""
-    global _shared_sessions
-    _shared_sessions = sessions_dict
+    _ = sessions_dict
 
 
 @router.get("/altimetria-d3/{session_id}")
-async def altimetria_d3_view(request: Request, session_id: str):
+async def altimetria_d3_view(request: Request, session_id: str, sessions: SessionsDep):
     """
     Generate elevation profile visualization with D3.js
 
@@ -609,10 +585,10 @@ async def altimetria_d3_view(request: Request, session_id: str):
         HTMLResponse with D3.js elevation profile
     """
     # Check session exists
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found. Please upload a FIT file first.")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
 
     try:
         # Prepare all chart data (cached by session signature)

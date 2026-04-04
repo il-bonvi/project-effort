@@ -467,10 +467,7 @@ function format_time_mmss(seconds) {
 }
 
 function fmtDur(seconds) {
-    const s = Math.round(seconds || 0);
-    const m = Math.floor(s / 60);
-    const r = s % 60;
-    return m > 0 ? `${m}m${r}s` : `${s}s`;
+    return window.PEffortCommon.fmtDur(seconds);
 }
 
 function findSelectedSegment(markerItem) {
@@ -1523,28 +1520,14 @@ if (storedAvg30s) avg30sSeconds = parseInt(storedAvg30s, 10);
 if (storedAvg60s) avg60sSeconds = parseInt(storedAvg60s, 10);
 
 function getIntensityZones() {
-    const stored = localStorage.getItem(INSPECTION_ZONES_KEY)
-        || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY_VERSION)
-        || localStorage.getItem(INSPECTION_ZONES_LEGACY_KEY);
-    if (stored) {
-        try {
-            return JSON.parse(stored);
-        } catch (e) {
-            console.log('Failed to parse stored zones');
-        }
-    }
-    if (chartData.intensity_zones && chartData.intensity_zones.length > 0) {
-        return chartData.intensity_zones;
-    }
-    return [
-        { min: 0, max: 60, color: '#009e80', name: 'Z1' },
-        { min: 60, max: 80, color: '#009e00', name: 'Z2' },
-        { min: 80, max: 90, color: '#ffcb0e', name: 'Z3' },
-        { min: 90, max: 105, color: '#ff7f0e', name: 'Z4' },
-        { min: 105, max: 135, color: '#dd0447', name: 'Z5' },
-        { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
-        { min: 300, max: 999, color: '#504861', name: 'Z7' },
-    ];
+    return window.PEffortCommon.getIntensityZones({
+        keys: [
+            INSPECTION_ZONES_KEY,
+            INSPECTION_ZONES_KEY_LEGACY_VERSION,
+            INSPECTION_ZONES_LEGACY_KEY,
+        ],
+        fallbackZones: chartData.intensity_zones,
+    });
 }
 
 function openStreamModal(elemId, dataId, type) {
@@ -1639,31 +1622,7 @@ function closeStreamModal() {
 window.closeStreamModal = closeStreamModal;
 
 function calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds) {
-    const n = Math.min(powerData.length, timeData.length);
-    if (!n) return [];
-    const result = new Array(n);
-    let lo = 0;
-    let hi = 0;
-    let sum = 0;
-    let cnt = 0;
-    for (let i = 0; i < n; i++) {
-        const center = timeData[i];
-        const winLo = center - windowSeconds / 2;
-        const winHi = center + windowSeconds / 2;
-
-        while (hi < n && timeData[hi] <= winHi) {
-            sum += powerData[hi];
-            cnt++;
-            hi++;
-        }
-        while (lo < hi && timeData[lo] < winLo) {
-            sum -= powerData[lo];
-            cnt--;
-            lo++;
-        }
-        result[i] = cnt > 0 ? sum / cnt : powerData[i];
-    }
-    return result;
+    return window.PEffortCommon.calculateTimeBasedMovingAverage(powerData, timeData, windowSeconds);
 }
 
 function buildStreamChartsD3() {

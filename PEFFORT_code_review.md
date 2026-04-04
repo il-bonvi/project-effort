@@ -463,15 +463,11 @@ Quick wins ancora aperte:
 3. **Completato** — §3.4 Persistenza sessioni su Render: strategia validata (`/data` persistent disk consigliato, Redis opzionale)
 
 ### Priorità Media (refactoring successivo)
-4. **§3.1** — Codice JS triplicato → estrarre `peffort_common.js`
-5. **§3.2** — Global state nei router → migrare a FastAPI Depends
-6. **§3.3** — Calcoli metriche duplicati → `utils/segment_metrics.py`
-7. **§4.1/4.2** — Template JS troppo grandi → separare in file statici
+4. **§4.1/4.2** — Template JS troppo grandi → separare in file statici
 
 ### Priorità Bassa (miglioramento continuo)
-8. **§4.8** — Aggiungere TypedDict per i return type delle funzioni core
-9. **§8.1** — Strutturare `ROADMAP.md` con stato/priorità
-10. **§8.2** — Aggiungere docstring/JSDoc nelle parti frontend-facing
+5. **§4.8** — Aggiungere TypedDict per i return type delle funzioni core
+7. **§8.2** — Aggiungere docstring/JSDoc nelle parti frontend-facing
 
 ---
 

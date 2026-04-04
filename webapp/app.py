@@ -90,6 +90,7 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # Session storage (in-memory, stores analysis results and dataframes)
 # Shared across all route modules via setup_XXXX_router(sessions) functions
 sessions: Dict[str, Dict[str, Any]] = SessionStore(max_sessions=20, ttl_seconds=86400)
+app.state.sessions = sessions
 
 logger.info("Initializing PEFFORT Web Application...")
 

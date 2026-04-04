@@ -9,12 +9,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from dependencies import SessionsDep
+
 from routes.altimetria_d3 import get_chart_data_json
 from utils.effort_analyzer import format_time_hhmmss, format_time_mmss
 
 logger = logging.getLogger(__name__)
-
-_shared_sessions: Dict[str, Any] = {}
 
 router = APIRouter()
 
@@ -51,20 +51,19 @@ def _build_map2d_cache_signature(session: Dict[str, Any]) -> tuple[Any, ...]:
 
 def setup_map2d_router(sessions_dict: Dict[str, Any]):
     """Setup the map2d router with shared sessions dictionary"""
-    global _shared_sessions
-    _shared_sessions = sessions_dict
+    _ = sessions_dict
 
 
 @router.get("/map2d/{session_id}", response_class=HTMLResponse)
-async def map2d_view(session_id: str):
+async def map2d_view(session_id: str, sessions: SessionsDep):
     """
     Generate 2D map visualization with Leaflet.js + OpenStreetMap.
     Completely free — no API key required.
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found. Please upload a FIT file first.")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     df      = session['df']
     efforts = session['efforts']
     sprints = session['sprints']

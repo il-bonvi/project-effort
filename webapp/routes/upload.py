@@ -19,6 +19,7 @@ from typing import Dict, Any
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Request
 from fastapi.responses import RedirectResponse
+from dependencies import SessionsDep
 
 from utils.effort_analyzer import (
     parse_fit, create_efforts, merge_extend, split_included, detect_sprints
@@ -28,9 +29,6 @@ from utils.analysis_config import EffortConfig, SprintConfig
 from utils.metrics import calculate_ride_stats
 
 logger = logging.getLogger(__name__)
-
-# This will be set by app.py
-_shared_sessions: Dict[str, Any] = {}
 
 # Upload directory for temporary FIT file storage
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "peffort_uploads"
@@ -60,8 +58,7 @@ router = APIRouter()
 
 def setup_upload_router(sessions_dict: Dict[str, Any]):
     """Setup the upload router with shared sessions dictionary"""
-    global _shared_sessions
-    _shared_sessions = sessions_dict
+    _ = sessions_dict
 
 
 def _is_upload_rate_limited(client_ip: str) -> bool:
@@ -94,6 +91,7 @@ def _get_client_ip(request: Request) -> str:
 @router.post("/upload")
 async def upload_fit(
     request: Request,
+    sessions: SessionsDep,
     file: UploadFile = File(...),
     cp: float = Form(250),
     weight: float = Form(60),
@@ -333,7 +331,7 @@ async def upload_fit(
     ride_stats = calculate_ride_stats(df, cp)
 
     # Store session data (in memory only - no persistent disk storage)
-    _shared_sessions[session_id] = {
+    sessions[session_id] = {
         'filename': file.filename,
         'df': df,
         'efforts': efforts,
