@@ -7,10 +7,36 @@ import json
 import logging
 import numpy as np
 import pandas as pd
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, TypedDict
 from .effort_analyzer import get_zone_color
+from .segment_metrics import compute_segment_metrics
 
 logger = logging.getLogger(__name__)
+
+
+class EffortParameters(TypedDict):
+    duration: int
+    elevation: float
+    w_kg: float
+    best_5s: int
+    best_5s_watt_kg: float
+    avg_hr: float
+    max_hr: float
+    avg_cadence: float
+    avg_speed: float
+    avg_grade: float
+    max_grade: float
+    vam: float
+    watts_first: float
+    watts_second: float
+    watts_ratio: float
+    kj: float
+    kj_over_cp: float
+    kj_kg: float
+    kj_kg_over_cp: float
+    kj_h_kg: float
+    kj_h_kg_over_cp: float
+    vam_teorico: float
 
 
 def export_traccia_geojson(df: pd.DataFrame) -> Tuple[dict, List[int]]:
@@ -110,7 +136,7 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
                                dist_km_values: np.ndarray,
                                cp: float, weight: float,
                                joules_cumulative: np.ndarray,
-                               joules_over_cp_cumulative: np.ndarray) -> Dict[str, Any]:
+                               joules_over_cp_cumulative: np.ndarray) -> EffortParameters:
     """
     Calcola tutti i parametri di un singolo effort.
     
@@ -133,99 +159,96 @@ def calculate_effort_parameters(s: int, e: int, avg: float,
     hr_all = df['heartrate'].values if 'heartrate' in df.columns else np.zeros(len(df))
     cadence_all = df['cadence'].values if 'cadence' in df.columns else np.zeros(len(df))
     grade_all = df['grade'].values if 'grade' in df.columns else np.zeros(len(df))
+
+    safe_len = min(
+        len(time_sec),
+        len(power_all),
+        len(hr_all),
+        len(cadence_all),
+        len(grade_all),
+        len(alt_values),
+        len(dist_km_values)
+    )
+
+    if safe_len <= 0:
+        return {
+            'duration': 0,
+            'elevation': 0.0,
+            'w_kg': 0.0,
+            'best_5s': 0,
+            'best_5s_watt_kg': 0.0,
+            'avg_hr': 0.0,
+            'max_hr': 0.0,
+            'avg_cadence': 0.0,
+            'avg_speed': 0.0,
+            'avg_grade': 0.0,
+            'max_grade': 0.0,
+            'vam': 0.0,
+            'watts_first': 0.0,
+            'watts_second': 0.0,
+            'watts_ratio': 0.0,
+            'kj': 0.0,
+            'kj_over_cp': 0.0,
+            'kj_kg': 0.0,
+            'kj_kg_over_cp': 0.0,
+            'kj_h_kg': 0.0,
+            'kj_h_kg_over_cp': 0.0,
+            'vam_teorico': 0.0
+        }
     
     # Segmenti dati (con boundary checks appropriati)
     # Assicura che gli indici siano validi
-    s = max(0, s)
-    e = max(s, min(e, len(power_all)))
+    s = max(0, min(s, safe_len - 1))
+    e = max(s + 1, min(e, safe_len))
     
     seg_power = power_all[s:e]
     seg_time = time_sec[s:e]
-    seg_alt_arr = alt_values[max(0, s):min(e, len(alt_values))]
+    seg_alt_arr = alt_values[s:e]
     seg_hr = hr_all[s:e]
     seg_cadence = cadence_all[s:e]
     seg_grade = grade_all[s:e]
-    seg_dist_km = dist_km_values[max(0, s):min(e, len(dist_km_values))]
+    seg_dist_km = dist_km_values[s:e]
     
-    # Durata ed elevazione
-    duration = int(seg_time[-1] - seg_time[0] + 1) if len(seg_time) > 0 else 0
-    elevation_gain = seg_alt_arr[-1] - seg_alt_arr[0] if len(seg_alt_arr) > 0 else 0
-    
-    # Distanza (in km)
-    dist_tot = seg_dist_km[-1] - seg_dist_km[0] if len(seg_dist_km) > 0 else 0
-    
-    # Potenza relativa
-    w_kg = avg / weight if weight > 0 else 0
-    
-    # Best 5s
-    best_5s_watt = 0
-    best_5s_watt_kg = 0
-    if len(seg_power) >= 5:
-        best_5s = max([seg_power[i:i+5].mean() for i in range(len(seg_power)-4)])
-        best_5s_watt = int(best_5s)
-        if weight > 0:
-            best_5s_watt_kg = best_5s / weight
-    
-    # Heart rate
-    valid_hr = seg_hr[seg_hr > 0]
-    avg_hr = valid_hr.mean() if len(valid_hr) > 0 else 0
-    max_hr = valid_hr.max() if len(valid_hr) > 0 else 0
-    
-    # Cadence
-    valid_cadence = seg_cadence[seg_cadence > 0]
-    avg_cadence = valid_cadence.mean() if len(valid_cadence) > 0 else 0
-    
-    # Velocità e pendenza
-    avg_speed = dist_tot / (duration / 3600) if duration > 0 and dist_tot > 0 else 0
-    avg_grade = (elevation_gain / (dist_tot * 1000) * 100) if dist_tot > 0 else 0
-    max_grade = seg_grade.max() if len(seg_grade) > 0 else 0
-    
-    # 1ª metà vs 2ª metà
-    half = len(seg_power) // 2
-    avg_watts_first = seg_power[:half].mean() if half > 0 else 0
-    avg_watts_second = seg_power[half:].mean() if len(seg_power) > half else 0
-    watts_ratio = avg_watts_first / avg_watts_second if avg_watts_second > 0 else 0
-    
-    # VAM
-    vam = elevation_gain / (duration / 3600) if duration > 0 else 0
-    
-    # Joule calculations
-    # Use cumulative joules at start of effort (total work at moment effort begins)
     kj = joules_cumulative[s] / 1000 if s < len(joules_cumulative) else 0
     kj_over_cp = joules_over_cp_cumulative[s] / 1000 if s < len(joules_over_cp_cumulative) else 0
-    kj_kg = (kj / weight) if weight > 0 else 0
-    kj_kg_over_cp = (kj_over_cp / weight) if weight > 0 else 0
-    hours = time_sec[s] / 3600 if time_sec[s] > 0 else 0
-    kj_h_kg = (kj_kg / hours) if hours > 0 else 0
-    kj_h_kg_over_cp = (kj_kg_over_cp / hours) if hours > 0 else 0
-    
-    # VAM teorico (solo se salita significativa)
-    gradient_factor = 2 + (avg_grade / 10) if avg_grade > 0 else 2
-    vam_teorico = (avg / weight) * (gradient_factor * 100) if weight > 0 else 0
+    metrics = compute_segment_metrics(
+        seg_power=seg_power,
+        seg_time=seg_time,
+        seg_alt=seg_alt_arr,
+        seg_dist_m=seg_dist_km * 1000,
+        seg_hr=seg_hr,
+        seg_grade=seg_grade,
+        seg_cadence=seg_cadence,
+        avg_power=float(avg),
+        weight=float(weight),
+        start_time_sec=float(time_sec[s]),
+        kj=float(kj),
+        kj_over_cp=float(kj_over_cp),
+    )
     
     return {
-        'duration': int(duration),
-        'elevation': float(elevation_gain),
-        'w_kg': float(w_kg),
-        'best_5s': int(best_5s_watt),
-        'best_5s_watt_kg': float(best_5s_watt_kg),
-        'avg_hr': float(avg_hr),
-        'max_hr': float(max_hr),
-        'avg_cadence': float(avg_cadence),
-        'avg_speed': float(avg_speed),
-        'avg_grade': float(avg_grade),
-        'max_grade': float(max_grade),
-        'vam': float(vam),
-        'watts_first': float(avg_watts_first),
-        'watts_second': float(avg_watts_second),
-        'watts_ratio': float(watts_ratio),
-        'kj': float(kj),
-        'kj_over_cp': float(kj_over_cp),
-        'kj_kg': float(kj_kg),
-        'kj_kg_over_cp': float(kj_kg_over_cp),
-        'kj_h_kg': float(kj_h_kg),
-        'kj_h_kg_over_cp': float(kj_h_kg_over_cp),
-        'vam_teorico': float(vam_teorico)
+        'duration': int(metrics['duration']),
+        'elevation': float(metrics['elevation_gain']),
+        'w_kg': float(metrics['avg_power_per_kg']),
+        'best_5s': int(metrics['best_5s_watt']),
+        'best_5s_watt_kg': float(metrics['best_5s_watt_kg']),
+        'avg_hr': float(metrics['avg_hr']),
+        'max_hr': float(metrics['max_hr']),
+        'avg_cadence': float(metrics['avg_cadence']),
+        'avg_speed': float(metrics['avg_speed']),
+        'avg_grade': float(metrics['avg_grade']),
+        'max_grade': float(metrics['max_grade']),
+        'vam': float(metrics['vam']),
+        'watts_first': float(metrics['avg_watts_first']),
+        'watts_second': float(metrics['avg_watts_second']),
+        'watts_ratio': float(metrics['watts_ratio']),
+        'kj': float(metrics['kj']),
+        'kj_over_cp': float(metrics['kj_over_cp']),
+        'kj_kg': float(metrics['kj_kg']),
+        'kj_kg_over_cp': float(metrics['kj_kg_over_cp']),
+        'kj_h_kg': float(metrics['kj_h_kg']),
+        'kj_h_kg_over_cp': float(metrics['kj_h_kg_over_cp']),
+        'vam_teorico': float(metrics['vam_teorico'])
     }
 
 

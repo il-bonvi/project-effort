@@ -1,8 +1,23 @@
 """Metrics calculation module for cycling performance analysis"""
 
-from typing import List, Dict, Any
+from typing import List, TypedDict
 import numpy as np
 import pandas as pd
+
+
+class RideStats(TypedDict):
+    duration_sec: float
+    duration_hours: float
+    avg_power: float
+    max_power: float
+    normalized_power: float
+    intensity_factor: float
+    tss: float
+    variability_index: float
+    total_distance_km: float
+    elevation_gain_m: float
+    avg_hr: float
+    max_hr: float
 
 
 def calculate_normalized_power(power_data: List[float]) -> float:
@@ -56,7 +71,7 @@ def calculate_variability_index(np_value: float, avg_power: float) -> float:
     return np_value / avg_power
 
 
-def calculate_ride_stats(df: pd.DataFrame, cp: float) -> Dict[str, Any]:
+def calculate_ride_stats(df: pd.DataFrame, cp: float) -> RideStats:
     """Calculate comprehensive ride statistics"""
     power_data = df['power'].tolist()
     duration_sec = df['time_sec'].iloc[-1] - df['time_sec'].iloc[0] if len(df) > 0 else 0

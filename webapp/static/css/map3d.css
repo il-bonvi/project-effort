@@ -26,6 +26,7 @@ body {
     left: 280px;         /* Sidebar piu' compatta */
     width: calc(100% - 280px);
     height: calc(100% - 150px);
+    z-index: 1;
 }
 
 /* Grafico altimetrico - barra in basso */
@@ -125,13 +126,13 @@ body {
 
 /* Contenitore dei controlli in basso a destra */
 .controls {
-    position: absolute;
-    bottom: 150px;       /* Sopra il grafico */
+    position: fixed;
+    bottom: 170px;       /* Sopra il grafico */
     right: 20px;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    z-index: 10;
+    z-index: 1000;
 }
 
 /* Pulsanti di controllo */
@@ -187,26 +188,9 @@ body {
 
 /* Pulsante per chiudere la sidebar */
 #sidebar-close {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    background: #1e40af;
-    color: white;
-    border: none;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 18px;
-    display: none;
-    align-items: center;
-    justify-content: center;
+    display: none !important;
 }
 
-/* Hover sul pulsante chiusura */
-#sidebar-close:hover {
-    background: #1e3a8a;
-}
 
 /* Sezioni nella sidebar */
 .sidebar-section {

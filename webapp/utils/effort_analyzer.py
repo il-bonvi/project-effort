@@ -3,7 +3,7 @@ CORE ENGINE - Logica pura per analisi efforts e sprints
 Contiene: parsing FIT, calcoli VAM, filtraggio, analisi sprint
 """
 
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, TypedDict
 import logging
 import numpy as np
 import pandas as pd
@@ -37,6 +37,12 @@ ZONE_COLORS = [
     (999, "#7315ca", "Supra-MAP"),
 ]
 ZONE_DEFAULT = ("Anaerobico", "#6B3C3C73")
+
+
+class SprintDetectionResult(TypedDict):
+    start: int
+    end: int
+    avg: float
 
 
 
@@ -215,13 +221,18 @@ def trim_segment(power: np.ndarray, start: int, end: int, trim_win: int, trim_pc
     Returns:
         Tuple (start_trimmed, end_trimmed)
     """
+    if trim_win <= 0:
+        return start, end
+
+    original_start = start
+    original_end = end
     iterations = 0
     
     while iterations < max_iterations:
         iterations += 1
         changed = False
         
-        if end - start < trim_win * 2:
+        if end - start < (trim_win * 2 + 1):
             break
             
         seg = power[start:end]
@@ -251,6 +262,9 @@ def trim_segment(power: np.ndarray, start: int, end: int, trim_win: int, trim_pc
     
     if iterations >= max_iterations:
         logger.warning(f"trim_segment raggiunto max_iterations ({max_iterations})")
+
+    if start >= end:
+        return original_start, original_end
     
     return start, end
 
@@ -465,7 +479,7 @@ def split_included(df: pd.DataFrame, efforts: List[Tuple[int, int, float]]) -> L
 # =====================
 
 def detect_sprints(df: pd.DataFrame, min_power: float, min_duration_sec: float, 
-                   merge_gap_sec: float = 1.0) -> List[Dict[str, Any]]:
+                   merge_gap_sec: float = 1.0) -> List[SprintDetectionResult]:
     """
     Rilevamento sprint dinamici - Rileva blocchi di potenza sopra min_power e li unisce se vicini.
     
@@ -488,9 +502,17 @@ def detect_sprints(df: pd.DataFrame, min_power: float, min_duration_sec: float,
     
     power = df["power"].values
     time_sec = df["time_sec"].values
+    series_len = min(len(power), len(time_sec))
+
+    if series_len == 0:
+        logger.info("Nessun dato valido per sprint detection")
+        return []
+
+    power = power[:series_len]
+    time_sec = time_sec[:series_len]
     
     above_threshold = power >= min_power
-    sprints = []
+    sprints: List[SprintDetectionResult] = []
     i = 0
     
     while i < len(above_threshold):
@@ -498,7 +520,7 @@ def detect_sprints(df: pd.DataFrame, min_power: float, min_duration_sec: float,
             start = i
             while i < len(above_threshold) and above_threshold[i]:
                 i += 1
-            end = i
+            end = min(i, series_len)
             
             if end > start:
                 durata = time_sec[end-1] - time_sec[start]
@@ -516,7 +538,7 @@ def detect_sprints(df: pd.DataFrame, min_power: float, min_duration_sec: float,
         return []
 
     # Unisce sprint con gap temporale piccolo
-    merged = []
+    merged: List[SprintDetectionResult] = []
     curr = sprints[0]
     
     for nxt in sprints[1:]:

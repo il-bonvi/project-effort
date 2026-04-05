@@ -597,19 +597,19 @@
                 
                 <!-- Chart 2 Slider -->
                 <div class="control-group" style="min-width: auto;">
-                    <label for="avg30sSeconds" style="font-size: 12px; color: #1e40af;">🟠 Chart 2 - Avg</label>
+                    <label for="avg30sSeconds" style="font-size: 12px; color: #1e40af;" title="Smoothing window for Chart 2 (1-60s)">🟠 Chart 2 - Avg (1-60s)</label>
                     <div class="slider-container" style="gap: 10px;">
                         <span class="value-display" id="avg30sValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">30s</span>
-                        <input type="range" id="avg30sSeconds" value="30" min="1" max="60" step="1">
+                        <input type="range" id="avg30sSeconds" value="30" min="1" max="60" step="1" title="Smoothing window: 1 to 60 seconds">
                     </div>
                 </div>
                 
                 <!-- Chart 3 Slider -->
                 <div class="control-group" style="min-width: auto;">
-                    <label for="avg60sSeconds" style="font-size: 12px; color: #1e40af;">🔴 Chart 3 - Avg</label>
+                    <label for="avg60sSeconds" style="font-size: 12px; color: #1e40af;" title="Smoothing window for Chart 3 (60-360s)">🔴 Chart 3 - Avg (60-360s)</label>
                     <div class="slider-container" style="gap: 10px;">
                         <span class="value-display" id="avg60sValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">60s</span>
-                        <input type="range" id="avg60sSeconds" value="60" min="60" max="360" step="1">
+                        <input type="range" id="avg60sSeconds" value="60" min="60" max="360" step="1" title="Smoothing window: 60 to 360 seconds">
                     </div>
                 </div>
             </div>
@@ -996,14 +996,21 @@
                 { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
                 { min: 300, max: 999, color: '#504861', name: 'Z7' }
             ];
+            const INSPECTION_ZONES_KEY = 'inspection_zones_v2_{{ session_id }}';
+            const INSPECTION_ZONES_KEY_LEGACY_VERSION = 'inspection_zones_v2';
+            const INSPECTION_ZONES_LEGACY_KEY = 'inspection_zones';
             
             // Load local zones from localStorage or use defaults
-            let localZones = JSON.parse(localStorage.getItem('inspection_zones')) || defaultZones.map(z => ({ ...z }));
+            let localZones = JSON.parse(
+                localStorage.getItem(INSPECTION_ZONES_KEY)
+                || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY_VERSION)
+                || localStorage.getItem(INSPECTION_ZONES_LEGACY_KEY)
+            ) || defaultZones.map(z => ({ ...z }));
 
             // Check if we need to update to new default structure (min/max format)
             if (localZones.length === 0 || typeof localZones[0].threshold !== 'undefined') {
                 localZones = defaultZones.map(z => ({ ...z }));
-                localStorage.setItem('inspection_zones', JSON.stringify(localZones));
+                localStorage.setItem(INSPECTION_ZONES_KEY, JSON.stringify(localZones));
             }
             
             // Initialize zones UI
@@ -1134,7 +1141,7 @@
             }
 
             function saveLocalZones() {
-                localStorage.setItem('inspection_zones', JSON.stringify(localZones));
+                localStorage.setItem(INSPECTION_ZONES_KEY, JSON.stringify(localZones));
                 const statusEl = document.getElementById('zonesStatus');
                 statusEl.textContent = '✓ Zone salvate localmente';
                 statusEl.classList.add('show');
@@ -1573,10 +1580,14 @@
             // Inizializza la visibilità
             updateOpacityControlsVisibility();
 
+            avg30sValue.title = `Chart 2 smoothing window: ${avg30sSeconds}s`;
+            avg60sValue.title = `Chart 3 smoothing window: ${avg60sSeconds}s`;
+
             let updateTimeout = null;
             avg30sInput.addEventListener('input', function() {
                 avg30sSeconds = parseInt(this.value);
                 avg30sValue.textContent = avg30sSeconds + 's';
+                avg30sValue.title = `Chart 2 smoothing window: ${avg30sSeconds}s`;
                 if (updateTimeout) clearTimeout(updateTimeout);
                 updateTimeout = setTimeout(updateMovingAverages, 1);
             });
@@ -1584,6 +1595,7 @@
             avg60sInput.addEventListener('input', function() {
                 avg60sSeconds = parseInt(this.value);
                 avg60sValue.textContent = avg60sSeconds + 's';
+                avg60sValue.title = `Chart 3 smoothing window: ${avg60sSeconds}s`;
                 if (updateTimeout) clearTimeout(updateTimeout);
                 updateTimeout = setTimeout(updateMovingAverages, 1);
             });
@@ -1872,9 +1884,13 @@
                         saveStatus.style.color = '#22c55e';
                         
                         // Notify other tabs via BroadcastChannel
-                        const channel = new BroadcastChannel('peffort_{{ session_id }}');
-                        channel.postMessage({ type: 'efforts_updated' });
-                        channel.close();
+                        try {
+                            const channel = new BroadcastChannel('peffort_{{ session_id }}');
+                            channel.postMessage({ type: 'efforts_updated' });
+                            channel.close();
+                        } catch (e) {
+                            console.warn('BroadcastChannel not supported on this browser', e);
+                        }
                         
                         setTimeout(() => {
                             saveBtn.textContent = '💾 Salva Modifiche';

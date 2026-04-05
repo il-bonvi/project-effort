@@ -10,7 +10,6 @@ INSPECTION ROUTES - Interactive Effort Editor Interface
 Handles the inspection/effort editor view with ECharts visualization
 """
 
-import sys
 import json
 import logging
 import numpy as np
@@ -18,19 +17,14 @@ from html import escape
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
-# Add parent directory to path for PEFFORT package imports
-_project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_project_root))
-
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from dependencies import SessionsDep
+
 # Configure logging
 logger = logging.getLogger(__name__)
-
-# Shared sessions dict - set by setup_inspection_router()
-_shared_sessions: Dict[str, Dict[str, Any]] = {}
 
 # Jinja2 templates - set by setup_inspection_router()
 _templates: Jinja2Templates = None
@@ -47,8 +41,8 @@ def setup_inspection_router(sessions_dict: Dict[str, Dict[str, Any]], templates_
     Returns:
         Configured APIRouter instance
     """
-    global _shared_sessions, _templates
-    _shared_sessions = sessions_dict
+    global _templates
+    _ = sessions_dict
     
     if templates_dir is None:
         templates_dir = Path(__file__).parent.parent / "templates"
@@ -71,18 +65,18 @@ router = APIRouter(
 # =============================================================================
 
 @router.get("/{session_id}", response_class=HTMLResponse)
-async def inspection_view(session_id: str, request: Request):
+async def inspection_view(session_id: str, request: Request, sessions: SessionsDep):
     """
     Display the interactive inspection/effort editor view.
     Uses ECharts-based HTML template with Jinja2 rendering.
     """
-    if session_id not in _shared_sessions:
+    if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found. Please upload a FIT file.")
 
     if _templates is None:
         raise HTTPException(status_code=500, detail="Templates not initialized")
 
-    session = _shared_sessions[session_id]
+    session = sessions[session_id]
     
     # Generate data for template
     template_data = generate_inspection_data(

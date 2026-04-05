@@ -9,13 +9,12 @@ from typing import Dict, Any
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 
+from dependencies import SessionsDep
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# This will be set by app.py
-_shared_sessions: Dict[str, Any] = {}
 
 # Jinja2 templates - set by setup_home_router()
 _templates: Jinja2Templates = None
@@ -23,8 +22,7 @@ _templates: Jinja2Templates = None
 
 def setup_home_router(sessions_dict: Dict[str, Any], templates_dir: Path = None):
     """Setup the home router with shared sessions dictionary and templates"""
-    global _shared_sessions, _templates
-    _shared_sessions = sessions_dict
+    global _templates
 
     if templates_dir is None:
         templates_dir = Path(__file__).parent.parent / "templates"
@@ -32,8 +30,9 @@ def setup_home_router(sessions_dict: Dict[str, Any], templates_dir: Path = None)
 
 
 @router.get("/")
-async def home(request: Request):
+async def home(request: Request, sessions: SessionsDep):
     """Home page with FIT file upload form"""
+    _ = sessions
     return _templates.TemplateResponse(
         request=request,
         name="home.html",

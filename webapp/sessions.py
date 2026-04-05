@@ -1,15 +1,67 @@
-"""
-Session storage with TTL and LRU eviction.
-Compatible with dict-style access used by route modules.
-"""
+"""Session stores with TTL/LRU semantics for route modules."""
 
+import hashlib
+import hmac
+import os
+import pickle
 import time
+import importlib
 import logging
 from collections import OrderedDict
 from threading import Lock
-from typing import Any, Dict, Iterator, MutableMapping
+from typing import Any, Dict, Iterator, MutableMapping, Optional
+
+try:
+    redis = importlib.import_module("redis")
+except Exception:  # pragma: no cover - optional dependency at import time
+    redis = None
 
 logger = logging.getLogger(__name__)
+
+# HMAC-SHA256 key for signing Redis session payloads.
+# Set SESSION_SECRET_KEY in the environment; if unset, signing is skipped and
+# a warning is emitted at startup. Unauthenticated payloads are refused when
+# a key IS configured, providing integrity protection against Redis injection.
+_SESSION_SECRET: bytes = os.getenv("SESSION_SECRET_KEY", "").encode()
+if not _SESSION_SECRET:
+    logger.warning(
+        "SESSION_SECRET_KEY is not set. Redis session payloads will not be "
+        "integrity-protected. Set this variable in production."
+    )
+
+_SIGN_FLAG_UNSIGNED = b"\x00"
+_SIGN_FLAG_SIGNED = b"\x01"
+_HMAC_DIGEST_SIZE = 32  # SHA-256
+
+
+def _sign_payload(data: bytes) -> bytes:
+    """Prepend an HMAC-SHA256 tag when a secret key is configured."""
+    if not _SESSION_SECRET:
+        return _SIGN_FLAG_UNSIGNED + data
+    tag = hmac.new(_SESSION_SECRET, data, hashlib.sha256).digest()
+    return _SIGN_FLAG_SIGNED + tag + data
+
+
+def _verify_payload(signed: bytes) -> bytes:
+    """Return the raw payload after verifying the HMAC tag, or raise ValueError."""
+    if len(signed) < 1:
+        raise ValueError("Empty payload")
+    flag = signed[:1]
+    if flag == _SIGN_FLAG_UNSIGNED:
+        return signed[1:]
+    if flag != _SIGN_FLAG_SIGNED:
+        raise ValueError("Unknown payload format")
+    if len(signed) < 1 + _HMAC_DIGEST_SIZE:
+        raise ValueError("Payload too short to contain HMAC tag")
+    tag = signed[1 : 1 + _HMAC_DIGEST_SIZE]
+    data = signed[1 + _HMAC_DIGEST_SIZE :]
+    if not _SESSION_SECRET:
+        # Key was present when signed but is now gone – refuse the payload.
+        raise ValueError("SESSION_SECRET_KEY not set; refusing signed payload")
+    expected = hmac.new(_SESSION_SECRET, data, hashlib.sha256).digest()
+    if not hmac.compare_digest(tag, expected):
+        raise ValueError("Session payload integrity check failed")
+    return data
 
 
 class SessionStore(MutableMapping[str, Dict[str, Any]]):
@@ -101,3 +153,142 @@ class SessionStore(MutableMapping[str, Dict[str, Any]]):
             value = self._store[key]
             self._remove(key)
             return value
+
+
+class RedisSessionStore(MutableMapping[str, Dict[str, Any]]):
+    """Redis-backed session store with TTL and LRU eviction."""
+
+    def __init__(
+        self,
+        redis_url: str,
+        max_sessions: int = 20,
+        ttl_seconds: int = 86400,
+        key_prefix: str = "peffort:session:",
+    ):
+        if redis is None:
+            raise RuntimeError("redis package not installed. Add 'redis' to requirements.")
+
+        self._client = redis.Redis.from_url(redis_url, decode_responses=False)
+        self._max_sessions = max_sessions
+        self._ttl_seconds = ttl_seconds
+        self._key_prefix = key_prefix
+        self._index_key = f"{key_prefix}index"
+        self._lock = Lock()
+
+        # Fail fast on startup misconfiguration.
+        self._client.ping()
+
+    def _data_key(self, session_id: str) -> str:
+        return f"{self._key_prefix}{session_id}"
+
+    def _touch_locked(self, session_id: str) -> None:
+        now = time.time()
+        self._client.zadd(self._index_key, {session_id: now})
+        self._client.expire(self._index_key, self._ttl_seconds * 2)
+
+    def _evict_lru_locked(self) -> None:
+        count = self._client.zcard(self._index_key)
+        overflow = max(0, count - self._max_sessions)
+        if overflow <= 0:
+            return
+        oldest = self._client.zrange(self._index_key, 0, overflow - 1)
+        if not oldest:
+            return
+        for sid_raw in oldest:
+            sid = sid_raw.decode("utf-8") if isinstance(sid_raw, bytes) else str(sid_raw)
+            self._client.delete(self._data_key(sid))
+            self._client.zrem(self._index_key, sid)
+            logger.info("LRU session evicted from Redis: %s", sid)
+
+    def cleanup(self) -> None:
+        """Prune index entries pointing to expired/missing Redis values."""
+        with self._lock:
+            members = self._client.zrange(self._index_key, 0, -1)
+            if not members:
+                return
+            stale: list[str] = []
+            for sid_raw in members:
+                sid = sid_raw.decode("utf-8") if isinstance(sid_raw, bytes) else str(sid_raw)
+                if not self._client.exists(self._data_key(sid)):
+                    stale.append(sid)
+            if stale:
+                self._client.zrem(self._index_key, *stale)
+
+    def __getitem__(self, key: str) -> Dict[str, Any]:
+        with self._lock:
+            data = self._client.get(self._data_key(key))
+            if data is None:
+                raise KeyError(key)
+            try:
+                raw = _verify_payload(data)
+                session = pickle.loads(raw)
+            except Exception:
+                self._client.delete(self._data_key(key))
+                self._client.zrem(self._index_key, key)
+                raise KeyError(key)
+            self._client.expire(self._data_key(key), self._ttl_seconds)
+            self._touch_locked(key)
+            return session
+
+    def __setitem__(self, key: str, value: Dict[str, Any]) -> None:
+        raw = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+        payload = _sign_payload(raw)
+        with self._lock:
+            self._client.setex(self._data_key(key), self._ttl_seconds, payload)
+            self._touch_locked(key)
+            self._evict_lru_locked()
+
+    def __delitem__(self, key: str) -> None:
+        with self._lock:
+            deleted = self._client.delete(self._data_key(key))
+            self._client.zrem(self._index_key, key)
+            if not deleted:
+                raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        pattern = f"{self._key_prefix}*"
+        prefix_len = len(self._key_prefix)
+        keys: list[str] = []
+        for key in self._client.scan_iter(match=pattern, count=200):
+            key_str = key.decode("utf-8") if isinstance(key, bytes) else str(key)
+            if key_str == self._index_key:
+                continue
+            keys.append(key_str[prefix_len:])
+        return iter(keys)
+
+    def __len__(self) -> int:
+        return sum(1 for _ in self.__iter__())
+
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            return False
+        return bool(self._client.exists(self._data_key(key)))
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def pop(self, key: str, default: Any = None) -> Any:
+        with self._lock:
+            data = self._client.get(self._data_key(key))
+            if data is None:
+                return default
+            self._client.delete(self._data_key(key))
+            self._client.zrem(self._index_key, key)
+            try:
+                raw = _verify_payload(data)
+                return pickle.loads(raw)
+            except Exception:
+                return default
+
+
+def create_session_store(max_sessions: int = 20, ttl_seconds: int = 86400) -> MutableMapping[str, Dict[str, Any]]:
+    """Create session store from environment (Redis preferred when configured)."""
+    redis_url: Optional[str] = os.getenv("REDIS_URL", "").strip() or None
+    if redis_url:
+        logger.info("Using Redis session store")
+        return RedisSessionStore(redis_url=redis_url, max_sessions=max_sessions, ttl_seconds=ttl_seconds)
+    logger.info("Using in-memory session store")
+    return SessionStore(max_sessions=max_sessions, ttl_seconds=ttl_seconds)
