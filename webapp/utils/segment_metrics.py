@@ -72,7 +72,6 @@ def compute_segment_metrics(
     seg_grade: np.ndarray,
     seg_cadence: np.ndarray,
     avg_power: float,
-    cp: float,
     weight: float,
     start_time_sec: float,
     kj: float,
@@ -133,11 +132,12 @@ def compute_segment_metrics(
 
     best_5s_watt = 0
     best_5s_watt_kg = 0.0
-    if len(seg_power) >= 5 and weight > 0:
+    if len(seg_power) >= 5:
         moving_avgs = [seg_power[i : i + 5].mean() for i in range(len(seg_power) - 4)]
         best_5s = max(moving_avgs) if moving_avgs else 0.0
         best_5s_watt = int(best_5s)
-        best_5s_watt_kg = float(best_5s / weight)
+        if weight > 0:
+            best_5s_watt_kg = float(best_5s / weight)
 
     avg_power_per_kg = float(avg_power / weight) if weight > 0 else 0.0
 

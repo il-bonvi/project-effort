@@ -219,7 +219,6 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             seg_grade=seg_grade,
             seg_cadence=seg_cadence,
             avg_power=float(avg_power),
-            cp=float(cp),
             weight=float(weight),
             start_time_sec=float(time_sec[s]) if s < len(time_sec) else 0.0,
             kj=kj,

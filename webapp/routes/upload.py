@@ -64,12 +64,21 @@ def setup_upload_router(sessions_dict: Dict[str, Any]):
 def _is_upload_rate_limited(client_ip: str) -> bool:
     now = time.monotonic()
     with _upload_rate_lock:
-        queue = _upload_timestamps.setdefault(client_ip, deque())
-        while queue and now - queue[0] > RATE_LIMIT_WINDOW_SECONDS:
-            queue.popleft()
-        if len(queue) >= RATE_LIMIT_MAX_REQUESTS:
+        queue = _upload_timestamps.get(client_ip)
+        if queue is not None:
+            # Prune expired timestamps.
+            while queue and now - queue[0] > RATE_LIMIT_WINDOW_SECONDS:
+                queue.popleft()
+            # Remove idle entry to prevent unbounded dict growth.
+            if not queue:
+                del _upload_timestamps[client_ip]
+                queue = None
+        if queue is not None and len(queue) >= RATE_LIMIT_MAX_REQUESTS:
             return True
+        if queue is None:
+            queue = deque()
         queue.append(now)
+        _upload_timestamps[client_ip] = queue
         return False
 
 

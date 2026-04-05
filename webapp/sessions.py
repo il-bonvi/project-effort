@@ -1,5 +1,7 @@
 """Session stores with TTL/LRU semantics for route modules."""
 
+import hashlib
+import hmac
 import os
 import pickle
 import time
@@ -15,6 +17,51 @@ except Exception:  # pragma: no cover - optional dependency at import time
     redis = None
 
 logger = logging.getLogger(__name__)
+
+# HMAC-SHA256 key for signing Redis session payloads.
+# Set SESSION_SECRET_KEY in the environment; if unset, signing is skipped and
+# a warning is emitted at startup. Unauthenticated payloads are refused when
+# a key IS configured, providing integrity protection against Redis injection.
+_SESSION_SECRET: bytes = os.getenv("SESSION_SECRET_KEY", "").encode()
+if not _SESSION_SECRET:
+    logger.warning(
+        "SESSION_SECRET_KEY is not set. Redis session payloads will not be "
+        "integrity-protected. Set this variable in production."
+    )
+
+_SIGN_FLAG_UNSIGNED = b"\x00"
+_SIGN_FLAG_SIGNED = b"\x01"
+_HMAC_DIGEST_SIZE = 32  # SHA-256
+
+
+def _sign_payload(data: bytes) -> bytes:
+    """Prepend an HMAC-SHA256 tag when a secret key is configured."""
+    if not _SESSION_SECRET:
+        return _SIGN_FLAG_UNSIGNED + data
+    tag = hmac.new(_SESSION_SECRET, data, hashlib.sha256).digest()
+    return _SIGN_FLAG_SIGNED + tag + data
+
+
+def _verify_payload(signed: bytes) -> bytes:
+    """Return the raw payload after verifying the HMAC tag, or raise ValueError."""
+    if len(signed) < 1:
+        raise ValueError("Empty payload")
+    flag = signed[:1]
+    if flag == _SIGN_FLAG_UNSIGNED:
+        return signed[1:]
+    if flag != _SIGN_FLAG_SIGNED:
+        raise ValueError("Unknown payload format")
+    if len(signed) < 1 + _HMAC_DIGEST_SIZE:
+        raise ValueError("Payload too short to contain HMAC tag")
+    tag = signed[1 : 1 + _HMAC_DIGEST_SIZE]
+    data = signed[1 + _HMAC_DIGEST_SIZE :]
+    if not _SESSION_SECRET:
+        # Key was present when signed but is now gone – refuse the payload.
+        raise ValueError("SESSION_SECRET_KEY not set; refusing signed payload")
+    expected = hmac.new(_SESSION_SECRET, data, hashlib.sha256).digest()
+    if not hmac.compare_digest(tag, expected):
+        raise ValueError("Session payload integrity check failed")
+    return data
 
 
 class SessionStore(MutableMapping[str, Dict[str, Any]]):
@@ -173,7 +220,8 @@ class RedisSessionStore(MutableMapping[str, Dict[str, Any]]):
             if data is None:
                 raise KeyError(key)
             try:
-                session = pickle.loads(data)
+                raw = _verify_payload(data)
+                session = pickle.loads(raw)
             except Exception:
                 self._client.delete(self._data_key(key))
                 self._client.zrem(self._index_key, key)
@@ -183,7 +231,8 @@ class RedisSessionStore(MutableMapping[str, Dict[str, Any]]):
             return session
 
     def __setitem__(self, key: str, value: Dict[str, Any]) -> None:
-        payload = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+        raw = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+        payload = _sign_payload(raw)
         with self._lock:
             self._client.setex(self._data_key(key), self._ttl_seconds, payload)
             self._touch_locked(key)
@@ -229,7 +278,8 @@ class RedisSessionStore(MutableMapping[str, Dict[str, Any]]):
             self._client.delete(self._data_key(key))
             self._client.zrem(self._index_key, key)
             try:
-                return pickle.loads(data)
+                raw = _verify_payload(data)
+                return pickle.loads(raw)
             except Exception:
                 return default
 
