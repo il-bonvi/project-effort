@@ -18,8 +18,43 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Stream keys present on every effort/sprint in chart_data_json.
+# These are 120s-buffered time-series arrays (power, HR, cadence, …) that can
+# add several MB to the page payload for long or complex rides.  The 2D map
+# does not display the Stream modal, so stripping them is safe and reduces the
+# embedded JSON from potentially 5-10 MB down to < 1 MB.
+_STREAM_KEYS = (
+    'time_stream', 'power_stream', 'hr_stream', 'wkg_stream',
+    'cadence_stream', 'torque_stream', 'speed_stream',
+    'stream_effort_start', 'stream_effort_end', 'stream_effort_duration',
+)
 
-def _build_map2d_cache_signature(session: Dict[str, Any]) -> tuple[Any, ...]:
+
+def _strip_stream_data(chart_data_json: str) -> str:
+    """
+    Remove per-effort/sprint stream arrays before embedding in 2D map HTML.
+
+    Stream arrays (120 s power/HR/cadence buffers per effort) can add several MB
+    to the page payload for long or complex rides.  The 2D map's Stream modal
+    buttons already guard against missing stream data (they check for
+    ``data.time_stream`` before proceeding), so removing the arrays here is
+    fully safe — the buttons simply become no-ops on the 2D map view.
+    """
+    try:
+        data = json.loads(chart_data_json)
+        for key in ('efforts', 'sprints'):
+            for item in data.get(key, []):
+                for sk in _STREAM_KEYS:
+                    item.pop(sk, None)
+        return json.dumps(data)
+    except Exception:
+        # Parsing failed for an unexpected reason — return original so the page
+        # still loads (slowly), rather than crashing the route entirely.
+        logger.warning("_strip_stream_data: could not parse chart_data_json, returning original")
+        return chart_data_json
+
+
+def _build_map2d_cache_signature(session: Dict[str, Any]) -> tuple:
     """Build a deterministic signature for map2d HTML cache invalidation."""
     efforts = tuple((int(s), int(e), round(float(avg), 3)) for s, e, avg in session.get('efforts', []))
     sprints = tuple(
@@ -129,7 +164,7 @@ async def map2d_view(session_id: str, sessions: SessionsDep):
         power_total   = df['power'].values.tolist()       if 'power'      in df.columns else [0.0]*len(df)
         hr_total      = df['heartrate'].values.tolist()   if 'heartrate'  in df.columns else [0.0]*len(df)
         cadence_total = df['cadence'].values.tolist()     if 'cadence'    in df.columns else [0.0]*len(df)
-        
+
         # Format time values as HH:MM:SS or MM:SS
         time_formatted = []
         for t in time_total:
@@ -149,9 +184,12 @@ async def map2d_view(session_id: str, sessions: SessionsDep):
             'efforts':   efforts_list,
         })
 
-        # Chart data (zones, cp, sprints with stream data)
+        # Chart data (zones, cp, sprints with metrics).
+        # Stream arrays are stripped to avoid embedding several MB of inline JSON
+        # for long/complex rides — the 2D map does not use the Stream modal.
         try:
-            chart_data_json = get_chart_data_json(session)
+            raw_chart_data_json = get_chart_data_json(session)
+            chart_data_json = _strip_stream_data(raw_chart_data_json)
         except Exception as e:
             logger.warning(f"Could not prepare chart data: {e}")
             chart_data_json = '{}'
