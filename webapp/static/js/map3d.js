@@ -225,21 +225,44 @@ function buildZoneColoredSelectionGeoJSON(startIdx, endIdx) {
 
     const first = Math.max(1, startIdx);
     const last = Math.min(endIdx, Math.min(coords.length, power5s.length) - 1);
+    if (first > last) return emptyFeatureCollection;
+
+    let currentColor = null;
+    let currentCoords = [];
 
     for (let i = first; i <= last; i++) {
         const c0 = coords[i - 1];
         const c1 = coords[i];
         if (!c0 || !c1) continue;
+
+        const color = zoneColorForPower(Number(power5s[i] || 0));
+
+        if (color !== currentColor) {
+            // Flush previous run
+            if (currentCoords.length >= 2 && currentColor) {
+                features.push({
+                    type: 'Feature',
+                    properties: { color: currentColor },
+                    geometry: { type: 'LineString', coordinates: currentCoords },
+                });
+            }
+            // Share boundary point to avoid gaps between zone runs
+            currentCoords = currentCoords.length
+                ? [currentCoords[currentCoords.length - 1], c1]
+                : [c0, c1];
+            currentColor = color;
+        } else {
+            if (!currentCoords.length) currentCoords.push(c0);
+            currentCoords.push(c1);
+        }
+    }
+
+    // Flush last run
+    if (currentCoords.length >= 2 && currentColor) {
         features.push({
             type: 'Feature',
-            properties: {
-                color: zoneColorForPower(Number(power5s[i] || 0)),
-                p5s: Number(power5s[i] || 0),
-            },
-            geometry: {
-                type: 'LineString',
-                coordinates: [c0, c1],
-            },
+            properties: { color: currentColor },
+            geometry: { type: 'LineString', coordinates: currentCoords },
         });
     }
 
@@ -1366,10 +1389,14 @@ function addOverlays() {
             'id': 'traccia-selected-zones-line',
             'type': 'line',
             'source': 'traccia-selected-zones',
+            'layout': {
+                'line-cap': 'butt',
+                'line-join': 'miter',
+            },
             'paint': {
                 'line-color': ['get', 'color'],
                 'line-width': 7,
-                'line-opacity': 1
+                'line-opacity': 1,
             }
         });
     }

@@ -464,16 +464,48 @@
     function buildZoneColoredSelectionPolylines(startIdx, endIdx) {
         const coords = geojson_str?.features?.[0]?.geometry?.coordinates || [];
         const power5s = computePower5sProfile();
-        if (!coords.length || !power5s.length) return [];
+        const groups = [];
+
+        if (!coords.length || !power5s.length) return groups;
+
         const first = Math.max(1, startIdx);
-        const last = Math.min(endIdx, Math.min(coords.length, power5s.length)-1);
-        const segments = [];
+        const last = Math.min(endIdx, Math.min(coords.length, power5s.length) - 1);
+        if (first > last) return groups;
+
+        let currentColor = null;
+        let currentLatlngs = [];
+
         for (let i = first; i <= last; i++) {
-            const c0 = coords[i-1], c1 = coords[i];
+            const c0 = coords[i - 1];
+            const c1 = coords[i];
             if (!c0 || !c1) continue;
-            segments.push({ latlngs: [[c0[1],c0[0]], [c1[1],c1[0]]], color: zoneColorForPower(Number(power5s[i]||0)) });
+
+            const color = zoneColorForPower(Number(power5s[i] || 0));
+
+            if (color !== currentColor) {
+                // Flush the previous run as one polyline
+                if (currentLatlngs.length >= 2 && currentColor) {
+                    groups.push({ latlngs: currentLatlngs, color: currentColor });
+                }
+                // Share the boundary point so there is no gap between zones
+                currentLatlngs = currentLatlngs.length
+                    ? [currentLatlngs[currentLatlngs.length - 1], [c1[1], c1[0]]]
+                    : [[c0[1], c0[0]], [c1[1], c1[0]]];
+                currentColor = color;
+            } else {
+                if (!currentLatlngs.length) {
+                    currentLatlngs.push([c0[1], c0[0]]);
+                }
+                currentLatlngs.push([c1[1], c1[0]]);
+            }
         }
-        return segments;
+
+        // Flush last run
+        if (currentLatlngs.length >= 2 && currentColor) {
+            groups.push({ latlngs: currentLatlngs, color: currentColor });
+        }
+
+        return groups;
     }
 
     let selectedZonePolylines = [];
@@ -483,9 +515,15 @@
     }
     function drawSelectedZonePolylines(startIdx, endIdx) {
         clearSelectedZonePolylines();
-        const segs = buildZoneColoredSelectionPolylines(startIdx, endIdx);
-        segs.forEach(seg => {
-            const p = L.polyline(seg.latlngs, { color: seg.color, weight: 7, opacity: 1 }).addTo(map);
+        const groups = buildZoneColoredSelectionPolylines(startIdx, endIdx);
+        groups.forEach(group => {
+            const p = L.polyline(group.latlngs, {
+                color: group.color,
+                weight: 7,
+                opacity: 1,
+                lineCap: 'butt',
+                lineJoin: 'miter',
+            }).addTo(map);
             selectedZonePolylines.push(p);
         });
     }
