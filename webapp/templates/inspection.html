@@ -1081,6 +1081,60 @@
                     .scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
 
+            function recalculateIntervalLabels() {
+                // Efforts: chronological order by start time
+                const effortOrder = effortsData
+                    .map((effort, idx) => ({ idx, start: Number(effort.start) || 0, end: Number(effort.end) || 0 }))
+                    .sort((a, b) => (a.start - b.start) || (a.end - b.end));
+                effortOrder.forEach((item, rank) => {
+                    if (effortsData[item.idx]) {
+                        effortsData[item.idx].label = `Effort ${rank + 1}`;
+                    }
+                });
+
+                // Sprints: descending by avg power
+                const sprintOrder = sprintsData
+                    .map((sprint, idx) => ({ idx, avg: Number(sprint.avg_power) || 0, start: Number(sprint.start) || 0 }))
+                    .sort((a, b) => (b.avg - a.avg) || (a.start - b.start));
+                sprintOrder.forEach((item, rank) => {
+                    if (sprintsData[item.idx]) {
+                        sprintsData[item.idx].label = `Sprint ${rank + 1}`;
+                    }
+                });
+            }
+
+            function refreshLegendLabels() {
+                effortsData.forEach((effort, idx) => {
+                    const card = document.getElementById(`effort-${idx}`);
+                    if (!card) return;
+                    const strongEl = card.querySelector('strong');
+                    const infoEl = document.getElementById(`effort-info-${idx}`);
+                    if (strongEl) strongEl.textContent = effort.label;
+                    if (infoEl) {
+                        infoEl.textContent = `${effort.start.toFixed(0)}s - ${effort.end.toFixed(0)}s | ${(effort.end - effort.start).toFixed(0)}s | ${effort.avg_power.toFixed(0)}W`;
+                    }
+                });
+
+                sprintsData.forEach((sprint, idx) => {
+                    const card = document.getElementById(`sprint-${idx}`);
+                    if (!card) return;
+                    const strongEl = card.querySelector('strong');
+                    const infoEl = card.querySelector('span[style*="color: #9ca3b8"]');
+                    if (strongEl) strongEl.textContent = sprint.label;
+                    if (infoEl) {
+                        infoEl.textContent = `${sprint.start.toFixed(0)}s - ${sprint.end.toFixed(0)}s | ${sprint.duration.toFixed(0)}s | ${sprint.max_power.toFixed(0)}W | ${sprint.avg_power.toFixed(0)}W`;
+                    }
+                });
+            }
+
+            function normalizeFrontendLabels() {
+                recalculateIntervalLabels();
+                refreshLegendLabels();
+            }
+
+            // Ensure labels are canonical on first render as well.
+            normalizeFrontendLabels();
+
             // =====================
             // LOCAL INTENSITY ZONES (Independent from global coloring)
             // =====================
@@ -1570,6 +1624,7 @@
             }
 
             function rebuildChart(skipAnimation = false) {
+                recalculateIntervalLabels();
                 const currentOption = myChart.getOption();
                 let dataZoomState = null;
                 if (currentOption && currentOption.dataZoom && currentOption.dataZoom[0]) {
@@ -1880,6 +1935,8 @@
 
             document.addEventListener('mouseup', function() {
                 draggingState = null;
+                normalizeFrontendLabels();
+                rebuildChart(true);
             });
 
             window.addEventListener('resize', function() {
@@ -1938,6 +1995,9 @@
                 saveBtn.textContent = '⏳ Salvataggio locale...';
                 
                 try {
+                    // Keep labels aligned with canonical order before persisting modifications.
+                    normalizeFrontendLabels();
+
                     // Prepare data for API call - send modified efforts and sprints with their timestamps
                     const modifiedEfforts = [];
                     const deletedEffortIndices = Array.from(deletedEfforts);

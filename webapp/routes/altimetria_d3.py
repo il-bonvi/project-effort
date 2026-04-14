@@ -174,9 +174,15 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     # Process efforts
     efforts_data = []
     efforts_with_idx = [(i, eff) for i, eff in enumerate(efforts)]
+    # Sort by start time (chronological order) to assign correct IDs
+    efforts_by_time = sorted(efforts_with_idx, key=lambda x: x[1][0])  # Sort by start index
+    # Create mapping: original_idx -> chronological_id
+    chrono_id_map = {orig_idx: chrono_id for chrono_id, (orig_idx, _) in enumerate(efforts_by_time)}
+    # Then sort by power for display (rank by power)
     sorted_efforts = sorted(efforts_with_idx, key=lambda x: x[1][2], reverse=True)
     
     for rank_idx, (orig_idx, (s, e, avg)) in enumerate(sorted_efforts):
+        chrono_id = chrono_id_map[orig_idx]  # Get chronological ID
         seg_power = power[s:e]
         seg_alt = alt[s:e]
         seg_dist_km = dist_km[s:e]
@@ -269,7 +275,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             speed_stream.append(float(np.mean(raw_speed[start:end])))
         
         effort_info = {
-            'id': orig_idx,
+            'id': chrono_id,  # Use chronological ID (0-indexed, E#1 = id:0)
             'rank': rank_idx + 1,
             'line_data': line_data,
             'label_x': round((seg_dist_km[0] + seg_dist_km[-1]) / 2, 2),
@@ -501,7 +507,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             v_max = float(max(valid_speeds)) if valid_speeds else 0.0
         
         sprint_info = {
-            'id': orig_idx,
+            'id': rank_idx,  # Use rank index (0-indexed, S#1 = id:0) ordered by power
             'rank': rank_idx + 1,
             'line_data': line_data,
             'label_x': round((seg_dist_km[0] + seg_dist_km[-1]) / 2, 2),

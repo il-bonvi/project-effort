@@ -139,7 +139,8 @@ def generate_inspection_data(
     efforts_data = []
     colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6']
 
-    for i, (start_idx, end_idx, avg_w) in enumerate(efforts):
+    ordered_efforts = sorted(efforts, key=lambda e: (int(e[0]), int(e[1])))
+    for i, (start_idx, end_idx, avg_w) in enumerate(ordered_efforts):
         # Validate indices
         if not (0 <= start_idx < n_samples):
             continue
@@ -166,7 +167,8 @@ def generate_inspection_data(
     sprints_data = []
     sprint_colors = ['#dc2626', '#ea580c', '#f59e0b', '#84cc16', '#10b981', '#06b6d4']
 
-    for i, sprint in enumerate(sprints):
+    ordered_sprints = sorted(sprints, key=lambda s: float(s.get('avg', 0.0)), reverse=True)
+    for i, sprint in enumerate(ordered_sprints):
         start_idx = sprint.get('start', 0)
         end_idx = sprint.get('end', start_idx + 1)
 

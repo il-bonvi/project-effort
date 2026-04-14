@@ -18,7 +18,7 @@ import urllib.request
 from datetime import datetime, timezone
 import numpy as np
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 from io import StringIO, BytesIO
 
 from fastapi import APIRouter, HTTPException, Body, Request
@@ -40,6 +40,24 @@ def _invalidate_session_caches(session: Dict[str, Any]) -> None:
     session.pop('_chart_data_cache', None)
     session.pop('_map2d_html_cache', None)
     session.pop('_map3d_html_cache', None)
+
+
+def _normalize_efforts(efforts: List[Tuple[int, int, float]]) -> List[Tuple[int, int, float]]:
+    """Canonical effort order: chronological by start index (then end index)."""
+    return sorted(efforts, key=lambda e: (int(e[0]), int(e[1])))
+
+
+def _normalize_sprints(sprints: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Canonical sprint order: descending average power."""
+    return sorted(sprints, key=lambda s: float(s.get('avg', 0.0)), reverse=True)
+
+
+def _normalize_session_intervals(session: Dict[str, Any]) -> None:
+    """Keep session intervals in canonical order for cross-tab stable numbering."""
+    if 'efforts' in session and isinstance(session.get('efforts'), list):
+        session['efforts'] = _normalize_efforts(session.get('efforts', []))
+    if 'sprints' in session and isinstance(session.get('sprints'), list):
+        session['sprints'] = _normalize_sprints(session.get('sprints', []))
 
 
 def setup_api_router(sessions_dict: Dict[str, Dict[str, Any]]) -> APIRouter:
@@ -327,7 +345,7 @@ async def merge_efforts(session_id: str, request: MergeRequest, sessions: Sessio
     new_efforts.append((new_start, new_end, new_avg_power))
     new_efforts.sort(key=lambda x: x[0])
 
-    session['efforts'] = new_efforts
+    session['efforts'] = _normalize_efforts(new_efforts)
     _invalidate_session_caches(session)
 
     return {
@@ -425,7 +443,7 @@ async def split_effort(session_id: str, request: SplitRequest, sessions: Session
     new_efforts.append((split_idx, end_idx, avg_power2))
     new_efforts.sort(key=lambda x: x[0])
 
-    session['efforts'] = new_efforts
+    session['efforts'] = _normalize_efforts(new_efforts)
     _invalidate_session_caches(session)
 
     return {
@@ -614,12 +632,12 @@ async def import_modifications(session_id: str, modifications: LegacyImportReque
 
         new_efforts.append((start_idx, end_idx, avg_power))
 
-    session['efforts'] = new_efforts
+    session['efforts'] = _normalize_efforts(new_efforts)
 
     # Remove deleted sprints
     sprints = session.get('sprints', [])
     new_sprints = [sprint for i, sprint in enumerate(sprints) if i not in deleted_sprint_indices]
-    session['sprints'] = new_sprints
+    session['sprints'] = _normalize_sprints(new_sprints)
     _invalidate_session_caches(session)
 
     return {
@@ -680,7 +698,7 @@ async def redetect_efforts_impl(
 
         efforts = split_included(df=df, efforts=efforts)
 
-        session['efforts'] = efforts
+        session['efforts'] = _normalize_efforts(efforts)
         _invalidate_session_caches(session)
 
         if 'effort_config' not in session:
@@ -738,7 +756,7 @@ async def redetect_sprints_impl(
             merge_gap_sec=merge_gap_sec
         )
 
-        session['sprints'] = sprints
+        session['sprints'] = _normalize_sprints(sprints)
         _invalidate_session_caches(session)
 
         if 'sprint_config' not in session:
@@ -942,6 +960,7 @@ async def apply_local_modifications(session_id: str, data: LocalModificationsReq
         # Update session with new efforts and sprints
         session['efforts'] = new_efforts
         session['sprints'] = new_sprints
+        _normalize_session_intervals(session)
         _invalidate_session_caches(session)
         
         logger.info(f"Applied local modifications for session {session_id}: {len(new_efforts)} efforts, {len(new_sprints)} sprints")
@@ -1298,7 +1317,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
                 modified_efforts.append((start_idx, end_idx, avg_power))
 
         # Update session with modified efforts
-        session['efforts'] = modified_efforts
+        session['efforts'] = _normalize_efforts(modified_efforts)
 
         # Process sprints: convert from timestamps to indices
         modified_sprints = []
@@ -1372,7 +1391,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
             }
             modified_sprints.append(sprint_dict)
         
-        session['sprints'] = modified_sprints
+        session['sprints'] = _normalize_sprints(modified_sprints)
 
         _invalidate_session_caches(session)
         
