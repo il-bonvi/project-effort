@@ -875,7 +875,7 @@ async def apply_local_modifications(session_id: str, data: LocalModificationsReq
             logger.info(f"Effort {i}: start_time={start_time}, end_time={end_time}")
             
             start_idx = get_closest_idx(start_time)
-            end_idx = get_closest_idx(end_time)
+            end_idx = get_closest_idx(end_time) + 1  # +1 to make end_idx exclusive (include selected endpoint)
             
             logger.info(f"Effort {i}: start_idx={start_idx}, end_idx={end_idx}")
             
@@ -912,7 +912,7 @@ async def apply_local_modifications(session_id: str, data: LocalModificationsReq
             logger.info(f"Sprint {i}: start_time={start_time}, end_time={end_time}")
             
             start_idx = get_closest_idx(start_time)
-            end_idx = get_closest_idx(end_time)
+            end_idx = get_closest_idx(end_time) + 1  # +1 to make end_idx exclusive (include selected endpoint)
             
             logger.info(f"Sprint {i}: start_idx={start_idx}, end_idx={end_idx}")
             
