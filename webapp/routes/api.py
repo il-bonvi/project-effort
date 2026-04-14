@@ -126,10 +126,22 @@ class DashboardImportEffort(BaseModel):
     deleted: bool = False
 
 
+class DashboardImportSprint(BaseModel):
+    """Sprint record used by dashboard JSON import."""
+    start: float
+    end: float
+    label: str
+    color: Optional[str] = None
+    avg: Optional[float] = None
+    duration: Optional[float] = None
+    max_power: Optional[float] = None
+
+
 class DashboardImportRequest(BaseModel):
     """Validated payload for dashboard JSON import."""
     session_id: str
     efforts: list[DashboardImportEffort]
+    sprints: list[DashboardImportSprint] = Field(default_factory=list)
     deleted_efforts: list[int] = Field(default_factory=list)
     deleted_sprints: list[int] = Field(default_factory=list)
 
@@ -263,35 +275,8 @@ async def update_cp_weight(session_id: str, request: UpdateCpWeightRequest, sess
         from utils.metrics import calculate_ride_stats
         session['stats'] = calculate_ride_stats(session['df'], request.cp)
 
-    # Re-detect efforts with new CP
-    if 'effort_config' in session:
-        from utils.effort_analyzer import create_efforts, merge_extend, split_included
-        df = session['df']
-        config = session['effort_config']
-        
-        efforts = create_efforts(
-            df=df,
-            cp=request.cp,
-            window_sec=config.window_seconds,
-            merge_pct=config.merge_power_diff_percent,
-            min_cp_pct=config.min_effort_intensity_cp,
-            trim_win=config.trim_window_seconds,
-            trim_low=config.trim_low_percent
-        )
-
-        efforts = merge_extend(
-            df=df,
-            efforts=efforts,
-            merge_pct=config.merge_power_diff_percent,
-            trim_win=config.trim_window_seconds,
-            trim_low=config.trim_low_percent,
-            extend_win=config.extend_window_seconds,
-            extend_low=config.extend_low_percent
-        )
-
-        efforts = split_included(df=df, efforts=efforts)
-        session['efforts'] = efforts
-
+    # Only invalidate caches to refresh metric calculations (avg_speed, W/kg, etc)
+    # DO NOT re-detect efforts/sprints - they are managed manually in inspection.html
     _invalidate_session_caches(session)
 
     logger.info(f"Updated session {session_id}: CP={request.cp}W, Weight={request.weight}kg")
@@ -1172,9 +1157,16 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
         raise HTTPException(status_code=404, detail="Session not found")
 
     try:
-        # Double-check session ID matches
+        # Log warning if session ID doesn't match (can happen when reloading same FIT file)
+        # but proceed anyway - the file content is what matters, not the session ID
         if modifications.session_id != session_id:
-            raise HTTPException(status_code=400, detail="Session ID mismatch - this JSON is from a different FIT file")
+            logger.warning(
+                f"Session ID mismatch during import: JSON was from session {modifications.session_id}, "
+                f"but importing to session {session_id}. This is normal when importing to a new session of the same FIT file."
+            )
+
+        logger.info(f"Importing modifications: {len(modifications.efforts)} efforts, {len(modifications.sprints)} sprints")
+        logger.debug(f"Deleted sprints indices: {modifications.deleted_sprints}")
 
         session = sessions[session_id]
 
@@ -1209,9 +1201,18 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
                 # Modify existing effort
                 orig_start_idx, orig_end_idx, orig_avg_power = original_efforts[effort_idx]
 
-                # Convert time back to indices (efficiently using numpy)
-                new_start_idx = int(np.argmin(np.abs(time_array - effort_data.new_start)))
-                new_end_idx = int(np.argmin(np.abs(time_array - effort_data.new_end)))
+                # Detect if new_start/new_end are indices (small integers) or timestamps (floats > ~1000)
+                start_value = float(effort_data.new_start)
+                end_value = float(effort_data.new_end)
+                
+                if start_value < 100000:
+                    # Direct indices
+                    new_start_idx = int(start_value)
+                    new_end_idx = int(end_value)
+                else:
+                    # Convert timestamps to indices
+                    new_start_idx = int(np.argmin(np.abs(time_array - start_value)))
+                    new_end_idx = int(np.argmin(np.abs(time_array - end_value)))
 
                 # Clamp to valid bounds
                 new_start_idx = max(0, min(new_start_idx, max_idx))
@@ -1238,7 +1239,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
 
                 # Recompute avg_power from the DataFrame slice when possible
                 if has_power_column:
-                    effort_slice = df.iloc[new_start_idx:new_end_idx + 1]
+                    effort_slice = df.iloc[new_start_idx:new_end_idx]
                     if not effort_slice.empty:
                         avg_power = float(effort_slice['power'].mean())
                     else:
@@ -1249,9 +1250,18 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
 
                 modified_efforts.append((new_start_idx, new_end_idx, avg_power))
             else:
-                # This is a new effort - convert times to indices (efficiently using numpy)
-                start_idx = int(np.argmin(np.abs(time_array - effort_data.new_start)))
-                end_idx = int(np.argmin(np.abs(time_array - effort_data.new_end)))
+                # This is a new effort - detect if indices or timestamps
+                start_value = float(effort_data.new_start)
+                end_value = float(effort_data.new_end)
+                
+                if start_value < 100000:
+                    # Direct indices
+                    start_idx = int(start_value)
+                    end_idx = int(end_value)
+                else:
+                    # Convert timestamps to indices
+                    start_idx = int(np.argmin(np.abs(time_array - start_value)))
+                    end_idx = int(np.argmin(np.abs(time_array - end_value)))
 
                 # Clamp to valid bounds
                 start_idx = max(0, min(start_idx, max_idx))
@@ -1276,7 +1286,7 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
 
                 # Recompute avg_power from the DataFrame slice when possible
                 if has_power_column:
-                    effort_slice = df.iloc[start_idx:end_idx + 1]
+                    effort_slice = df.iloc[start_idx:end_idx]
                     if not effort_slice.empty:
                         avg_power = float(effort_slice['power'].mean())
                     else:
@@ -1290,17 +1300,85 @@ async def import_dashboard_modifications(session_id: str, modifications: Dashboa
         # Update session with modified efforts
         session['efforts'] = modified_efforts
 
-        # Apply deleted_sprints, if the session has sprints data
-        if 'sprints' in session:
-            original_sprints = session['sprints']
-            session['sprints'] = [
-                sprint for idx, sprint in enumerate(original_sprints)
-                if idx not in deleted_sprints
-            ]
+        # Process sprints: convert from timestamps to indices
+        modified_sprints = []
+        
+        # Helper function to convert timestamp to index (reuse from efforts processing)
+        def get_sprint_closest_idx(timestamp: float) -> int:
+            """Find the closest index for a given timestamp."""
+            idx = int(np.searchsorted(time_array, timestamp, side='left'))
+            if idx <= 0:
+                return 0
+            if idx >= len(time_array):
+                return max_idx
+            prev_idx = idx - 1
+            if abs(time_array[idx] - timestamp) < abs(time_array[prev_idx] - timestamp):
+                return idx
+            return prev_idx
+        
+        for sprint_idx, sprint_data in enumerate(modifications.sprints):
+            # Skip if this sprint is marked as deleted
+            if sprint_idx in deleted_sprints:
+                continue
+            
+            # Detect if start/end are indices (small integers) or timestamps (floats > ~1000)
+            # If they're small integers < 100000, treat them as indices; otherwise convert from timestamps
+            start_value = float(sprint_data.start)
+            end_value = float(sprint_data.end)
+            
+            # Heuristic: if value < 100000, likely an index; if > 100000, likely a timestamp
+            if start_value < 100000:
+                # Direct indices
+                start_idx = int(start_value)
+                end_idx = int(end_value)
+            else:
+                # Convert timestamps to indices
+                start_idx = get_sprint_closest_idx(start_value)
+                end_idx = get_sprint_closest_idx(end_value)
+            
+            # Ensure valid range
+            if end_idx <= start_idx:
+                end_idx = start_idx + 1
+            if end_idx > max_idx:
+                end_idx = max_idx
+            if start_idx < 0:
+                start_idx = 0
+            
+            # Use provided avg_power, or calculate from df if not provided
+            if sprint_data.avg is not None:
+                avg_power = float(sprint_data.avg)
+            elif has_power_column:
+                power_data = df['power'].iloc[start_idx:end_idx].values
+                avg_power = float(np.mean(power_data)) if len(power_data) > 0 else 0.0
+            else:
+                avg_power = 0.0
+            
+            # Use provided max_power, or calculate from df if not provided
+            if sprint_data.max_power is not None:
+                max_power = float(sprint_data.max_power)
+            elif has_power_column:
+                power_data = df['power'].iloc[start_idx:end_idx].values
+                max_power = float(np.max(power_data)) if len(power_data) > 0 else 0.0
+            else:
+                max_power = 0.0
+            
+            sprint_dict = {
+                'start': start_idx,
+                'end': end_idx,
+                'label': sprint_data.label,
+                'avg': avg_power,
+                'max_power': max_power,
+                'color': sprint_data.color
+            }
+            modified_sprints.append(sprint_dict)
+        
+        session['sprints'] = modified_sprints
 
         _invalidate_session_caches(session)
+        
+        logger.info(f"Successfully imported {len(modified_efforts)} efforts and {len(modified_sprints)} sprints to session {session_id}")
 
-        return {"success": True, "message": f"Imported {len(modified_efforts)} efforts successfully"}
+        return {"success": True, "message": f"Imported {len(modified_efforts)} efforts and {len(modified_sprints)} sprints successfully"}
 
     except HTTPException:
         raise
@@ -1324,26 +1402,51 @@ async def export_modifications(session_id: str, sessions: SessionsDep):
     efforts = session['efforts']
     sprints = session['sprints']
 
-    # Convert efforts to modification format
+    # Convert efforts to modification format (keeping indices intact for exact round-trip)
     efforts_modifications = []
     for i, (start_idx, end_idx, avg_power) in enumerate(efforts):
-        start_time = df['time_sec'].iloc[start_idx]
-        end_time = df['time_sec'].iloc[end_idx - 1]
-
+        # Get actual time duration in seconds from DataFrame
+        start_time = df['time_sec'].iloc[start_idx] if start_idx < len(df) else 0
+        # For end_time, use the timestamp of the LAST included point (end_idx - 1)
+        end_time = df['time_sec'].iloc[min(end_idx - 1, len(df) - 1)] if end_idx > 0 else 0
+        duration_sec = float(end_time - start_time)
+        
         efforts_modifications.append({
             'index': i,
-            'new_start': float(start_time),
-            'new_end': float(end_time),
-            'duration': float(end_time - start_time),
+            'new_start': int(start_idx),  # Keep as index
+            'new_end': int(end_idx),      # Keep as index
+            'duration': duration_sec,     # Actual duration in seconds
             'avg_power': float(avg_power),
             'label': f"Effort {i+1}",
             'deleted': False
+        })
+
+    # Convert sprints to modification format (keeping indices intact for exact round-trip)
+    sprints_modifications = []
+    for i, sprint_dict in enumerate(sprints):
+        start_idx = sprint_dict['start']
+        end_idx = sprint_dict['end']
+        # Get actual time duration in seconds from DataFrame
+        start_time = df['time_sec'].iloc[start_idx] if start_idx < len(df) else 0
+        # For end_time, use the timestamp of the LAST included point (end_idx - 1)
+        end_time = df['time_sec'].iloc[min(end_idx - 1, len(df) - 1)] if end_idx > 0 else 0
+        duration_sec = float(end_time - start_time)
+        
+        sprints_modifications.append({
+            'start': int(start_idx),    # Keep as index
+            'end': int(end_idx),        # Keep as index
+            'label': sprint_dict.get('label', f"Sprint {i+1}"),
+            'color': sprint_dict.get('color', '#000000'),
+            'avg': float(sprint_dict.get('avg', 0.0)),
+            'duration': duration_sec,   # Actual duration in seconds
+            'max_power': float(sprint_dict.get('max_power', 0.0))
         })
 
     # Create modifications JSON
     data = {
         'session_id': session_id,
         'efforts': efforts_modifications,
+        'sprints': sprints_modifications,
         'deleted_efforts': [],
         'deleted_sprints': [],
         'timestamp': datetime.now(timezone.utc).isoformat(),

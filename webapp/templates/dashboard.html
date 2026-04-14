@@ -960,16 +960,11 @@
                 const jsonData = JSON.parse(text);
                 
                 // Validate JSON structure
-                if (!jsonData.session_id || !jsonData.efforts) {
+                if (!jsonData.efforts) {
                     throw new Error('Invalid JSON format. Missing required fields.');
                 }
                 
-                // Check if JSON is from the same FIT file
-                if (jsonData.session_id !== sessionId) {
-                    importStatus.textContent = '❌ Error: This JSON file is from a different FIT file. You can only import modifications for the currently loaded FIT file.';
-                    importStatus.style.color = '#ef4444';
-                    return;
-                }
+                // Note: session_id check is now only on server (allows importing to new sessions of same FIT file)
                 
                 importStatus.textContent = '⏳ Applying modifications...';
                 

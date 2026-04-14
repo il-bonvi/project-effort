@@ -580,7 +580,17 @@
     </div>
 
     <div style="margin: 20px 0;" id="sprintsContainer">
-        <h3 style="font-size: 1.2rem; color: #374151; margin-bottom: 10px;">🚀 Sprints Detected</h3>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+            <h3 style="font-size: 1.2rem; color: #374151;">🚀 Sprints Detected</h3>
+            <button id="addSprintBtn" style="
+                background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+                color: white; border: none; border-radius: 6px;
+                padding: 5px 12px; font-size: 0.82rem; font-weight: 600;
+                cursor: pointer; display: flex; align-items: center; gap: 5px;
+                transition: all 0.2s;">
+                ＋ Aggiungi Sprint
+            </button>
+        </div>
         <div class="legend" id="sprintsLegend"></div>
     </div>
 
@@ -980,6 +990,95 @@
                     }
                     rebuildChart();
                 });
+            });
+
+            document.getElementById('addSprintBtn').addEventListener('click', function() {
+                // Get current visible range from chart dataZoom
+                const chartOption = myChart.getOption();
+                const zoom = chartOption.dataZoom ? chartOption.dataZoom[0] : null;
+                const totalDuration = timeAxis[timeAxis.length - 1];
+
+                let visStart, visEnd;
+                if (zoom) {
+                    visStart = totalDuration * (zoom.start / 100);
+                    visEnd   = totalDuration * (zoom.end   / 100);
+                } else {
+                    visStart = 0;
+                    visEnd   = totalDuration;
+                }
+
+                // Place new sprint in the middle third of the visible window
+                const span    = visEnd - visStart;
+                const newStart = visStart + span / 3;
+                const newEnd   = visStart + (span * 2) / 3;
+
+                // Calculate avg power and max power for the new range
+                const startSample = timeAxis.findIndex(t => t >= newStart);
+                const endSample   = timeAxis.findIndex(t => t >= newEnd);
+                const slice = powerData.slice(
+                    Math.max(0, startSample),
+                    Math.max(1, endSample)
+                );
+                const avgPow = slice.length > 0
+                    ? slice.reduce((a, b) => a + b, 0) / slice.length
+                    : 0;
+                const maxPow = slice.length > 0
+                    ? Math.max(...slice)
+                    : 0;
+
+                const newIdx = sprintsData.length;
+                const newSprint = {
+                    id: newIdx,
+                    start: newStart,
+                    end: newEnd,
+                    duration: newEnd - newStart,
+                    avg_power: avgPow,
+                    max_power: maxPow,
+                    color: '#000000',
+                    label: `Sprint ${newIdx + 1}`
+                };
+
+                sprintsData.push(newSprint);
+                
+                // Create and add sprint card to legend
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+                item.id = `sprint-${newIdx}`;
+                item.style.borderLeftColor = newSprint.color;
+                item.style.background = '#fef2f2';
+                item.innerHTML = `
+                    <div style="display: flex; gap: 8px; align-items: center; flex: 1;">
+                        <div class="legend-color" style="background: ${newSprint.color};"></div>
+                        <div>
+                            <strong>${newSprint.label}</strong><br>
+                            <span style="color: #9ca3b8;">
+                                ${newSprint.start.toFixed(0)}s - ${newSprint.end.toFixed(0)}s | ${newSprint.duration.toFixed(0)}s | ${newSprint.max_power.toFixed(0)}W | ${newSprint.avg_power.toFixed(0)}W
+                            </span>
+                        </div>
+                    </div>
+                    <button class="delete-btn" data-sprint-idx="${newIdx}">×</button>
+                `;
+                sprintsLegendDiv.appendChild(item);
+
+                const deleteBtn = item.querySelector('.delete-btn');
+                deleteBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const sprintIdx = parseInt(this.dataset.sprintIdx);
+                    if (deletedSprints.has(sprintIdx)) {
+                        deletedSprints.delete(sprintIdx);
+                        item.classList.remove('deleted');
+                    } else {
+                        deletedSprints.add(sprintIdx);
+                        item.classList.add('deleted');
+                    }
+                    rebuildChart();
+                });
+
+                rebuildChart();
+
+                // Scroll to the new card
+                document.getElementById(`sprint-${newIdx}`)
+                    .scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
 
             // =====================
@@ -1739,6 +1838,19 @@
                     if (slice.length > 0) {
                         item.avg_power = slice.reduce((a, b) => a + b, 0) / slice.length;
                     }
+                } else if (draggingState.type === 'sprint') {
+                    // Recalculate sprint metrics
+                    const s = timeAxis.findIndex(t => t >= item.start);
+                    const e2 = timeAxis.findIndex(t => t >= item.end);
+                    const slice = powerData.slice(Math.max(0, s), Math.max(1, e2));
+                    if (slice.length > 0) {
+                        item.avg_power = slice.reduce((a, b) => a + b, 0) / slice.length;
+                        item.max_power = Math.max(...slice);
+                    } else {
+                        item.avg_power = 0;
+                        item.max_power = 0;
+                    }
+                    item.duration = item.end - item.start;
                 }
                 
                 rebuildChart();
@@ -1774,50 +1886,49 @@
                 myChart.resize();
             });
 
-            document.getElementById('saveButton').addEventListener('click', function() {
+            document.getElementById('saveButton').addEventListener('click', async function() {
                 const saveBtn = this;
                 const saveStatus = document.getElementById('saveStatus');
                 saveBtn.disabled = true;
                 saveBtn.textContent = '⏳ Salvataggio...';
-                const modifiedEfforts = effortsData.map((effort, idx) => ({
-                    index: idx,
-                    new_start: effort.start,
-                    new_end: effort.end,
-                    duration: effort.end - effort.start,
-                    avg_power: effort.avg_power,
-                    label: effort.label,
-                    deleted: deletedEfforts.has(idx)
-                }));
-                const activeEfforts = modifiedEfforts.filter(e => !e.deleted);
-                const dataToSend = {
-                    session_id: '{{ session_id }}',
-                    efforts: activeEfforts,
-                    deleted_efforts: Array.from(deletedEfforts),
-                    deleted_sprints: Array.from(deletedSprints),
-                    timestamp: new Date().toISOString(),
-                    total_efforts_original: modifiedEfforts.length,
-                    total_efforts_active: activeEfforts.length,
-                    total_sprints_original: sprintsData.length,
-                    total_sprints_active: sprintsData.length - deletedSprints.size
-                };
-                const jsonData = JSON.stringify(dataToSend, null, 2);
-                const blob = new Blob([jsonData], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'effort_modifications.json';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                saveBtn.disabled = false;
-                saveBtn.textContent = '✅ File Scaricato!';
-                saveStatus.textContent = 'File delle modifiche scaricato.';
-                saveStatus.style.color = '#22c55e';
-                setTimeout(() => {
-                    saveBtn.textContent = '📤 Esporta Modifiche';
-                    saveStatus.textContent = '';
-                }, 3000);
+                
+                try {
+                    // Call backend export-modifications API
+                    const response = await fetch(`/api/${'{{ session_id }}'}/export-modifications`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    const jsonData = JSON.stringify(data, null, 2);
+                    const blob = new Blob([jsonData], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'effort_modifications.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '✅ File Scaricato!';
+                    saveStatus.textContent = 'File delle modifiche scaricato.';
+                    saveStatus.style.color = '#22c55e';
+                    setTimeout(() => {
+                        saveBtn.textContent = '📤 Esporta Modifiche';
+                        saveStatus.textContent = '';
+                    }, 3000);
+                } catch (error) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '❌ Errore!';
+                    saveStatus.textContent = `Errore: ${error.message}`;
+                    saveStatus.style.color = '#ef4444';
+                    setTimeout(() => {
+                        saveBtn.textContent = '📤 Esporta Modifiche';
+                        saveStatus.textContent = '';
+                    }, 5000);
+                }
             });
 
             document.getElementById('saveLocalButton').addEventListener('click', function() {
