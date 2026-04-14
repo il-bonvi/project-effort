@@ -873,6 +873,9 @@ function buildSprintCard(s) {
             <div class="pc-metric"><span class="pc-label">⚖️ W/kg</span><span class="pc-value">${s.avg_power_per_kg}</span></div>
             <div class="pc-metric"><span class="pc-label">⚡ Max</span><span class="pc-value">${s.max_watt}W${s.rpm_at_max > 0 ? ' @ '+s.rpm_at_max+' rpm' : ''}</span></div>
             <div class="pc-metric"><span class="pc-label">⚡ Min</span><span class="pc-value">${s.min_watt}W${s.rpm_at_min > 0 ? ' @ '+s.rpm_at_min+' rpm' : ''}</span></div>
+            <div class="pc-metric"><span class="pc-label">⬅️ Speed Start</span><span class="pc-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">🔺 Speed Max</span><span class="pc-value">${s.v_max > 0 ? s.v_max+' km/h' : '-'}</span></div>
+            <div class="pc-metric"><span class="pc-label">➡️ Speed End</span><span class="pc-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
         </div>
         <div class="pc-col">
             <div class="pc-metric"><span class="pc-label">🌀 Avg Cad</span><span class="pc-value">${s.avg_cadence > 0 ? s.avg_cadence+' rpm' : '-'}</span></div>
@@ -883,8 +886,6 @@ function buildSprintCard(s) {
             <div class="pc-metric"><span class="pc-label">📏 Grade</span><span class="pc-value">${s.avg_grade}% · max ${s.max_grade}%</span></div>
         </div>
         <div class="pc-col">
-            <div class="pc-metric"><span class="pc-label">➡️ Speed Start</span><span class="pc-value">${s.v1 > 0 ? s.v1+' km/h' : '-'}</span></div>
-            <div class="pc-metric"><span class="pc-label">➡️ Speed End</span><span class="pc-value">${s.v2 > 0 ? s.v2+' km/h' : '-'}</span></div>
             <div class="pc-metric"><span class="pc-label">🔋 kJ Total</span><span class="pc-value">${s.kj} kJ</span></div>
             <div class="pc-metric"><span class="pc-label">🔺 kJ &gt; CP</span><span class="pc-value">${s.kj_over_cp} kJ</span></div>
             <div class="pc-metric"><span class="pc-label">💪 kJ/kg</span><span class="pc-value">${s.kj_kg}</span></div>
@@ -927,7 +928,7 @@ function buildSprintTooltip(s) {
     html += `🌀 🔺${s.max_cadence} rpm | 🔻${s.min_cadence} rpm<br/>`;
     html += `⚙️ 🔺${s.max_torque} Nm | 🔻${s.min_torque} Nm<br/>`;
     html += `❤️ 🔻${s.min_hr} bpm |🔺${s.max_hr} bpm<br/>`;
-    if (s.v1 > 0 && s.v2 > 0) html += `➡️ ${s.v1} km/h | ${s.v2} km/h<br/>`;
+    if (s.v1 > 0 && s.v_max > 0 && s.v2 > 0) html += `➡️ ${s.v1} | ⬆️ ${s.v_max} | ➡️ ${s.v2} km/h<br/>`;
     html += `📏 ∅ ${s.avg_grade}% max. ${s.max_grade}%<br/>`;
     html += `🕒 ${s.start_time}<br/>`;
     html += `🔋 ${s.kj} kJ | ${s.kj_over_cp} kJ > CP<br/>`;
@@ -1212,6 +1213,9 @@ function buildSidebar() {
             <div class="card-divider">
                 <div class="card-row">
                     <div class="card-metric"><span class="metric-label"> ➡️ Speed Start</span><span class="metric-value">${sprint.v1 > 0 ? sprint.v1+' km/h' : '-'}</span></div>
+                    <div class="card-metric"><span class="metric-label"> ⬆️ Speed Max</span><span class="metric-value">${sprint.v_max > 0 ? sprint.v_max+' km/h' : '-'}</span></div>
+                </div>
+                <div class="card-row">
                     <div class="card-metric"><span class="metric-label"> ➡️ Speed End</span><span class="metric-value">${sprint.v2 > 0 ? sprint.v2+' km/h' : '-'}</span></div>
                 </div>
             </div>

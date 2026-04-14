@@ -494,6 +494,12 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             end_idx = min(len(raw_speed), i + win // 2 + 1)
             speed_stream.append(float(np.mean(raw_speed[start_idx:end_idx])))
         
+        # Calculate max speed during sprint
+        v_max = 0.0
+        if len(speed_stream) > 0:
+            valid_speeds = [s for s in speed_stream if 0 <= s <= 130]  # Filter out unrealistic values
+            v_max = float(max(valid_speeds)) if valid_speeds else 0.0
+        
         sprint_info = {
             'id': orig_idx,
             'rank': rank_idx + 1,
@@ -519,6 +525,7 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             'rpm_at_min': rpm_at_min,
             'torque_at_min': torque_at_min,
             'v1': round(v1, 1),
+            'v_max': round(v_max, 1),
             'v2': round(v2, 1),
             'avg_grade': round(avg_grade, 1),
             'max_grade': round(max_grade, 1),

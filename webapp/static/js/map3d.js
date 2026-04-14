@@ -694,6 +694,9 @@ function buildSprintSidebarCard(s) {
                 <div class="metric-row"><span class="metric-label">⚖️ W/kg</span><span class="metric-value">${s.avg_power_per_kg}</span></div>
                 <div class="metric-row"><span class="metric-label">⚡ Max</span><span class="metric-value">${s.max_watt}W${s.rpm_at_max > 0 ? ` @ ${s.rpm_at_max} rpm` : ''}</span></div>
                 <div class="metric-row"><span class="metric-label">⚡ Min</span><span class="metric-value">${s.min_watt}W${s.rpm_at_min > 0 ? ` @ ${s.rpm_at_min} rpm` : ''}</span></div>
+                <div class="metric-row"><span class="metric-label">⬅️ Speed Start</span><span class="metric-value">${s.v1 > 0 ? `${s.v1} km/h` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">🔺 Speed Max</span><span class="metric-value">${s.v_max > 0 ? `${s.v_max} km/h` : '-'}</span></div>
+                <div class="metric-row"><span class="metric-label">➡️ Speed End</span><span class="metric-value">${s.v2 > 0 ? `${s.v2} km/h` : '-'}</span></div>
             </div>
             <div class="metric-col">
                 <div class="metric-row"><span class="metric-label">🌀 Avg Cad.</span><span class="metric-value">${s.avg_cadence > 0 ? `${s.avg_cadence} rpm` : '-'}</span></div>
@@ -703,8 +706,6 @@ function buildSprintSidebarCard(s) {
                 <div class="metric-row"><span class="metric-label">📏 Grade</span><span class="metric-value">${s.avg_grade}% · 🔺${s.max_grade}%</span></div>
             </div>
             <div class="metric-col">
-                <div class="metric-row"><span class="metric-label">➡️ Speed Start</span><span class="metric-value">${s.v1 > 0 ? `${s.v1} km/h` : '-'}</span></div>
-                <div class="metric-row"><span class="metric-label">➡️ Speed End</span><span class="metric-value">${s.v2 > 0 ? `${s.v2} km/h` : '-'}</span></div>
                 <div class="metric-row"><span class="metric-label">🔋 kJ Total</span><span class="metric-value">${s.kj} kJ</span></div>
                 <div class="metric-row"><span class="metric-label">kJ &gt; CP</span><span class="metric-value">${s.kj_over_cp} kJ</span></div>
                 <div class="metric-row"><span class="metric-label">💪 kJ/kg</span><span class="metric-value">${s.kj_kg}</span></div>
