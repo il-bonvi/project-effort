@@ -569,6 +569,8 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         'weight': float(weight),
         'intensity_zones': intensity_zones,
         'torque_available': 'torque' in df.columns,
+        'efforts_modified': False,  # Will be set to True at export time if user confirms
+        'sprints_modified': False,  # Will be set to True at export time if user confirms
         'config': {
             'window_sec': float(effort_config.window_seconds),
             'merge_pct': float(effort_config.merge_power_diff_percent),

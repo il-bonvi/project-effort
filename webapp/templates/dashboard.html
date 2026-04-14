@@ -78,6 +78,19 @@
             background: linear-gradient(135deg, #2563eb, #1d4ed8);
             transform: translateY(-2px);
         }
+        #sprintDetectionWarning {
+            margin: 10px 20px 0;
+            padding: 10px 12px;
+            border: 1px solid #fca5a5;
+            border-radius: 8px;
+            background: #fef2f2;
+            color: #b91c1c;
+            font-size: 0.9rem;
+            display: none;
+        }
+        #sprintDetectionWarning.show {
+            display: block;
+        }
         .tab-container {
             display: flex;
             flex-direction: column;
@@ -442,7 +455,7 @@
     </div>
     
     <div class="tab-container">
-        <div id="sprintDetectionWarning" style="display: {% if session.sprint_detection_error %}block{% else %}none{% endif %}; margin: 10px 20px 0; padding: 10px 12px; border: 1px solid #fca5a5; border-radius: 8px; background: #fef2f2; color: #b91c1c; font-size: 0.9rem;">
+        <div id="sprintDetectionWarning" class="{% if session.sprint_detection_error %}show{% endif %}">
             ⚠️ Sprint detection warning: <span id="sprintDetectionWarningText">{{ session.sprint_detection_error or '' }}</span>
         </div>
         <div class="tabs">
@@ -1025,68 +1038,132 @@
         async function exportHtmlReport() {
             const btn = document.getElementById('exportHtmlBtn');
             const status = document.getElementById('htmlExportStatus');
-            btn.disabled = true;
-            btn.textContent = '⏳ Generazione report...';
-            status.textContent = '';
-            status.style.color = '#6b7280';
-            try {
-                // Default zones — identical to inspection.html defaultZones
-                const DEFAULT_ZONES = [
-                    { min: 0,   max: 60,  color: '#009e80', name: 'Z1' },
-                    { min: 60,  max: 80,  color: '#009e00', name: 'Z2' },
-                    { min: 80,  max: 90,  color: '#ffcb0e', name: 'Z3' },
-                    { min: 90,  max: 105, color: '#ff7f0e', name: 'Z4' },
-                    { min: 105, max: 135, color: '#dd0447', name: 'Z5' },
-                    { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
-                    { min: 300, max: 999, color: '#504861', name: 'Z7' },
-                ];
-
-                // Read zones from localStorage (set in Inspection tab), fall back to defaults
-                let zones = DEFAULT_ZONES;
+            
+            // Show dialog for filename and MI flags
+            const dialogHtml = `
+                <div style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
+                    <div style="background:white; border-radius:8px; padding:24px; box-shadow:0 20px 25px rgba(0,0,0,0.15); min-width:350px;">
+                        <h2 style="margin:0 0 16px 0; font-size:18px; font-weight:600;">Download Report HTML</h2>
+                        
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block; font-weight:500; margin-bottom:6px;">Nome file:</label>
+                            <input type="text" id="reportFilename" value="peffort_report" 
+                                style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:14px; box-sizing:border-box;">
+                            <span style="font-size:12px; color:#666;">.html sarà aggiunto automaticamente</span>
+                        </div>
+                        
+                        <div style="margin-bottom:16px; padding:12px; background:#f3f4f6; border-radius:4px;">
+                            <div style="margin-bottom:8px;">
+                                <label style="display:flex; align-items:center; cursor:pointer;">
+                                    <input type="checkbox" id="effortsMI" style="margin-right:8px; cursor:pointer;">
+                                    <span style="font-size:14px;">Efforts manipolati (drag & drop) +MI</span>
+                                </label>
+                            </div>
+                            <div>
+                                <label style="display:flex; align-items:center; cursor:pointer;">
+                                    <input type="checkbox" id="sprintsMI" style="margin-right:8px; cursor:pointer;">
+                                    <span style="font-size:14px;">Sprints manipolati (drag & drop) +MI</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div style="display:flex; gap:8px; justify-content:flex-end;">
+                            <button id="cancelBtn" style="padding:8px 16px; border:1px solid #ddd; background:white; border-radius:4px; cursor:pointer; font-size:14px;">Annulla</button>
+                            <button id="confirmBtn" style="padding:8px 16px; border:none; background:#3b82f6; color:white; border-radius:4px; cursor:pointer; font-size:14px;">Download</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            const overlay = document.createElement('div');
+            overlay.innerHTML = dialogHtml;
+            document.body.appendChild(overlay);
+            
+            const dialog = overlay.querySelector('div > div');
+            const filenameInput = overlay.querySelector('#reportFilename');
+            const effortsMICheckbox = overlay.querySelector('#effortsMI');
+            const sprintsMICheckbox = overlay.querySelector('#sprintsMI');
+            const cancelBtn = overlay.querySelector('#cancelBtn');
+            const confirmBtn = overlay.querySelector('#confirmBtn');
+            
+            function closeDialog() {
+                overlay.remove();
+            }
+            
+            cancelBtn.onclick = closeDialog;
+            
+            confirmBtn.onclick = async () => {
+                closeDialog();
+                btn.disabled = true;
+                btn.textContent = '⏳ Generazione report...';
+                status.textContent = '';
+                status.style.color = '#6b7280';
                 try {
-                    const zonesRaw = localStorage.getItem(INSPECTION_ZONES_KEY)
-                        || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY_VERSION)
-                        || localStorage.getItem(INSPECTION_ZONES_LEGACY_KEY);
-                    if (zonesRaw) {
-                        const parsed = JSON.parse(zonesRaw);
-                        if (Array.isArray(parsed) && parsed.length > 0) zones = parsed;
-                    }
-                } catch(e) {}
+                    // Default zones
+                    const DEFAULT_ZONES = [
+                        { min: 0,   max: 60,  color: '#009e80', name: 'Z1' },
+                        { min: 60,  max: 80,  color: '#009e00', name: 'Z2' },
+                        { min: 80,  max: 90,  color: '#ffcb0e', name: 'Z3' },
+                        { min: 90,  max: 105, color: '#ff7f0e', name: 'Z4' },
+                        { min: 105, max: 135, color: '#dd0447', name: 'Z5' },
+                        { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
+                        { min: 300, max: 999, color: '#504861', name: 'Z7' },
+                    ];
 
-                // Read CP from localStorage (saved when user changes it in Inspection tab)
-                const cp = parseInt(localStorage.getItem('inspection_cp')) || null;
+                    // Read zones from localStorage
+                    let zones = DEFAULT_ZONES;
+                    try {
+                        const zonesRaw = localStorage.getItem(INSPECTION_ZONES_KEY)
+                            || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY_VERSION)
+                            || localStorage.getItem(INSPECTION_ZONES_LEGACY_KEY);
+                        if (zonesRaw) {
+                            const parsed = JSON.parse(zonesRaw);
+                            if (Array.isArray(parsed) && parsed.length > 0) zones = parsed;
+                        }
+                    } catch(e) {}
 
-                const response = await fetch(`/api/export/${sessionId}/html-report`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ zones, cp })
-                });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const cd = response.headers.get('Content-Disposition') || '';
-                const match = cd.match(/filename="?([^"]+)"?/);
-                a.download = match ? match[1] : 'peffort_report.html';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                btn.textContent = '✅ Report scaricato!';
-                status.textContent = 'Apri il file .html in qualsiasi browser.';
-                status.style.color = '#22c55e';
-                setTimeout(() => {
+                    // Read CP from localStorage
+                    const cp = parseInt(localStorage.getItem('inspection_cp')) || null;
+                    
+                    // Get MI flags from checkboxes
+                    const efforts_modified = effortsMICheckbox.checked;
+                    const sprints_modified = sprintsMICheckbox.checked;
+
+                    const response = await fetch(`/api/export/${sessionId}/html-report`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ zones, cp, efforts_modified, sprints_modified })
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const filename = filenameInput.value.trim() || 'peffort_report';
+                    a.download = filename.endsWith('.html') ? filename : filename + '.html';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    btn.textContent = '✅ Report scaricato!';
+                    status.textContent = 'Apri il file .html in qualsiasi browser.';
+                    status.style.color = '#22c55e';
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.textContent = '⬇️ Download Report HTML';
+                        status.textContent = '';
+                    }, 4000);
+                } catch (err) {
                     btn.disabled = false;
                     btn.textContent = '⬇️ Download Report HTML';
-                    status.textContent = '';
-                }, 4000);
-            } catch (err) {
-                btn.disabled = false;
-                btn.textContent = '⬇️ Download Report HTML';
-                status.textContent = `❌ Errore: ${err.message}`;
-                status.style.color = '#ef4444';
-            }
+                    status.textContent = `❌ Errore: ${err.message}`;
+                    status.style.color = '#ef4444';
+                }
+            };
+            
+            // Focus on filename input
+            filenameInput.focus();
+            filenameInput.select();
         }
 
         let map3dLoaded = false;

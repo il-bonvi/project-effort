@@ -1094,12 +1094,15 @@ svg.call(zoom);
 // SIDEBAR  exact same HTML structure as ECharts version
 // 
 function buildSidebar() {
-    // Config section
+    // Config section with MI flags
+    const effortsMI = chartData.efforts_modified ? ' (+MI)' : '';
+    const sprintsMI = chartData.sprints_modified ? ' (+MI)' : '';
+    
     document.getElementById('config-section').innerHTML = `
         <strong>Configuration</strong><br/>
         CP: ${chartData.cp}W | Weight: ${chartData.weight}kg<br/>
-        Efforts: WIN ${chartData.config.window_sec}s | MRG ${chartData.config.merge_pct}% | MIN ${chartData.config.min_cp_pct}%<br/>
-        Sprints: WIN ${chartData.config.sprint_window_sec}s | MIN ${chartData.config.min_sprint_power}W<br/>
+        Efforts: WIN ${chartData.config.window_sec}s | MRG ${chartData.config.merge_pct}% | MIN ${chartData.config.min_cp_pct}%${effortsMI}<br/>
+        Sprints: WIN ${chartData.config.sprint_window_sec}s | MIN ${chartData.config.min_sprint_power}W${sprintsMI}<br/>
         <strong>Y-axis:</strong> ${yMin}m - ${yMax}m (range: ${yMax - yMin}m)
     `;
 

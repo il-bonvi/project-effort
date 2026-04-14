@@ -1502,6 +1502,11 @@ async def export_html_report(session_id: str, request: Request, sessions: Sessio
                         chart_data['intensity_zones'] = body['zones']
                     if 'cp' in body and body['cp'] and isinstance(body['cp'], (int, float)) and body['cp'] > 0:
                         chart_data['cp'] = float(body['cp'])
+                    # Add manual inspection flags
+                    if 'efforts_modified' in body:
+                        chart_data['efforts_modified'] = bool(body['efforts_modified'])
+                    if 'sprints_modified' in body:
+                        chart_data['sprints_modified'] = bool(body['sprints_modified'])
             except Exception:
                 pass  # No body or JSON parse error — keep defaults
 
