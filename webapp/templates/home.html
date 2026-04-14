@@ -281,6 +281,49 @@
         const form = document.getElementById('uploadForm');
         const loading = document.getElementById('loading');
 
+        // Local storage key
+        const STORAGE_KEY = 'peffort_form_values';
+
+        // Function to save all form values to localStorage
+        function saveFormValues() {
+            const formData = new FormData(form);
+            const values = {};
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'file') { // Don't save file
+                    values[key] = value;
+                }
+            }
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+        }
+
+        // Function to restore form values from localStorage
+        function restoreFormValues() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    const values = JSON.parse(stored);
+                    for (let [key, value] of Object.entries(values)) {
+                        const input = document.getElementById(key);
+                        if (input) {
+                            input.value = value;
+                        }
+                    }
+                } catch (e) {
+                    console.log('Could not restore form values');
+                }
+            }
+        }
+
+        // Restore values on page load
+        document.addEventListener('DOMContentLoaded', restoreFormValues);
+
+        // Add change listeners to all input fields (except file)
+        const inputs = form.querySelectorAll('input[type="number"]');
+        inputs.forEach(input => {
+            input.addEventListener('change', saveFormValues);
+            input.addEventListener('blur', saveFormValues);
+        });
+
         // Drag and drop
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -320,6 +363,7 @@
         }
 
         form.addEventListener('submit', () => {
+            saveFormValues(); // Save values before submit
             loading.classList.add('active');
             submitBtn.disabled = true;
         });
