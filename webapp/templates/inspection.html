@@ -1082,9 +1082,10 @@
             });
 
             function recalculateIntervalLabels() {
-                // Efforts: chronological order by start time
+                // Efforts: chronological order by start time (excluding deleted efforts)
                 const effortOrder = effortsData
                     .map((effort, idx) => ({ idx, start: Number(effort.start) || 0, end: Number(effort.end) || 0 }))
+                    .filter(item => !deletedEfforts.has(item.idx))  // Exclude deleted efforts
                     .sort((a, b) => (a.start - b.start) || (a.end - b.end));
                 effortOrder.forEach((item, rank) => {
                     if (effortsData[item.idx]) {
@@ -1092,9 +1093,10 @@
                     }
                 });
 
-                // Sprints: descending by avg power
+                // Sprints: descending by avg power (excluding deleted sprints)
                 const sprintOrder = sprintsData
                     .map((sprint, idx) => ({ idx, avg: Number(sprint.avg_power) || 0, start: Number(sprint.start) || 0 }))
+                    .filter(item => !deletedSprints.has(item.idx))  // Exclude deleted sprints
                     .sort((a, b) => (b.avg - a.avg) || (a.start - b.start));
                 sprintOrder.forEach((item, rank) => {
                     if (sprintsData[item.idx]) {
