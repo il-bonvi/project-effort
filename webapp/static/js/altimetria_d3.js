@@ -1090,6 +1090,61 @@ const zoom = d3.zoom()
 
 svg.call(zoom);
 
+const SIDEBAR_COLLAPSE_KEY_EFFORTS = 'peffort_sidebar_efforts_collapsed';
+const SIDEBAR_COLLAPSE_KEY_SPRINTS = 'peffort_sidebar_sprints_collapsed';
+
+function readCollapseState(key) {
+    try {
+        return localStorage.getItem(key) === 'true';
+    } catch (_e) {
+        return false;
+    }
+}
+
+function writeCollapseState(key, value) {
+    try {
+        localStorage.setItem(key, String(Boolean(value)));
+    } catch (_e) {
+        // Ignore storage errors in restrictive/offline contexts.
+    }
+}
+
+function applySectionCollapse(sectionEl, toggleEl, isCollapsed) {
+    if (!sectionEl || !toggleEl) return;
+    sectionEl.classList.toggle('collapsed', Boolean(isCollapsed));
+    toggleEl.textContent = isCollapsed ? '+' : '−';
+    toggleEl.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+    toggleEl.setAttribute('title', isCollapsed ? 'Expand section' : 'Collapse section');
+}
+
+function setSectionVisibility(sectionEl, hasItems) {
+    if (!sectionEl) return;
+    sectionEl.classList.toggle('hidden', !hasItems);
+}
+
+function setupSidebarCollapsers() {
+    const effortsSection = document.getElementById('efforts-section');
+    const sprintsSection = document.getElementById('sprints-section');
+    const effortsToggle = document.getElementById('efforts-toggle');
+    const sprintsToggle = document.getElementById('sprints-toggle');
+    if (!effortsSection || !sprintsSection || !effortsToggle || !sprintsToggle) return;
+
+    applySectionCollapse(effortsSection, effortsToggle, readCollapseState(SIDEBAR_COLLAPSE_KEY_EFFORTS));
+    applySectionCollapse(sprintsSection, sprintsToggle, readCollapseState(SIDEBAR_COLLAPSE_KEY_SPRINTS));
+
+    effortsToggle.onclick = () => {
+        const next = !effortsSection.classList.contains('collapsed');
+        applySectionCollapse(effortsSection, effortsToggle, next);
+        writeCollapseState(SIDEBAR_COLLAPSE_KEY_EFFORTS, next);
+    };
+
+    sprintsToggle.onclick = () => {
+        const next = !sprintsSection.classList.contains('collapsed');
+        applySectionCollapse(sprintsSection, sprintsToggle, next);
+        writeCollapseState(SIDEBAR_COLLAPSE_KEY_SPRINTS, next);
+    };
+}
+
 // 
 // SIDEBAR  exact same HTML structure as ECharts version
 // 
@@ -1107,7 +1162,10 @@ function buildSidebar() {
     `;
 
     // Efforts
+    const effortsSection = document.getElementById('efforts-section');
+    const sprintsSection = document.getElementById('sprints-section');
     const effortsList = document.getElementById('efforts-list');
+    effortsList.innerHTML = '';
     chartData.efforts.forEach((effort, idx) => {
         const id = `e-${effort.id}`;
         const card = document.createElement('div');
@@ -1157,6 +1215,7 @@ function buildSidebar() {
 
     // Sprints
     const sprintsList = document.getElementById('sprints-list');
+    sprintsList.innerHTML = '';
     chartData.sprints.forEach((sprint, idx) => {
         const id = `s-${idx}`;
         const torqAvail = chartData.torque_available;
@@ -1244,6 +1303,13 @@ function buildSidebar() {
             </div>`;
         sprintsList.appendChild(card);
     });
+
+    // Hide empty sections entirely (header + body) when there are no items.
+    setSectionVisibility(effortsSection, chartData.efforts.length > 0);
+    setSectionVisibility(sprintsSection, chartData.sprints.length > 0);
+
+    // Enable collapse/expand controls when sections are visible.
+    setupSidebarCollapsers();
 }
 
 // 
