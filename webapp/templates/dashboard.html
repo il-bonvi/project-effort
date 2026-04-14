@@ -1122,8 +1122,16 @@
                         }
                     } catch(e) {}
 
-                    // Read CP from localStorage
-                    const cp = parseInt(localStorage.getItem('inspection_cp')) || null;
+                    // Resolve CP with priority: current dashboard UI -> inspection localStorage -> null.
+                    // This avoids stale localStorage values overriding the updated session CP.
+                    const cpFromHeader = Number.parseFloat(document.getElementById('headerCpValue')?.textContent || '');
+                    const cpFromSettings = Number.parseFloat(document.getElementById('cpValue')?.value || '');
+                    const cpFromInspectionStorage = Number.parseFloat(localStorage.getItem('inspection_cp') || '');
+                    const cp = Number.isFinite(cpFromHeader)
+                        ? cpFromHeader
+                        : (Number.isFinite(cpFromSettings)
+                            ? cpFromSettings
+                            : (Number.isFinite(cpFromInspectionStorage) ? cpFromInspectionStorage : null));
                     
                     // Get MI flags from checkboxes
                     const efforts_modified = effortsMICheckbox.checked;
