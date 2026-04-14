@@ -630,7 +630,8 @@ function buildEffortSidebarCard(e) {
     return `
         <div class="selected-header">
             <div>
-                <div class="selected-title">E#${e.id + 1} · Rank #${e.rank}</div>
+                <div class="selected-title">E#${e.id + 1}</div>
+                <div class="selected-subtitle-line">Rank #${e.rank}</div>
                 <div class="selected-subtitle-line">${e.start_time}</div>
                 <div class="selected-subtitle-line">${fmtDur(e.duration)} · ${e.distance_tot} km · ${e.elevation_gain}m ↑</div>
                 <div class="selected-power" style="color:${e.color}">${e.avg_power}W <span>(${e.cp_pct}%)</span></div>
