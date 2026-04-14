@@ -948,6 +948,7 @@
                 };
 
                 effortsData.push(newEffort);
+                recalculateIntervalLabels();  // Normalize labels BEFORE creating card
                 addEffortCard(newEffort, newIdx);
                 rebuildChart();
 
@@ -1039,6 +1040,7 @@
                 };
 
                 sprintsData.push(newSprint);
+                recalculateIntervalLabels();  // Normalize labels BEFORE creating card
                 
                 // Create and add sprint card to legend
                 const item = document.createElement('div');
@@ -1125,6 +1127,38 @@
                     if (strongEl) strongEl.textContent = sprint.label;
                     if (infoEl) {
                         infoEl.textContent = `${sprint.start.toFixed(0)}s - ${sprint.end.toFixed(0)}s | ${sprint.duration.toFixed(0)}s | ${sprint.max_power.toFixed(0)}W | ${sprint.avg_power.toFixed(0)}W`;
+                    }
+                });
+            }
+
+            function reorderLegendItems() {
+                // Riordina gli effort e sprint nella legend basandosi sull'ordine canonico
+                if (!legendDiv) return;
+                
+                // Calcola ordine canonico per efforts (cronologico)
+                const effortOrder = effortsData
+                    .map((effort, idx) => ({ idx, start: Number(effort.start) || 0, end: Number(effort.end) || 0 }))
+                    .filter(item => !deletedEfforts.has(item.idx))
+                    .sort((a, b) => (a.start - b.start) || (a.end - b.end));
+                
+                // Calcola ordine canonico per sprints (power desc)
+                const sprintOrder = sprintsData
+                    .map((sprint, idx) => ({ idx, avg: Number(sprint.avg_power) || 0, start: Number(sprint.start) || 0 }))
+                    .filter(item => !deletedSprints.has(item.idx))
+                    .sort((a, b) => (b.avg - a.avg) || (a.start - b.start));
+                
+                // Riordina DOM: muovi tutti gli effort in ordine canonico, poi tutti gli sprint
+                effortOrder.forEach(item => {
+                    const el = document.getElementById(`effort-${item.idx}`);
+                    if (el && el.parentNode === legendDiv) {
+                        legendDiv.appendChild(el);  // Move to end = reorder
+                    }
+                });
+                
+                sprintOrder.forEach(item => {
+                    const el = document.getElementById(`sprint-${item.idx}`);
+                    if (el && el.parentNode === legendDiv) {
+                        legendDiv.appendChild(el);
                     }
                 });
             }
@@ -2051,6 +2085,9 @@
                         return response.json();
                     })
                     .then(result => {
+                        // Reorder legend to reflect canonical order after save
+                        reorderLegendItems();
+                        
                         saveBtn.disabled = false;
                         saveBtn.textContent = '✅ Salvato Localmente!';
                         saveStatus.textContent = `Modifiche applicate! ${result.total_efforts} efforts, ${result.total_sprints} sprints.`;
