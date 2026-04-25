@@ -739,10 +739,14 @@
                         <div class="export-card" style="border: 2px solid #dc2626; background: linear-gradient(135deg, #fef2f2, #fee2e2);">
                             <h3 style="color: #991b1b;">🤖 Export per Llama AI</h3>
                             <p style="color: #b91c1c;">JSON con dati completi di effort, sprint, CP e peso per allenare modelli di machine learning sulle tue abitudini di rilevamento.</p>
-                            <button class="btn btn-success" onclick="showActivityTypeSelector()" id="exportLlamaBtn" style="background: linear-gradient(135deg, #dc2626, #b91c1c); width: 100%;">
-                                🤖 Export per Llama
+                            <button class="btn btn-success" onclick="exportDefault()" id="exportLlamaDefaultBtn" style="background: linear-gradient(135deg, #dc2626, #b91c1c); width: 100%; margin-bottom: 8px;">
+                                🤖 Export Default
                             </button>
-                            <div id="llamaExportStatus" style="margin-top: 8px; font-size: 11px; text-align: center; min-height: 16px;"></div>
+                            <button class="btn btn-success" onclick="exportGold()" id="exportLlamaGoldBtn" style="background: linear-gradient(135deg, #b91c1c, #991b1b); width: 100%;">
+                                🥇 Export Gold
+                            </button>
+                            <div id="llamaExportStatusDefault" style="margin-top: 8px; font-size: 11px; text-align: center; min-height: 16px;"></div>
+                            <div id="llamaExportStatusGold" style="margin-top: 4px; font-size: 11px; text-align: center; min-height: 16px;"></div>
                         </div>
                     </div>
                 </div>
@@ -1235,6 +1239,18 @@
             filenameInput.select();
         }
 
+        let llamaExportVariant = 'default';
+
+        function exportDefault() {
+            llamaExportVariant = 'default';
+            showActivityTypeSelector();
+        }
+
+        function exportGold() {
+            llamaExportVariant = 'gold';
+            showActivityTypeSelector();
+        }
+
         function showActivityTypeSelector() {
             document.getElementById('activityTypeModal').style.display = 'flex';
         }
@@ -1244,8 +1260,16 @@
         }
 
         async function selectActivityType(activityType) {
-            const btn = document.getElementById('exportLlamaBtn');
-            const status = document.getElementById('llamaExportStatus');
+            const isGold = llamaExportVariant === 'gold';
+            const btn = document.getElementById(isGold ? 'exportLlamaGoldBtn' : 'exportLlamaDefaultBtn');
+            const status = document.getElementById(isGold ? 'llamaExportStatusGold' : 'llamaExportStatusDefault');
+            const otherStatus = document.getElementById(isGold ? 'llamaExportStatusDefault' : 'llamaExportStatusGold');
+            const baseButtonLabel = isGold ? '🥇 Export Gold' : '🤖 Export Default';
+            const fileSuffix = isGold ? '_gold' : '_default';
+
+            if (otherStatus) {
+                otherStatus.textContent = '';
+            }
             
             btn.disabled = true;
             status.textContent = '⏳ Esportazione in corso...';
@@ -1271,7 +1295,7 @@
                 // Extract base filename without extension
                 const baseNameMatch = fitFilename.match(/^(.+?)(?:\.[^.]+)?$/);
                 const baseName = baseNameMatch ? baseNameMatch[1] : fitFilename;
-                a.download = `${baseName}.json`;
+                a.download = `${baseName}${fileSuffix}.json`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -1283,12 +1307,12 @@
                 
                 setTimeout(() => {
                     btn.disabled = false;
-                    btn.textContent = '🤖 Export per Llama';
+                    btn.textContent = baseButtonLabel;
                     status.textContent = '';
                 }, 4000);
             } catch (err) {
                 btn.disabled = false;
-                btn.textContent = '🤖 Export per Llama';
+                btn.textContent = baseButtonLabel;
                 status.textContent = `❌ Errore: ${err.message}`;
                 status.style.color = '#ef4444';
             }
