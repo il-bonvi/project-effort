@@ -179,6 +179,11 @@ class LegacyImportRequest(BaseModel):
     deleted_sprints: list[int] = Field(default_factory=list)
 
 
+class ExportJsonLlamaRequest(BaseModel):
+    """Request to export JSON for Llama training with activity type"""
+    activity_type: str = Field(..., description="Type of activity: allenamento, corsa_circuito, corsa_linea, ITT, TTT")
+
+
 # =============================================================================
 # SESSION DATA ENDPOINTS
 # =============================================================================
@@ -1159,6 +1164,103 @@ async def export_csv_data(session_id: str, sessions: SessionsDep):
         BytesIO(csv_content.encode('utf-8')),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=peffort_data_{session_id}.csv"}
+    )
+
+
+@router.post("/export/{session_id}/json-llama")
+async def export_json_llama_data(session_id: str, request: ExportJsonLlamaRequest, sessions: SessionsDep):
+    """
+    Export all data as JSON for Llama training with activity type.
+    Includes all data from standard JSON export plus activity type classification.
+    
+    Valid activity types: training, criterium, road, ITT, TTT
+    """
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Validate activity type
+    valid_types = ["training", "freeride", "criterium", "road", "ITT", "TTT"]
+    if request.activity_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid activity_type. Must be one of: {', '.join(valid_types)}"
+        )
+
+    session = sessions[session_id]
+    df = session['df']
+
+    # Build efforts export
+    efforts_export = []
+    for i, (start_idx, end_idx, avg_power) in enumerate(session['efforts']):
+        start_time = df.iloc[start_idx]['time_sec'] if start_idx < len(df) else 0
+        end_time = df.iloc[end_idx-1]['time_sec'] if end_idx > 0 and end_idx <= len(df) else 0
+
+        efforts_export.append({
+            "index": i,
+            "start_time_sec": float(start_time),
+            "end_time_sec": float(end_time),
+            "duration_sec": float(end_time - start_time),
+            "avg_power_w": float(avg_power),
+            "start_idx": int(start_idx),
+            "end_idx": int(end_idx)
+        })
+
+    # Build sprints export
+    sprints_export = []
+    for i, sprint in enumerate(session.get('sprints', [])):
+        start_idx = sprint.get('start_idx', 0)
+        end_idx = sprint.get('end_idx', 0)
+        start_time = df.iloc[start_idx]['time_sec'] if start_idx < len(df) else 0
+        end_time = df.iloc[end_idx-1]['time_sec'] if end_idx > 0 and end_idx <= len(df) else 0
+
+        sprints_export.append({
+            "index": i,
+            "start_idx": start_idx,
+            "end_idx": end_idx,
+            "max_power_w": sprint.get('max_power', 0),
+            "avg_power_w": sprint.get('avg_power', 0),
+            "duration_sec": sprint.get('duration', 0)
+        })
+
+    # Build export data with activity type
+    export_data = {
+        "session_info": {
+            "session_id": session_id,
+            "filename": session['filename'],
+            "cp": session.get('cp', 250),
+            "weight": session.get('weight', 60),
+            "activity_type": request.activity_type
+        },
+        "ride_statistics": session.get('stats', {}),
+        "efforts": efforts_export,
+        "sprints": sprints_export,
+        "detection_parameters": {
+            "effort_config": {
+                "window_seconds": session.get('effort_config', EffortConfig()).window_seconds,
+                "min_cp_pct": session.get('effort_config', EffortConfig()).min_effort_intensity_cp,
+                "merge_pct": session.get('effort_config', EffortConfig()).merge_power_diff_percent,
+                "trim_window": session.get('effort_config', EffortConfig()).trim_window_seconds,
+                "extend_window": session.get('effort_config', EffortConfig()).extend_window_seconds
+            },
+            "sprint_config": {
+                "min_power": session.get('sprint_config', SprintConfig()).min_power,
+                "window_seconds": session.get('sprint_config', SprintConfig()).window_seconds,
+                "merge_gap_sec": session.get('sprint_config', SprintConfig()).merge_gap_sec
+            }
+        }
+    }
+
+    json_content = json.dumps(export_data, indent=2, default=str)
+
+    # Extract filename without extension and add suffix
+    fit_filename = session['filename']  # e.g., "20260425_ride.fit"
+    base_name = Path(fit_filename).stem  # e.g., "20260425_ride"
+    export_filename = f"{base_name}.json"
+
+    return StreamingResponse(
+        BytesIO(json_content.encode('utf-8')),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={export_filename}"}
     )
 
 

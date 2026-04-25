@@ -735,14 +735,75 @@
                             </button>
                             <div id="htmlExportStatus" style="margin-top: 8px; font-size: 11px; text-align: center; min-height: 16px;"></div>
                         </div>
+
+                        <div class="export-card" style="border: 2px solid #dc2626; background: linear-gradient(135deg, #fef2f2, #fee2e2);">
+                            <h3 style="color: #991b1b;">🤖 Export per Llama AI</h3>
+                            <p style="color: #b91c1c;">JSON con dati completi di effort, sprint, CP e peso per allenare modelli di machine learning sulle tue abitudini di rilevamento.</p>
+                            <button class="btn btn-success" onclick="showActivityTypeSelector()" id="exportLlamaBtn" style="background: linear-gradient(135deg, #dc2626, #b91c1c); width: 100%;">
+                                🤖 Export per Llama
+                            </button>
+                            <div id="llamaExportStatus" style="margin-top: 8px; font-size: 11px; text-align: center; min-height: 16px;"></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- MODAL: Activity Type Selector for Llama Export -->
+    <div id="activityTypeModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); animation: slideIn 0.3s ease;">
+            <h2 style="margin-bottom: 20px; color: #111827;">🤖 Seleziona Tipo di Attività</h2>
+            <p style="color: #6b7280; margin-bottom: 25px;">Qual è il tipo di attività per questo allenamento?</p>
+            
+            <div style="display: grid; gap: 12px; margin-bottom: 25px;">
+                <button onclick="selectActivityType('training')" style="padding: 12px 16px; background: #f0f9ff; border: 2px solid #0ea5e9; color: #0c4a6e; font-weight: 600; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s;">
+                    📚 <strong>Allenamento</strong>
+                </button>
+                <button onclick="selectActivityType('freeride')" style="padding: 12px 16px; background: #fef2f2; border: 2px solid #f97316; color: #92400e; font-weight: 600; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s;">
+                    🚴 <strong>Freeride</strong>
+                </button>
+                <button onclick="selectActivityType('criterium')" style="padding: 12px 16px; background: #f0fdf4; border: 2px solid #22c55e; color: #15803d; font-weight: 600; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s;">
+                    🏁 <strong>Criterium</strong>
+                </button>
+                <button onclick="selectActivityType('road')" style="padding: 12px 16px; background: #fef3c7; border: 2px solid #f59e0b; color: #92400e; font-weight: 600; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s;">
+                    🛣️ <strong>Road</strong>
+                </button>
+                <button onclick="selectActivityType('ITT')" style="padding: 12px 16px; background: #fecaca; border: 2px solid #ef4444; color: #7f1d1d; font-weight: 600; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s;">
+                    ⏱️ <strong>ITT</strong>
+                </button>
+                <button onclick="selectActivityType('TTT')" style="padding: 12px 16px; background: #ddd6fe; border: 2px solid #8b5cf6; color: #5b21b6; font-weight: 600; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s;">
+                    👥 <strong>TTT</strong>
+                </button>
+            </div>
+
+            <button onclick="closeActivityTypeModal()" style="padding: 10px 20px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; width: 100%;">
+                ✕ Annulla
+            </button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        #activityTypeModal button:hover {
+            transform: translateX(4px) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+        }
+    </style>
     
     <script>
         const sessionId = '{{ session_id }}';
+        const fitFilename = '{{ session.filename }}';
         const INSPECTION_ZONES_KEY = `inspection_zones_v2_${sessionId}`;
         const INSPECTION_ZONES_KEY_LEGACY_VERSION = 'inspection_zones_v2';
         const INSPECTION_ZONES_LEGACY_KEY = 'inspection_zones';
@@ -1172,6 +1233,65 @@
             // Focus on filename input
             filenameInput.focus();
             filenameInput.select();
+        }
+
+        function showActivityTypeSelector() {
+            document.getElementById('activityTypeModal').style.display = 'flex';
+        }
+
+        function closeActivityTypeModal() {
+            document.getElementById('activityTypeModal').style.display = 'none';
+        }
+
+        async function selectActivityType(activityType) {
+            const btn = document.getElementById('exportLlamaBtn');
+            const status = document.getElementById('llamaExportStatus');
+            
+            btn.disabled = true;
+            status.textContent = '⏳ Esportazione in corso...';
+            status.style.color = '#0ea5e9';
+            
+            closeActivityTypeModal();
+            
+            try {
+                const response = await fetch(`/api/export/${sessionId}/json-llama`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ activity_type: activityType })
+                });
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // Extract base filename without extension
+                const baseNameMatch = fitFilename.match(/^(.+?)(?:\.[^.]+)?$/);
+                const baseName = baseNameMatch ? baseNameMatch[1] : fitFilename;
+                a.download = `${baseName}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                btn.textContent = '✅ JSON esportato per Llama!';
+                status.textContent = `Attività: ${activityType}`;
+                status.style.color = '#22c55e';
+                
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = '🤖 Export per Llama';
+                    status.textContent = '';
+                }, 4000);
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = '🤖 Export per Llama';
+                status.textContent = `❌ Errore: ${err.message}`;
+                status.style.color = '#ef4444';
+            }
         }
 
         let map3dLoaded = false;
