@@ -1208,18 +1208,21 @@ async def export_json_llama_data(session_id: str, request: ExportJsonLlamaReques
     # Build sprints export
     sprints_export = []
     for i, sprint in enumerate(session.get('sprints', [])):
-        start_idx = sprint.get('start_idx', 0)
-        end_idx = sprint.get('end_idx', 0)
+        # Session sprint dicts are commonly stored as {'start','end','avg','max_power'}.
+        # Keep compatibility with both key shapes.
+        start_idx = int(sprint.get('start', sprint.get('start_idx', 0)))
+        end_idx = int(sprint.get('end', sprint.get('end_idx', 0)))
         start_time = df.iloc[start_idx]['time_sec'] if start_idx < len(df) else 0
         end_time = df.iloc[end_idx-1]['time_sec'] if end_idx > 0 and end_idx <= len(df) else 0
+
+        avg_power_w = float(sprint.get('avg', sprint.get('avg_power', 0)))
 
         sprints_export.append({
             "index": i,
             "start_idx": start_idx,
             "end_idx": end_idx,
-            "max_power_w": sprint.get('max_power', 0),
-            "avg_power_w": sprint.get('avg_power', 0),
-            "duration_sec": sprint.get('duration', 0)
+            "avg_power_w": avg_power_w,
+            "duration_sec": float(end_time - start_time)
         })
 
     # Build export data with activity type

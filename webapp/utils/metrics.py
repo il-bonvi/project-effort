@@ -54,12 +54,12 @@ def calculate_intensity_factor(np_value: float, cp: float) -> float:
 
 
 def calculate_tss(np_value: float, cp: float, duration_hours: float) -> float:
-    """Calculate Training Stress Score (TSS)"""
+    """Calculate Training Stress Score (TSS) = IF² × duration_hours × 100"""
     if cp <= 0 or duration_hours <= 0:
         return 0.0
 
     if_value = calculate_intensity_factor(np_value, cp)
-    tss = (duration_hours * np_value * if_value) / (cp * 36) * 100
+    tss = duration_hours * (if_value ** 2) * 100
 
     return float(tss)
 
