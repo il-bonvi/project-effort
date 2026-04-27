@@ -350,7 +350,8 @@ async def upload_fit(
         'effort_config': effort_config,
         'sprint_config': sprint_config,
         'stats': ride_stats,
-        'sprint_detection_error': sprint_detection_error
+        'sprint_detection_error': sprint_detection_error,
+        'kjkg_sections': 5  # Default: 5 kJ/kg sections
     }
 
     # Redirect to dashboard with tabs

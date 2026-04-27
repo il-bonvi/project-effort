@@ -265,6 +265,9 @@ class UpdateCpWeightRequest(BaseModel):
     cp: int
     weight: float
 
+class UpdateKjkgSectionsRequest(BaseModel):
+    kjkg_sections: float
+
 @router.post("/{session_id}/update-cp-weight")
 async def update_cp_weight(session_id: str, request: UpdateCpWeightRequest, sessions: SessionsDep):
     """
@@ -309,6 +312,41 @@ async def update_cp_weight(session_id: str, request: UpdateCpWeightRequest, sess
         "message": f"CP updated to {request.cp}W, Weight updated to {request.weight}kg",
         "cp": request.cp,
         "weight": request.weight
+    }
+
+
+@router.post("/{session_id}/update-kjkg-sections")
+async def update_kjkg_sections(session_id: str, request: UpdateKjkgSectionsRequest, sessions: SessionsDep):
+    """
+    Update kJ/kg sections configuration for altimetria visualization
+
+    Args:
+        session_id: Session ID
+        request: UpdateKjkgSectionsRequest with kjkg_sections value
+
+    Returns:
+        JSON confirmation
+    """
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = sessions[session_id]
+
+    # Validate input
+    if not (0.5 <= request.kjkg_sections <= 20):
+        raise HTTPException(status_code=400, detail="kJ/kg sections must be between 0.5 and 20")
+
+    # Update session value
+    session['kjkg_sections'] = request.kjkg_sections
+
+    # Invalidate chart data cache so it's recalculated with new setting
+    _invalidate_session_caches(session)
+
+    logger.info(f"Updated session {session_id}: kJ/kg sections={request.kjkg_sections}")
+
+    return {
+        "status": "success",
+        "message": f"kJ/kg sections updated to {request.kjkg_sections}"
     }
 
 

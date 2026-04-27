@@ -236,6 +236,76 @@ function renderSegments(xz) {
     });
 }
 
+/**
+ * Render vertical section markers for kJ/kg milestones.
+ * Blue lines with cumulative kJ/kg labels positioned at section midpoints inside the chart.
+ * @param {d3.ScaleLinear<number, number>} xz
+ * @returns {void}
+ */
+function renderKjkgSections(xz) {
+    // Remove existing kjkg section markers
+    gridG.selectAll('.kjkg-section-line').remove();
+    gridG.selectAll('.kjkg-section-label').remove();
+    
+    // Check if section_distances data is available
+    if (!chartData.section_distances || chartData.section_distances.length === 0) {
+        return;
+    }
+    
+    // Render vertical lines at each kJ/kg threshold
+    chartData.section_distances.forEach(section => {
+        const x = xz(section.dist);
+        
+        // Only draw if visible on screen
+        if (x >= -5 && x <= innerW + 5) {
+            // Vertical line (thin and subtle)
+            gridG.append('line')
+                .attr('class', 'kjkg-section-line')
+                .attr('x1', x)
+                .attr('x2', x)
+                .attr('y1', 0)
+                .attr('y2', innerH)
+                .attr('stroke', '#00bfff')  // Cyan blue
+                .attr('stroke-width', 0.5)
+                .attr('opacity', 0.4)
+                .attr('stroke-dasharray', '4,4');
+        }
+    });
+    
+    // Render labels at midpoints between sections with actual section values
+    if (chartData.section_distances.length > 0) {
+        for (let i = 0; i < chartData.section_distances.length; i++) {
+            let midDist;
+            let labelValue = chartData.section_distances[i].kjkg_value;
+            
+            if (i === 0) {
+                // First section: label from start to first line
+                midDist = chartData.section_distances[0].dist / 2;
+            } else {
+                // Other sections: label between two lines
+                midDist = (chartData.section_distances[i - 1].dist + chartData.section_distances[i].dist) / 2;
+            }
+            
+            const midX = xz(midDist);
+            
+            // Only draw if visible
+            if (midX >= 0 && midX <= innerW) {
+                gridG.append('text')
+                    .attr('class', 'kjkg-section-label')
+                    .attr('x', midX)
+                    .attr('y', innerH * 0.05)  // Much higher (8% from top)
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#0088cc')
+                    .attr('font-size', '12px')
+                    .attr('font-weight', 'bold')
+                    .attr('pointer-events', 'none')
+                    .attr('opacity', 0.5)
+                    .text(Math.round(labelValue) + ' kJ/kg');
+            }
+        }
+    }
+}
+
 // 
 // ANNOTATION COLLISION DETECTION  no clustering, X+Y avoidance
 // 
@@ -1083,6 +1153,7 @@ const zoom = d3.zoom()
         const xz = getXZ();
         renderAxes(xz);
         renderElevation(xz);
+        renderKjkgSections(xz);
         renderSegments(xz);
         renderAnnotations(xz);
         annG.raise(); // ensure always on top after every redraw
@@ -1319,6 +1390,7 @@ function fullRender() {
     const xz = getXZ();
     renderAxes(xz);
     renderElevation(xz);
+    renderKjkgSections(xz);
     renderSegments(xz);
     renderAnnotations(xz);
 }

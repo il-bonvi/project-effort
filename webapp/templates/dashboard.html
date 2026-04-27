@@ -689,6 +689,18 @@
                         </div>
                         <button class="btn btn-primary" onclick="redetectSprints()">🔄 Re-Detect Sprints</button>
                     </div>
+                    
+                    <div class="controls-section">
+                        <div class="controls-title">📈 Altimetria Visualization</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="kjkgSections">kJ/kg Sections</label>
+                                <input type="number" id="kjkgSections" value="{{ session.get('kjkg_sections', 5) }}" min="1" max="20" step="0.5">
+                                <span style="font-size: 12px; color: #6b7280; display: block; margin-top: 4px;">Vertical section dividers on altimetria chart (light blue bars)</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="updateKjkgSections()">💾 Update kJ/kg Sections</button>
+                    </div>
                 </div>
             </div>
             
@@ -1006,6 +1018,38 @@
                 if (result.status === 'success') {
                     alert(`✅ ${result.message}\n\nEfforts have been re-detected with the new parameters.`);
                     await refreshDashboardAfterMutation();
+                } else {
+                    alert(`❌ Error: ${result.message}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+        
+        async function updateKjkgSections() {
+            const params = {
+                kjkg_sections: parseFloat(document.getElementById('kjkgSections').value)
+            };
+            
+            try {
+                const response = await fetch(`/api/${sessionId}/update-kjkg-sections`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(params)
+                });
+                if (!response.ok) {
+                    const message = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${message || response.statusText}`);
+                }
+                
+                const result = await response.json();
+                if (result.status === 'success') {
+                    alert(`✅ ${result.message}`);
+                    // Reload altimetria iframe to reflect new settings
+                    const altimetriaFrame = document.querySelector('#altimetria-d3 iframe');
+                    if (altimetriaFrame) {
+                        altimetriaFrame.src = altimetriaFrame.src;
+                    }
                 } else {
                     alert(`❌ Error: ${result.message}`);
                 }

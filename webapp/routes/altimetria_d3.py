@@ -167,6 +167,25 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
             joules_cumulative[i] = joules_cumulative[i-1]
             joules_over_cp_cumulative[i] = joules_over_cp_cumulative[i-1]
     
+    # Calculate cumulative kJ/kg for vertical section markers
+    kjkg_cumulative = np.zeros(len(power))
+    if weight > 0:
+        kjkg_cumulative = joules_cumulative / 1000 / weight
+    
+    # Calculate distances where kJ/kg sections occur
+    kjkg_sections = session.get('kjkg_sections', 5)  # Default 5 kJ/kg
+    section_distances = []  # List of (distance_km, kjkg_value) tuples
+    current_section = 1  # Start from 1st section (5, 10, 15, etc)
+    current_threshold = kjkg_sections
+    
+    for i in range(len(dist_km)):
+        if kjkg_cumulative[i] >= current_threshold and kjkg_cumulative[i-1 if i > 0 else 0] < current_threshold:
+            section_distances.append({
+                'dist': round(dist_km[i], 2),
+                'kjkg_value': current_threshold
+            })
+            current_threshold += kjkg_sections
+    
     # Initialize torque and cadence settings (used for both efforts and sprints)
     cadence_min_rpm = 20
     torque_available = 'torque' in df.columns
@@ -577,6 +596,8 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         'torque_available': 'torque' in df.columns,
         'efforts_modified': False,  # Will be set to True at export time if user confirms
         'sprints_modified': False,  # Will be set to True at export time if user confirms
+        'kjkg_sections': float(kjkg_sections),  # kJ/kg section size
+        'section_distances': section_distances,  # Distances where kJ/kg thresholds occur
         'config': {
             'window_sec': float(effort_config.window_seconds),
             'merge_pct': float(effort_config.merge_power_diff_percent),
