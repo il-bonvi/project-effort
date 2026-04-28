@@ -60,6 +60,48 @@ def _normalize_session_intervals(session: Dict[str, Any]) -> None:
         session['sprints'] = _normalize_sprints(session.get('sprints', []))
 
 
+def _get_non_overlapping_bounds(efforts: List[Tuple[int, int, float]], effort_idx: int, 
+                                proposed_start: int, proposed_end: int) -> Tuple[int, int]:
+    """
+    Adjust proposed bounds to avoid overlapping with other efforts.
+    
+    If the proposed range overlaps with another effort:
+    - If effort comes before another: shrink proposed_end to match the start of the next effort
+    - If effort comes after another: shrink proposed_start to match the end of the previous effort
+    
+    Args:
+        efforts: List of all efforts (start_idx, end_idx, avg_power)
+        effort_idx: Index of the effort being modified
+        proposed_start: Proposed new start index
+        proposed_end: Proposed new end index
+    
+    Returns:
+        Tuple of (adjusted_start, adjusted_end) that don't overlap with other efforts
+    """
+    adjusted_start = proposed_start
+    adjusted_end = proposed_end
+    
+    # Check against all other efforts
+    for idx, other_effort in enumerate(efforts):
+        if idx == effort_idx:
+            continue
+        
+        other_start, other_end, _ = other_effort
+        
+        # Check if proposed range overlaps with this effort
+        # Overlap occurs if: proposed_start < other_end AND proposed_end > other_start
+        if adjusted_start < other_end and adjusted_end > other_start:
+            # There's an overlap - need to prevent it
+            # If our proposed range starts before this effort, clip the end
+            if adjusted_start < other_start:
+                adjusted_end = min(adjusted_end, other_start)
+            # If our proposed range starts at or after this effort's start, clip the start
+            else:
+                adjusted_start = max(adjusted_start, other_end)
+    
+    return adjusted_start, adjusted_end
+
+
 def setup_api_router(sessions_dict: Dict[str, Dict[str, Any]]) -> APIRouter:
     """
     Set up the API router with access to shared sessions.
@@ -427,6 +469,9 @@ async def extend_effort(session_id: str, request: ExtendRequest, sessions: Sessi
 
     new_start = max(0, start_idx - int(request.extend_before_sec * samples_per_sec))
     new_end = min(len(df), end_idx + int(request.extend_after_sec * samples_per_sec))
+    
+    # Prevent overlaps with other efforts
+    new_start, new_end = _get_non_overlapping_bounds(efforts, request.effort_idx, new_start, new_end)
 
     extended_data = df.iloc[new_start:new_end]
     new_avg_power = extended_data['power'].mean() if len(extended_data) > 0 else effort[2]
@@ -527,6 +572,9 @@ async def trim_effort(session_id: str, request: TrimRequest, sessions: SessionsD
 
     new_start = start_idx + int(request.trim_start_sec * samples_per_sec)
     new_end = end_idx - int(request.trim_end_sec * samples_per_sec)
+    
+    # Prevent overlaps with other efforts
+    new_start, new_end = _get_non_overlapping_bounds(efforts, request.effort_idx, new_start, new_end)
 
     if new_start >= new_end:
         raise HTTPException(status_code=400, detail="Trim would result in invalid effort (start >= end)")

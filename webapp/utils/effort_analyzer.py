@@ -269,6 +269,60 @@ def trim_segment(power: np.ndarray, start: int, end: int, trim_win: int, trim_pc
     return start, end
 
 
+def resolve_overlapping_efforts(efforts: List[Tuple[int, int, float]], max_length: int = None) -> List[Tuple[int, int, float]]:
+    """
+    Resolve overlapping efforts by adjusting boundaries so they don't overlap.
+    
+    When two efforts overlap, the second one is moved to start where the first one ends.
+    This ensures all efforts are chronologically ordered and non-overlapping.
+    
+    Args:
+        efforts: List of tuples (start_idx, end_idx, avg_power) which may overlap
+        max_length: Maximum allowed index (length of DataFrame). If provided, clamps all indices to [0, max_length)
+    
+    Returns:
+        List of efforts with no overlaps, sorted by start_idx
+    """
+    if not efforts:
+        return efforts
+    
+    # Sort by start index first
+    sorted_efforts = sorted(efforts, key=lambda e: (int(e[0]), int(e[1])))
+    resolved = []
+    
+    for i, (start, end, avg_power) in enumerate(sorted_efforts):
+        # Check against all previously resolved efforts
+        adjusted_start = start
+        adjusted_end = end
+        
+        for prev_start, prev_end, _ in resolved:
+            # If this effort overlaps with the previous one, adjust it
+            if adjusted_start < prev_end and adjusted_end > prev_start:
+                # Move this effort to start after the previous one
+                if adjusted_start < prev_start:
+                    # This effort starts before the previous - shouldn't happen after sort, but handle it
+                    adjusted_start = prev_end
+                    adjusted_end = adjusted_start + (end - start)
+                else:
+                    # This effort starts during or after the previous - move it after
+                    gap = adjusted_start - start  # Preserve relative offset if any
+                    adjusted_start = prev_end + gap
+                    adjusted_end = adjusted_start + (end - start)
+        
+        # Clamp to valid DataFrame bounds if max_length is provided
+        if max_length is not None:
+            adjusted_start = max(0, min(int(adjusted_start), max_length - 1))
+            adjusted_end = max(0, min(int(adjusted_end), max_length))
+        
+        # Only add if the adjusted effort has a valid range
+        if adjusted_start < adjusted_end:
+            resolved.append((adjusted_start, adjusted_end, avg_power))
+        else:
+            logger.warning(f"Effort ({start}, {end}) was collapsed due to overlap resolution, skipping")
+    
+    return resolved
+
+
 def create_efforts(df: pd.DataFrame, cp: float, window_sec: int = 60, merge_pct: float = 15, 
                    min_cp_pct: float = 100, trim_win: int = 10, trim_low: float = 85) -> List[Tuple[int, int, float]]:
     """Crea finestre, merge, trim, filtro CP.
@@ -334,6 +388,8 @@ def create_efforts(df: pd.DataFrame, cp: float, window_sec: int = 60, merge_pct:
         
         idx = j
     
+    # Resolve any overlaps that may have occurred during creation
+    merged = resolve_overlapping_efforts(merged, max_length=len(power))
     logger.info(f"Creati {len(merged)} efforts")
     return merged
 
@@ -412,6 +468,8 @@ def merge_extend(df: pd.DataFrame, efforts: List[Tuple[int, int, float]],
     if iteration >= max_iterations:
         logger.warning("merge_extend reached max_iterations (%s)", max_iterations)
     
+    # Resolve any overlaps that may have occurred during merge/extend
+    efforts = resolve_overlapping_efforts(efforts, max_length=len(power))
     return efforts
 
 
