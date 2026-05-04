@@ -339,8 +339,8 @@ function buildAnnotationItems(xz) {
         items.push({
             id: `e-${effort.id}`, type: 'effort', obj: effort,
             anchorX: ax, anchorY: ay,
-            label: `E#${effort.id + 1}`,
-            sub:   `${fmtDur(effort.duration)}  ${effort.avg_power}W`,
+            label: `${fmtDur(effort.duration)}  ${effort.avg_power}W`,
+            sub:   `E#${effort.id + 1}`,
             color: effort.color,
         });
     });
@@ -354,8 +354,8 @@ function buildAnnotationItems(xz) {
         items.push({
             id: `s-${idx}`, type: 'sprint', obj: sprint,
             anchorX: ax, anchorY: ay,
-            label: `S#${sprint.rank}`,
-            sub:   `${fmtDur(sprint.duration)}  ${sprint.avg_power}W`,
+            label: `${fmtDur(sprint.duration)}  ${sprint.avg_power}W`,
+            sub:   `S#${sprint.rank}`,
             color: '#000000',
         });
     });
