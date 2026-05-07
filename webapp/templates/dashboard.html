@@ -635,15 +635,15 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="effortWindowSec">Window (s)</label>
-                                <input type="number" id="effortWindowSec" value="{{ session.effort_config.window_seconds | default(60) | int }}" min="10" max="300">
+                                <input type="number" id="effortWindowSec" value="{{ session.effort_config.window_seconds | default(30) | int }}" min="10" max="300">
                             </div>
                             <div class="form-group">
                                 <label for="effortMinCpPct">Min CP (%)</label>
-                                <input type="number" id="effortMinCpPct" value="{{ session.effort_config.min_effort_intensity_cp | default(100) | int }}" min="50" max="200">
+                                <input type="number" id="effortMinCpPct" value="{{ session.effort_config.min_effort_intensity_cp | default(90) | int }}" min="50" max="200">
                             </div>
                             <div class="form-group">
                                 <label for="effortMergePct">Merge Tolerance (%)</label>
-                                <input type="number" id="effortMergePct" value="{{ session.effort_config.merge_power_diff_percent | default(15) | int }}" min="5" max="50">
+                                <input type="number" id="effortMergePct" value="{{ session.effort_config.merge_power_diff_percent | default(20) | int }}" min="5" max="50">
                             </div>
                         </div>
                         <div class="form-row">
@@ -653,11 +653,11 @@
                             </div>
                             <div class="form-group">
                                 <label for="trimLow">Trim Low (%)</label>
-                                <input type="number" id="trimLow" value="{{ session.effort_config.trim_low_percent | default(85) | int }}" min="50" max="100">
+                                <input type="number" id="trimLow" value="{{ session.effort_config.trim_low_percent | default(80) | int }}" min="50" max="100">
                             </div>
                             <div class="form-group">
                                 <label for="extendWin">Extend Window (s)</label>
-                                <input type="number" id="extendWin" value="{{ session.effort_config.extend_window_seconds | default(15) | int }}" min="0" max="120">
+                                <input type="number" id="extendWin" value="{{ session.effort_config.extend_window_seconds | default(10) | int }}" min="0" max="120">
                             </div>
                             <div class="form-group">
                                 <label for="extendLow">Extend Low (%)</label>
@@ -672,7 +672,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="sprintMinPower">Min Power (W)</label>
-                                <input type="number" id="sprintMinPower" value="{{ session.sprint_config.min_power | default(500) }}" min="200" max="1500">
+                                <input type="number" id="sprintMinPower" value="{{ session.sprint_config.min_power | default(600) }}" min="200" max="1500">
                             </div>
                             <div class="form-group">
                                 <label for="sprintMinDuration">Min Duration (s)</label>
@@ -746,6 +746,20 @@
                                 ⬇️ Download Report HTML
                             </button>
                             <div id="htmlExportStatus" style="margin-top: 8px; font-size: 11px; text-align: center; min-height: 16px;"></div>
+                        </div>
+
+                        <div class="export-card" style="border: 2px solid #dc2626; background: linear-gradient(135deg, #fff5f5, #ffe4e4);">
+                            <h3 style="color: #7f1d1d;">📄 Report PDF</h3>
+                            <p style="color: #b91c1c;">
+                                Report completo in PDF landscape A4: altimetria + tabelle sommario,
+                                poi una pagina per ogni effort e sprint con metriche complete
+                                e grafico stream affiancato.
+                            </p>
+                            <button class="btn btn-success" onclick="exportPdfReport()" id="exportPdfBtn"
+                                    style="background: linear-gradient(135deg, #dc2626, #b91c1c); width:100%;">
+                                ⬇️ Download Report PDF
+                            </button>
+                            <div id="pdfExportStatus" style="margin-top:8px; font-size:11px; text-align:center; min-height:16px;"></div>
                         </div>
 
                         <div class="export-card" style="border: 2px solid #dc2626; background: linear-gradient(135deg, #fef2f2, #fee2e2);">
@@ -1536,6 +1550,80 @@
                 });
             }
         });
+
+        async function exportPdfReport() {
+            const btn    = document.getElementById('exportPdfBtn');
+            const status = document.getElementById('pdfExportStatus');
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Generazione PDF...';
+            status.textContent = '';
+            status.style.color = '#6b7280';
+
+            try {
+                // Read zones from localStorage (same keys as inspection.html)
+                const DEFAULT_ZONES = [
+                    { min: 0,   max: 60,  color: '#009e80', name: 'Z1' },
+                    { min: 60,  max: 80,  color: '#009e00', name: 'Z2' },
+                    { min: 80,  max: 90,  color: '#ffcb0e', name: 'Z3' },
+                    { min: 90,  max: 105, color: '#ff7f0e', name: 'Z4' },
+                    { min: 105, max: 135, color: '#dd0447', name: 'Z5' },
+                    { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
+                    { min: 300, max: 999, color: '#504861', name: 'Z7' },
+                ];
+
+                let zones = DEFAULT_ZONES;
+                try {
+                    const raw = localStorage.getItem(INSPECTION_ZONES_KEY)
+                             || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY_VERSION)
+                             || localStorage.getItem(INSPECTION_ZONES_LEGACY_KEY);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed) && parsed.length > 0) zones = parsed;
+                    }
+                } catch(_) {}
+
+                // CP: prefer header value (live session), fallback to settings input
+                const cpFromHeader   = Number.parseFloat(document.getElementById('headerCpValue')?.textContent || '');
+                const cpFromSettings = Number.parseFloat(document.getElementById('cpValue')?.value || '');
+                const cp = Number.isFinite(cpFromHeader) ? cpFromHeader
+                         : (Number.isFinite(cpFromSettings) ? cpFromSettings : null);
+
+                const response = await fetch(`/api/export/${sessionId}/pdf-report`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ zones, cp })
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const blob = await response.blob();
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href     = url;
+                const base = fitFilename.replace(/\.[^.]+$/, '') || 'report';
+                a.download = `peffort_report_${base}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                btn.textContent = '✅ PDF scaricato!';
+                status.textContent = 'Apri il file .pdf con qualsiasi lettore PDF.';
+                status.style.color  = '#22c55e';
+                setTimeout(() => {
+                    btn.disabled    = false;
+                    btn.textContent = '⬇️ Download Report PDF';
+                    status.textContent = '';
+                }, 4000);
+
+            } catch (err) {
+                btn.disabled    = false;
+                btn.textContent = '⬇️ Download Report PDF';
+                status.textContent = `❌ Errore: ${err.message}`;
+                status.style.color  = '#ef4444';
+            }
+        }
     </script>
 </body>
 </html>
