@@ -166,6 +166,57 @@ def build_styles():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ALTITUDE AXIS LIMITS — d3.js rules
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _calculate_altitude_limits(altitude_data: List[Dict]) -> Tuple[float, float]:
+    """
+    Calculate Y-axis limits for altitude charts using d3.js rules.
+    
+    Rules from altimetria_d3.js:
+    - paddingTop = 300 m
+    - paddingBottom = 80 m (if minAlt >= 100) or minAlt * 0.5 (otherwise)
+    - rangeY_base = max(elevationGain * 1.5, elevationGain + 300)
+    - rangeY_final = rangeY_base + paddingBottom + paddingTop
+    - Round all limits to nearest 50 m
+    - yMin = floor((minAlt - paddingBottom) / 50) * 50
+    - yMaxRaw = ceil((yMin + rangeY_final) / 50) * 50
+    - yMaxCap = ceil((maxAlt + paddingTop) / 50) * 50
+    - yMax = min(yMaxRaw, yMaxCap)
+    
+    Args:
+        altitude_data: List of dicts with 'alt' key
+    
+    Returns:
+        (yMin, yMax) tuple for matplotlib ax.set_ylim()
+    """
+    if not altitude_data:
+        return (0, 1000)
+    
+    alts = [p.get("alt", 0) for p in altitude_data]
+    if not alts:
+        return (0, 1000)
+    
+    min_alt = min(alts)
+    max_alt = max(alts)
+    elevation_gain = max_alt - min_alt
+    
+    padding_top = 300
+    padding_bottom = 80 if min_alt >= 100 else max(0, min_alt * 0.5)
+    
+    range_y_base = max(elevation_gain * 1.5, elevation_gain + 300)
+    range_y_final = range_y_base + padding_bottom + padding_top
+    
+    round_to = 50
+    y_min = math.floor((min_alt - padding_bottom) / round_to) * round_to
+    y_max_raw = math.ceil((y_min + range_y_final) / round_to) * round_to
+    y_max_cap = math.ceil((max_alt + padding_top) / round_to) * round_to
+    y_max = min(y_max_raw, y_max_cap)
+    
+    return (y_min, y_max)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # ALTIMETRIA CHART  (matplotlib)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -246,6 +297,10 @@ def build_altimetry_chart(chart_data: Dict, width_pt: float, height_pt: float,
     for spine in ax.spines.values():
         spine.set_edgecolor("#334155")
     ax.grid(axis="y", color="#334155", linewidth=0.5, alpha=0.6)
+    
+    # Apply d3.js altitude limits rules
+    y_min, y_max = _calculate_altitude_limits(elev_data)
+    ax.set_ylim(y_min, y_max)
 
     fig.tight_layout(pad=0.4)
     return mpl_fig_to_rl_image(fig, width_pt, height_pt)
@@ -448,6 +503,12 @@ def build_stream_chart(segment: Dict, cp: float, width_pt: float, height_pt: flo
     for sp in ax_alt.spines.values():
         sp.set_edgecolor("#334155")
     ax_alt.grid(axis="y", color="#334155", linewidth=0.3, alpha=0.5)
+    
+    # Apply d3.js altitude limits rules (prioritize full track if available)
+    altitude_for_limits = elevation_data if (elevation_data and len(elevation_data) > 0) else altitude_data
+    if altitude_for_limits:
+        y_min, y_max = _calculate_altitude_limits(altitude_for_limits)
+        ax_alt.set_ylim(y_min, y_max)
     
     fig.tight_layout(pad=0.4, h_pad=0.6)
     return mpl_fig_to_rl_image(fig, width_pt, height_pt)
