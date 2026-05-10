@@ -226,6 +226,12 @@ class ExportJsonLlamaRequest(BaseModel):
     activity_type: str = Field(..., description="Type of activity: allenamento, corsa_circuito, corsa_linea, ITT, TTT")
 
 
+class ExportPdfRequest(BaseModel):
+    """Request to export PDF report"""
+    zones: Optional[list] = None
+    cp: Optional[float] = None
+
+
 # =============================================================================
 # SESSION DATA ENDPOINTS
 # =============================================================================
@@ -1824,6 +1830,77 @@ async def export_html_report(session_id: str, request: Request, sessions: Sessio
     except Exception as e:
         logger.error(f"Error generating HTML report: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
+
+
+@router.api_route("/export/{session_id}/pdf-report", methods=["GET", "POST"])
+async def export_pdf_report(session_id: str, request: Request, sessions: SessionsDep):
+    """
+    Export a complete PDF report (landscape A4):
+    - Page 1 : Altimetry chart + efforts/sprints summary tables
+    - 1 page per effort  : metrics table (left) + stream chart (right)
+    - 1 page per sprint  : metrics table (left) + stream chart (right)
+
+    Optional POST body:
+      { "zones": [...], "cp": float }
+    """
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = sessions[session_id]
+
+    try:
+        from routes.altimetria_d3 import get_chart_data_json
+        from utils.pdf_report import build_pdf_report
+        import json
+        import re as _re
+
+        DEFAULT_ZONES = [
+            {"min": 0,   "max": 60,  "color": "#009e80", "name": "Z1"},
+            {"min": 60,  "max": 80,  "color": "#009e00", "name": "Z2"},
+            {"min": 80,  "max": 90,  "color": "#ffcb0e", "name": "Z3"},
+            {"min": 90,  "max": 105, "color": "#ff7f0e", "name": "Z4"},
+            {"min": 105, "max": 135, "color": "#dd0447", "name": "Z5"},
+            {"min": 135, "max": 300, "color": "#6633cc", "name": "Z6"},
+            {"min": 300, "max": 999, "color": "#504861", "name": "Z7"},
+        ]
+
+        chart_data = json.loads(get_chart_data_json(session))
+        zones  = DEFAULT_ZONES
+        cp_val = None
+
+        try:
+            body = await request.json()
+            if body:
+                if "zones" in body and isinstance(body["zones"], list) and body["zones"]:
+                    zones = body["zones"]
+                if "cp" in body and body["cp"]:
+                    cp_val = float(body["cp"])
+        except Exception:
+            pass  # GET request or no JSON body
+
+        pdf_bytes = build_pdf_report(
+            chart_data=chart_data,
+            filename=session.get("filename", "activity"),
+            zones=zones,
+            cp_override=cp_val,
+        )
+
+        safe_name = (
+            _re.sub(r"[^\w.\-]", "_", session.get("filename", "report")
+                    .replace(".fit", "")).strip("_") or "report"
+        )
+        return StreamingResponse(
+            BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition":
+                    f'attachment; filename="peffort_report_{safe_name}.pdf"'
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error generating PDF report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
 
 
 __all__ = [
