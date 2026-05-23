@@ -829,7 +829,7 @@
             // ── Layout constants (match ECharts proportions) ───────────────────────
             const CHART_H  = 800;
             const ML = 65, MR = 30, MT = 8;
-            const PANEL_H  = 238;   // ≈ 26% of 800 = 208, a bit taller for third panel space
+            const PANEL_H  = 238;   // Altezza pannelli
             const PANEL_GAP = 0;    // panels are adjacent like ECharts grids
             const P0_TOP = MT;                                       // 8
             const P1_TOP = P0_TOP + PANEL_H + PANEL_GAP;            // 246
@@ -872,11 +872,12 @@
 
             // ── Per-panel structure ────────────────────────────────────────────────
             const PANEL_TOPS = [P0_TOP, P1_TOP, P2_TOP];
-            const LABEL_SPACE = 30;  // Spazio dedicato per le label in alto
+            const LABEL_SPACES = [30, 10, 10];  // Panel 0: 30px (etichette), Panel 1-2: 10px (spazio ridotto)
             const panelGroups  = []; // top-level <g> per panel
             const panelClipGs  = []; // clipped content group
             const panelChartAreas = []; // chart area group (traslato verso il basso)
             const panelYAxes   = []; // y-axis group
+            const panelYLabels = []; // y-axis labels (testo dinamico)
             const crossVLines  = []; // crosshair vertical line
             const crossDots    = []; // crosshair dot
 
@@ -898,37 +899,31 @@
                     .attr('clip-path', 'url(#insp-clip)');
                 panelClipGs.push(clipG);
 
-                // Chart area (traslato verso il basso di 30px per fare spazio alle label)
+                // Chart area (traslato verso il basso di LABEL_SPACES[pi] per fare spazio alle label)
                 const chartArea = clipG.append('g')
                     .attr('class', 'chart-area')
-                    .attr('transform', `translate(0, ${LABEL_SPACE})`);
+                    .attr('transform', `translate(0, ${LABEL_SPACES[pi]})`);
                 panelChartAreas.push(chartArea);
 
                 // Y axis
                 const yAx = pg.append('g').attr('class', 'y-axis');
                 panelYAxes.push(yAx);
 
-                // Y axis label
-                pg.append('text')
+                // Y axis label (dinamico: mostrerà titolo e unità)
+                const yLabelElem = pg.append('text')
                     .attr('class', 'y-label')
                     .attr('transform', 'rotate(-90)')
-                    .attr('x', -(LABEL_SPACE + PANEL_H) / 2).attr('y', -52)
+                    .attr('x', -(LABEL_SPACES[pi] + PANEL_H) / 2).attr('y', -52)
                     .attr('text-anchor', 'middle')
-                    .attr('fill', '#6b7280').attr('font-size', 9)
-                    .text('Power (W)');
+                    .attr('fill', '#6b7280').attr('font-size', 11);
+                panelYLabels.push(yLabelElem);
 
-                // Panel title (position updated on every drawPanel)
-                pg.append('text')
-                    .attr('class', 'panel-title')
-                    .attr('x', 8).attr('y', 14)
-                    .attr('text-anchor', 'start')
-                    .attr('fill', '#374151').attr('font-size', 10).attr('font-weight', 600)
-                    .attr('background', 'white');
+                // Panel title - HIDDEN (moved to y-axis label)
 
                 // Crosshair
                 const cv = pg.append('line')
                     .attr('class', 'cross-v')
-                    .attr('y1', LABEL_SPACE).attr('y2', PANEL_H)
+                    .attr('y1', LABEL_SPACES[pi]).attr('y2', PANEL_H)
                     .attr('stroke', '#9ca3af').attr('stroke-width', 0.8)
                     .attr('stroke-dasharray', '3,2')
                     .style('display', 'none').style('pointer-events', 'none');
@@ -1232,7 +1227,7 @@
                     // Colored rect
                     chartArea.append('rect')
                         .attr('x', rx0).attr('y', 0)
-                        .attr('width', w).attr('height', PANEL_H - LABEL_SPACE)
+                        .attr('width', w).attr('height', PANEL_H - LABEL_SPACES[pi])
                         .attr('fill', effort.color).attr('fill-opacity', 0.15)
                         .attr('stroke', effort.color).attr('stroke-width', 1).attr('stroke-opacity', 0.5);
 
@@ -1268,7 +1263,7 @@
 
                     chartArea.append('rect')
                         .attr('x', rx0).attr('y', 0)
-                        .attr('width', w).attr('height', PANEL_H - LABEL_SPACE)
+                        .attr('width', w).attr('height', PANEL_H - LABEL_SPACES[pi])
                         .attr('fill', sprint.color).attr('fill-opacity', 0.25)
                         .attr('stroke', sprint.color).attr('stroke-width', 2).attr('stroke-opacity', 0.7);
 
@@ -1380,6 +1375,17 @@
                 const yS = getYScale(coords);
                 yScales[pi] = yS;
 
+                // Aggiorna la label dell'asse Y con il titolo dinamico
+                let yLabelText = '';
+                if (pi === 0) {
+                    yLabelText = 'Raw Power (W)';
+                } else if (pi === 1) {
+                    yLabelText = `${avg30sSeconds}s Power (W)`;
+                } else if (pi === 2) {
+                    yLabelText = `${avg60sSeconds}s Power (W)`;
+                }
+                panelYLabels[pi].text(yLabelText);
+
                 // Y axis (ticks + grid lines)
                 const yAxis = d3.axisLeft(yS).ticks(5).tickSize(-INNER_W);
                 yAx.call(yAxis);
@@ -1424,9 +1430,6 @@
 
                 // START/END markers on first panel only
                 if (pi === 0) drawStartEndMarkers(chartArea, yS);
-
-                // Panel title
-                pg.select('.panel-title').text(panelTitles_()[pi]);
             }
 
             // ── X axis ────────────────────────────────────────────────────────────
@@ -1477,7 +1480,7 @@
                     if (!yS2) return;
                     const panelCoords = coordsByPanel()[pi];
                     const p = panelCoords[idx] ? panelCoords[idx][1] : 0;
-                    const cy = yS2(p || 0) + LABEL_SPACE;  // Aggiungi LABEL_SPACE per il traslamento
+                    const cy = yS2(p || 0) + LABEL_SPACES[pi];  // Aggiungi LABEL_SPACES[pi] per il traslamento
                     cd.style('display', null).attr('cx', mx).attr('cy', cy);
                 });
 
