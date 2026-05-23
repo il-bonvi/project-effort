@@ -1,3 +1,12 @@
+INSPECXTION: 
+
+metter x sopra...
+aggiustare linea del grafico (color)
+
+
+
+
+
 1)
 aggiustamenti hover mini alt (doppio per selezione, trascinamento ON)
 
