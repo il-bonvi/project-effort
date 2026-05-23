@@ -909,12 +909,13 @@
                     .attr('fill', '#6b7280').attr('font-size', 9)
                     .text('Power (W)');
 
-                // Panel title
+                // Panel title (position updated on every drawPanel)
                 pg.append('text')
                     .attr('class', 'panel-title')
-                    .attr('x', INNER_W - 6).attr('y', 14)
-                    .attr('text-anchor', 'end')
-                    .attr('fill', '#374151').attr('font-size', 10).attr('font-weight', 600);
+                    .attr('x', 8).attr('y', 14)
+                    .attr('text-anchor', 'start')
+                    .attr('fill', '#374151').attr('font-size', 10).attr('font-weight', 600)
+                    .attr('background', 'white');
 
                 // Crosshair
                 const cv = pg.append('line')
@@ -1025,7 +1026,7 @@
                 const newD1 = Math.min(maxTime, center + (d1 - center) * factor);
                 if (newD1 - newD0 < 5) return;
                 xView = d3.scaleLinear().domain([newD0, newD1]).range([0, INNER_W]);
-                drawAllPanels();
+                scheduleDraw();   // rAF-debounced: at most 1 redraw per frame
                 syncBrush();
             }, { passive: false });
 
@@ -1062,44 +1063,61 @@
                 _zoneClipCount = 0;
             }
 
-            function drawZoneColoredCurve(clipG, coords, yS) {
+            // Binary-search visible slice — much faster than .filter() on large arrays
+            function visibleSlice(coords) {
                 const [d0, d1] = xView.domain();
-                // Visible range + small buffer for smooth edges
-                const vis = coords.filter(([t]) => t >= d0 - 2 && t <= d1 + 2);
+                const lo0 = d0 - 2, hi0 = d1 + 2;
+                let lo = 0, hi = coords.length;
+                // left bound
+                let a = 0, b = coords.length;
+                while (a < b) { const m = (a + b) >> 1; if (coords[m][0] < lo0) a = m + 1; else b = m; }
+                lo = Math.max(0, a - 1);
+                // right bound
+                a = lo; b = coords.length;
+                while (a < b) { const m = (a + b) >> 1; if (coords[m][0] <= hi0) a = m + 1; else b = m; }
+                hi = Math.min(coords.length, a + 1);
+                return coords.slice(lo, hi);
+            }
+
+            // rAF-debounced redraw — ensures at most one draw per animation frame
+            let _rafId = null;
+            function scheduleDraw() {
+                if (_rafId) cancelAnimationFrame(_rafId);
+                _rafId = requestAnimationFrame(() => { _rafId = null; drawAllPanels(); });
+            }
+
+            function drawZoneColoredCurve(clipG, coords, yS) {
+                const vis = visibleSlice(coords);
                 if (vis.length < 2) return;
 
-                // 1. Build area shape → clipPath
-                const areaPath = d3.area()
-                    .x(([t]) => xView(t)).y0(PANEL_H + 2).y1(([t, p]) => yS(p))
-                    .curve(d3.curveLinear)(vis);
+                const lineFn = d3.line().x(([t]) => xView(t)).y(([, p]) => yS(p)).curve(d3.curveLinear);
+                const areaFn = d3.area().x(([t]) => xView(t)).y0(PANEL_H + 2).y1(([, p]) => yS(p)).curve(d3.curveLinear);
 
+                // 1. clipPath = filled area shape (baseline → curve)
                 const clipId = `zc-${++_zoneClipCount}`;
                 defs.append('clipPath').attr('id', clipId)
-                    .append('path').attr('d', areaPath);
+                    .append('path').attr('d', areaFn(vis));
 
-                // 2. Zone band rects, clipped to area shape
+                // 2. Zone coloured rectangles, clipped to curve area
                 localZones.forEach(zone => {
                     const minW = (zone.min / 100) * cp;
                     const maxW = zone.max === 999 ? maxPowerRaw * 2 : (zone.max / 100) * cp;
                     const y1 = yS(maxW), y2 = yS(minW);
-                    if (y1 > PANEL_H + 2 || y2 < -2) return;
+                    if (y1 >= PANEL_H || y2 <= 0) return;
                     clipG.append('rect')
                         .attr('x', 0).attr('width', INNER_W)
                         .attr('y', Math.max(-2, y1))
-                        .attr('height', Math.max(0, Math.min(PANEL_H + 4, y2) - Math.max(-2, y1)))
+                        .attr('height', Math.max(0, Math.min(PANEL_H + 2, y2) - Math.max(-2, y1)))
                         .attr('fill', zone.color).attr('opacity', 0.82)
                         .attr('clip-path', `url(#${clipId})`);
                 });
 
-                // 3. White mask above the line
+                // 3. White mask above the curve
                 clipG.append('path')
-                    .datum(vis)
                     .attr('fill', 'white')
-                    .attr('d', d3.area()
-                        .x(([t]) => xView(t)).y0(-4).y1(([t, p]) => yS(p))
-                        .curve(d3.curveLinear)(vis));
+                    .attr('d', d3.area().x(([t]) => xView(t)).y0(-4).y1(([, p]) => yS(p)).curve(d3.curveLinear)(vis));
 
-                // 4. Grid lines every 100W (on top of white mask)
+                // 4. Grid lines every 100 W (drawn above white mask)
                 const yMax = yS.domain()[1];
                 for (let w = 100; w <= yMax; w += 100) {
                     const yy = yS(w);
@@ -1111,7 +1129,7 @@
                     }
                 }
 
-                // 5. Zone-colored line segments (grouped by zone for perf)
+                // 5. Zone-coloured line — grouped runs (no duplicate boundary point bug)
                 const segG = clipG.append('g');
                 let curColor = null, curPts = [];
                 const flush = () => {
@@ -1122,24 +1140,29 @@
                             .attr('stroke-width', 2)
                             .attr('stroke-linecap', 'round')
                             .attr('stroke-linejoin', 'round')
-                            .attr('d', d3.line().x(([t]) => xView(t)).y(([t, p]) => yS(p)).curve(d3.curveLinear)(curPts));
+                            .attr('d', lineFn(curPts));
                     }
                     curPts = [];
                 };
                 for (const pt of vis) {
                     const color = getZoneColor(pt[1]);
                     if (color !== curColor) {
-                        if (curPts.length > 0) { curPts.push(pt); flush(); curPts = [pt]; }
+                        // share boundary point: close old run WITH this point, start new run WITH it
+                        if (curPts.length > 0) {
+                            curPts.push(pt);   // close previous run cleanly
+                            flush();
+                            curPts = [pt];     // open new run from same boundary point
+                        }
                         curColor = color;
+                    } else {
+                        curPts.push(pt);       // normal: only add once
                     }
-                    curPts.push(pt);
                 }
                 flush();
             }
 
             function drawSolidCurve(clipG, coords, yS, color, fillOpacity) {
-                const [d0, d1] = xView.domain();
-                const vis = coords.filter(([t]) => t >= d0 - 2 && t <= d1 + 2);
+                const vis = visibleSlice(coords);
                 if (vis.length < 2) return;
                 // Grid lines
                 const yMax = yS.domain()[1];
@@ -1199,22 +1222,24 @@
                         .attr('fill', effort.color).attr('fill-opacity', 0.15)
                         .attr('stroke', effort.color).attr('stroke-width', 1).attr('stroke-opacity', 0.5);
 
-                    // Label on top panel only
+                    // Label on first panel only (pi === 0) — 3 lines: name, avg power, duration
                     if (pi === 0) {
                         const midX = (Math.max(0, x0) + Math.min(INNER_W, x1)) / 2;
+                        const dur  = Math.round(effort.end - effort.start);
+                        const avg  = Math.round(effort.avg_power);
+                        const boxW = 56, boxH = 42, boxY = 4;
                         const labelG = clipG.append('g');
                         labelG.append('rect')
-                            .attr('x', midX - 24).attr('y', 4)
-                            .attr('width', 48).attr('height', 16)
-                            .attr('rx', 3)
-                            .attr('fill', 'white').attr('fill-opacity', 0.9)
+                            .attr('x', midX - boxW/2).attr('y', boxY)
+                            .attr('width', boxW).attr('height', boxH).attr('rx', 3)
+                            .attr('fill', 'white').attr('fill-opacity', 0.92)
                             .attr('stroke', effort.color).attr('stroke-width', 1);
-                        labelG.append('text')
-                            .attr('x', midX).attr('y', 16)
-                            .attr('text-anchor', 'middle')
-                            .attr('fill', effort.color)
-                            .attr('font-size', 10).attr('font-weight', 700)
-                            .text(effort.label);
+                        const txt = labelG.append('text')
+                            .attr('x', midX).attr('text-anchor', 'middle')
+                            .attr('fill', effort.color).attr('font-size', 9).attr('font-weight', 700);
+                        txt.append('tspan').attr('x', midX).attr('dy', 13).text(effort.label);
+                        txt.append('tspan').attr('x', midX).attr('dy', 12).attr('font-weight', 400).text(`${avg} W avg`);
+                        txt.append('tspan').attr('x', midX).attr('dy', 12).attr('font-weight', 400).text(`${dur} s`);
                     }
                 });
 
@@ -1235,18 +1260,21 @@
 
                     if (pi === 0) {
                         const midX = (Math.max(0, x0) + Math.min(INNER_W, x1)) / 2;
+                        const dur  = Math.round(sprint.end - sprint.start);
+                        const avg  = Math.round(sprint.avg_power);
+                        const maxP = Math.round(sprint.max_power);
+                        const boxW = 60, boxH = 42, boxY = 4;
                         const labelG = clipG.append('g');
                         labelG.append('rect')
-                            .attr('x', midX - 24).attr('y', 4)
-                            .attr('width', 48).attr('height', 16)
-                            .attr('rx', 3)
+                            .attr('x', midX - boxW/2).attr('y', boxY)
+                            .attr('width', boxW).attr('height', boxH).attr('rx', 3)
                             .attr('fill', sprint.color).attr('fill-opacity', 0.9);
-                        labelG.append('text')
-                            .attr('x', midX).attr('y', 16)
-                            .attr('text-anchor', 'middle')
-                            .attr('fill', 'white')
-                            .attr('font-size', 10).attr('font-weight', 700)
-                            .text(sprint.label);
+                        const txt = labelG.append('text')
+                            .attr('x', midX).attr('text-anchor', 'middle')
+                            .attr('fill', 'white').attr('font-size', 9).attr('font-weight', 700);
+                        txt.append('tspan').attr('x', midX).attr('dy', 13).text(sprint.label);
+                        txt.append('tspan').attr('x', midX).attr('dy', 12).attr('font-weight', 400).text(`${avg}W avg`);
+                        txt.append('tspan').attr('x', midX).attr('dy', 12).attr('font-weight', 400).text(`${dur} s`);
                     }
                 });
             }
@@ -1438,14 +1466,24 @@
                     cd.style('display', null).attr('cx', mx).attr('cy', cy);
                 });
 
-                // Tooltip content (same format as ECharts)
+                // Tooltip content — show all 3 panel values
                 const m   = Math.floor(timeVal / 60);
                 const s   = Math.round(timeVal % 60);
                 const tStr = m > 0 ? `${m}m${s}s` : `${Math.round(timeVal)}s`;
+                const vals = coordsByPanel().map(coords => {
+                    const pt = coords[idx];
+                    return pt ? Math.round(pt[1]) : null;
+                });
                 const zColor = getZoneColor(powerVal);
+                const panelColors = [powerColor, avg30sColor, avg60sColor];
+                const panelNames  = ['Raw', `${avg30sSeconds}s avg`, `${avg60sSeconds}s avg`];
                 tooltipEl.innerHTML =
                     `<div style="font-weight:bold;margin-bottom:4px;">${tStr}</div>` +
-                    `<div><span style="font-weight:bold;color:${zColor};">${Math.round(powerVal)}W</span></div>`;
+                    vals.map((v, i) => {
+                        if (v === null) return '';
+                        const col = i === 0 ? getZoneColor(v) : panelColors[i];
+                        return `<div style="margin:1px 0"><span style="color:${col};font-weight:bold;">${v}W</span> <span style="color:#9ca3af;font-size:10px;">${panelNames[i]}</span></div>`;
+                    }).join('');
                 tooltipEl.style.display = 'block';
 
                 // Position tooltip
@@ -1465,20 +1503,32 @@
                 tooltipEl.style.display = 'none';
             });
 
-            // ── Right-click drag for START/END markers ────────────────────────────
+            // ── Right-click drag for START/END markers + left-click pan ────────────
             let draggingState = null;
+            let panState = null;  // { startX, startDomain }
 
             mainChartDiv.addEventListener('contextmenu', function(e) {
                 if (e.target.closest('#mainChart svg')) e.preventDefault();
             });
 
+            // Left-click: start pan (unless right-click drag is active)
+            overlayRect.on('mousedown', function(event) {
+                if (event.button !== 0) return;
+                if (draggingState) return;
+                event.preventDefault();
+                panState = { startX: d3.pointer(event)[0], startDomain: xView.domain().slice() };
+                overlayRect.style('cursor', 'grabbing');
+            });
+
+            // Right-click: pick nearest START/END marker
             mainChartDiv.addEventListener('mousedown', function(e) {
                 if (e.button !== 2) return;
                 e.preventDefault();
+                panState = null;
                 const rect = mainChartDiv.getBoundingClientRect();
                 const mx   = e.clientX - rect.left - ML;
                 const timeVal = xView.invert(mx);
-                const tol = (xView.invert(INNER_W) - xView.invert(0)) * 0.015;
+                const tol = (xView.domain()[1] - xView.domain()[0]) * 0.015;
                 let best = null, bestDist = Infinity;
 
                 effortsData.forEach((effort, idx) => {
@@ -1499,6 +1549,23 @@
             });
 
             document.addEventListener('mousemove', function(e) {
+                // ── Pan ───────────────────────────────────────────────────────────
+                if (panState && !draggingState) {
+                    const rect = mainChartDiv.getBoundingClientRect();
+                    const mx   = e.clientX - rect.left - ML;
+                    const dx   = mx - panState.startX;
+                    const [d0, d1] = panState.startDomain;
+                    const range    = d1 - d0;
+                    const dt = -(dx / INNER_W) * range;   // time units panned
+                    const newD0 = Math.max(minTime, d0 + dt);
+                    const newD1 = Math.min(maxTime, newD0 + range);
+                    xView = d3.scaleLinear().domain([newD0, newD1]).range([0, INNER_W]);
+                    scheduleDraw();
+                    syncBrush();
+                    return;
+                }
+
+                // ── Effort/Sprint START/END drag ──────────────────────────────────
                 if (!draggingState) return;
                 const rect = mainChartDiv.getBoundingClientRect();
                 const mx   = e.clientX - rect.left - ML;
@@ -1508,12 +1575,10 @@
                     const effort = effortsData[draggingState.idx];
                     if (draggingState.isStart) { if (newTime < effort.end - 5) effort.start = newTime; }
                     else                       { if (newTime > effort.start + 5) effort.end = newTime; }
-                    // Recalc avg power
                     const si = timeAxis.findIndex(t => t >= effort.start);
                     const ei = timeAxis.findIndex(t => t >= effort.end);
                     const sl = powerData.slice(Math.max(0,si), Math.max(1,ei));
                     if (sl.length > 0) effort.avg_power = sl.reduce((a,b)=>a+b,0)/sl.length;
-                    // Update legend info
                     const infoEl = document.getElementById(`effort-info-${draggingState.idx}`);
                     if (infoEl) infoEl.textContent = `${effort.start.toFixed(0)}s - ${effort.end.toFixed(0)}s | ${(effort.end-effort.start).toFixed(0)}s | ${effort.avg_power.toFixed(0)}W`;
                 } else {
@@ -1528,14 +1593,18 @@
                     const infoEl = document.getElementById(`sprint-info-${draggingState.idx}`);
                     if (infoEl) infoEl.textContent = `${sprint.start.toFixed(0)}s - ${sprint.end.toFixed(0)}s | ${sprint.duration.toFixed(0)}s | ${sprint.max_power.toFixed(0)}W | ${sprint.avg_power.toFixed(0)}W`;
                 }
-                rebuildChart();
+                scheduleDraw();   // rAF-debounced during drag for smoothness
             });
 
             document.addEventListener('mouseup', function(e) {
+                if (panState) {
+                    panState = null;
+                    overlayRect.style('cursor', 'crosshair');
+                }
                 if (draggingState) {
                     draggingState = null;
                     normalizeFrontendLabels();
-                    rebuildChart();
+                    drawAllPanels();   // final full redraw after drag ends
                 }
             });
 
