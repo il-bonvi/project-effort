@@ -1236,8 +1236,9 @@
                         const midX = (Math.max(0, x0) + Math.min(INNER_W, x1)) / 2;
                         const dur  = Math.round(effort.end - effort.start);
                         const avg  = Math.round(effort.avg_power);
-                        const boxW = 56, boxH = 34, boxY = 2;
-                        const labelG = pg.append('g').attr('class', 'effort-label-group');
+                        const boxW = 60, boxH = 34, boxY = 2;
+                        const labelG = pg.append('g').attr('class', 'effort-label-group')
+                            .style('cursor', 'default');
                         labelG.append('rect')
                             .attr('x', midX - boxW/2).attr('y', boxY)
                             .attr('width', boxW).attr('height', boxH).attr('rx', 3)
@@ -1249,6 +1250,32 @@
                         txt.append('tspan').attr('x', midX).attr('dy', 11).text(effort.label);
                         txt.append('tspan').attr('x', midX).attr('dy', 10).attr('font-weight', 400).attr('font-size', 10).text(`${avg}W`);
                         txt.append('tspan').attr('x', midX).attr('dy', 9).attr('font-weight', 400).attr('font-size', 10).text(`${dur}s`);
+                        // × delete button — top-right corner of the label box
+                        const btnX = midX + boxW/2 - 1, btnY = boxY - 1;
+                        const delBtnG = labelG.append('g')
+                            .attr('class', 'effort-del-btn')
+                            .style('cursor', 'pointer')
+                            .on('click', function(event) {
+                                event.stopPropagation();
+                                const card = document.getElementById(`effort-${idx}`);
+                                if (deletedEfforts.has(idx)) {
+                                    deletedEfforts.delete(idx);
+                                    if (card) card.classList.remove('deleted');
+                                } else {
+                                    deletedEfforts.add(idx);
+                                    if (card) card.classList.add('deleted');
+                                }
+                                rebuildChart();
+                            });
+                        delBtnG.append('circle')
+                            .attr('cx', btnX).attr('cy', btnY).attr('r', 7)
+                            .attr('fill', '#ef4444').attr('stroke', 'white').attr('stroke-width', 1.5);
+                        delBtnG.append('text')
+                            .attr('x', btnX).attr('y', btnY + 4)
+                            .attr('text-anchor', 'middle')
+                            .attr('fill', 'white').attr('font-size', 10).attr('font-weight', 700)
+                            .style('pointer-events', 'none')
+                            .text('×');
                     }
                 });
 
@@ -1273,7 +1300,8 @@
                         const avg  = Math.round(sprint.avg_power);
                         const maxP = Math.round(sprint.max_power);
                         const boxW = 60, boxH = 34, boxY = 2;
-                        const labelG = pg.append('g').attr('class', 'sprint-label-group');
+                        const labelG = pg.append('g').attr('class', 'sprint-label-group')
+                            .style('cursor', 'default');
                         labelG.append('rect')
                             .attr('x', midX - boxW/2).attr('y', boxY)
                             .attr('width', boxW).attr('height', boxH).attr('rx', 3)
@@ -1284,6 +1312,32 @@
                         txt.append('tspan').attr('x', midX).attr('dy', 11).text(sprint.label);
                         txt.append('tspan').attr('x', midX).attr('dy', 10).attr('font-weight', 400).attr('font-size', 8).text(`${avg}W`);
                         txt.append('tspan').attr('x', midX).attr('dy', 9).attr('font-weight', 400).attr('font-size', 8).text(`${dur}s`);
+                        // × delete button — top-right corner of the label box
+                        const sBtnX = midX + boxW/2 - 1, sBtnY = boxY - 1;
+                        const sDelBtnG = labelG.append('g')
+                            .attr('class', 'sprint-del-btn')
+                            .style('cursor', 'pointer')
+                            .on('click', function(event) {
+                                event.stopPropagation();
+                                const card = document.getElementById(`sprint-${idx}`);
+                                if (deletedSprints.has(idx)) {
+                                    deletedSprints.delete(idx);
+                                    if (card) card.classList.remove('deleted');
+                                } else {
+                                    deletedSprints.add(idx);
+                                    if (card) card.classList.add('deleted');
+                                }
+                                rebuildChart();
+                            });
+                        sDelBtnG.append('circle')
+                            .attr('cx', sBtnX).attr('cy', sBtnY).attr('r', 7)
+                            .attr('fill', '#1f2937').attr('stroke', 'white').attr('stroke-width', 1.5);
+                        sDelBtnG.append('text')
+                            .attr('x', sBtnX).attr('y', sBtnY + 4)
+                            .attr('text-anchor', 'middle')
+                            .attr('fill', 'white').attr('font-size', 10).attr('font-weight', 700)
+                            .style('pointer-events', 'none')
+                            .text('×');
                     }
                 });
             }
