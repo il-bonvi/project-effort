@@ -1,7 +1,6 @@
 INSPECXTION: 
 
-metter x sopra...
-aggiustare linea del grafico (color)
+aggiustare i piccoli bug grafici (barre orizzontali bianche..., aggiungere barre verticali?)
 
 
 
