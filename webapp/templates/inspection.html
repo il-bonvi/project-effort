@@ -1514,7 +1514,6 @@
 
             // ── Mouse: tooltip + crosshair ────────────────────────────────────────
             overlayRect.on('mousemove', function(event) {
-                if (draggingState) return;
                 const [mx, my] = d3.pointer(event);
                 const localMy = my - P0_TOP; // relative to panel 0 top
 
@@ -1615,7 +1614,9 @@
                     const de = Math.abs(timeVal - sprint.end);
                     if (de < tol && de < bestDist) { bestDist = de; best = { type:'sprint', idx, isStart:false }; }
                 });
-                if (best) draggingState = best;
+                if (best) {
+                    draggingState = best;
+                }
             });
 
             document.addEventListener('mousemove', function(e) {
