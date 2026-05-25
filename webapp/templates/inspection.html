@@ -575,7 +575,6 @@
                 recalculateIntervalLabels();
                 addEffortCard(newEffort, newIdx);
                 rebuildChart();
-                document.getElementById(`effort-${newIdx}`).scrollIntoView({ behavior:'smooth', block:'nearest' });
             });
 
             const sprintsLegendDiv = document.getElementById('sprintsLegend');
@@ -648,7 +647,6 @@
                     rebuildChart();
                 });
                 rebuildChart();
-                document.getElementById(`sprint-${newIdx}`).scrollIntoView({ behavior:'smooth', block:'nearest' });
             });
 
             function recalculateIntervalLabels() {
@@ -1705,6 +1703,7 @@
                 rootG.select('.x-label').attr('x', INNER_W / 2);
                 syncBrush();
                 drawAllPanels();
+                buildQuickAddBtns();
             });
             resizeObserver.observe(mainChartDiv);
 
@@ -1877,6 +1876,41 @@
                     setTimeout(() => { btn.textContent = '💾 Salva Modifiche'; status.textContent = ''; }, 5000);
                 }
             });
+
+            // ── Quick-add buttons overlay (above interactive overlay) ─────────────
+            const quickAddG = rootG.append('g').attr('class', 'quick-add-btns');
+
+            function buildQuickAddBtns() {
+                quickAddG.selectAll('*').remove();
+                const btnY = P0_TOP + 6;
+
+                // + Effort (green pill)
+                const qEG = quickAddG.append('g').style('cursor', 'pointer')
+                    .on('click', () => document.getElementById('addEffortBtn').click());
+                qEG.append('rect')
+                    .attr('x', INNER_W - 128).attr('y', btnY)
+                    .attr('width', 60).attr('height', 17).attr('rx', 8)
+                    .attr('fill', '#16a34a').attr('fill-opacity', 0.88);
+                qEG.append('text')
+                    .attr('x', INNER_W - 98).attr('y', btnY + 12)
+                    .attr('text-anchor', 'middle').attr('fill', 'white')
+                    .attr('font-size', 10).attr('font-weight', 700)
+                    .style('pointer-events', 'none').text('＋ Effort');
+
+                // + Sprint (blue pill)
+                const qSG = quickAddG.append('g').style('cursor', 'pointer')
+                    .on('click', () => document.getElementById('addSprintBtn').click());
+                qSG.append('rect')
+                    .attr('x', INNER_W - 63).attr('y', btnY)
+                    .attr('width', 58).attr('height', 17).attr('rx', 8)
+                    .attr('fill', '#1d4ed8').attr('fill-opacity', 0.88);
+                qSG.append('text')
+                    .attr('x', INNER_W - 34).attr('y', btnY + 12)
+                    .attr('text-anchor', 'middle').attr('fill', 'white')
+                    .attr('font-size', 10).attr('font-weight', 700)
+                    .style('pointer-events', 'none').text('＋ Sprint');
+            }
+            buildQuickAddBtns();
 
             // ── Initial render ────────────────────────────────────────────────────
             drawAllPanels();
