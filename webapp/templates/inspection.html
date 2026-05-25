@@ -1411,6 +1411,25 @@
                 `Grafico 3 (${avg60sSeconds}s Avg)`
             ];
 
+            // ── Time formatting helper ─────────────────────────────────────────
+            function formatTime(seconds) {
+                if (seconds >= 3600) {
+                    let h = Math.floor(seconds / 3600);
+                    let m = Math.floor((seconds % 3600) / 60);
+                    let s = Math.round(seconds % 60);
+                    if (s === 60) { m++; s = 0; }
+                    if (m === 60) { h++; m = 0; }
+                    return `${h}h${String(m).padStart(2, '0')}m${String(s).padStart(2, '0')}s`;
+                } else if (seconds >= 60) {
+                    let m = Math.floor(seconds / 60);
+                    let s = Math.round(seconds % 60);
+                    if (s === 60) { m++; s = 0; }
+                    return `${m}m${s}s`;
+                } else {
+                    return `${Math.round(seconds)}s`;
+                }
+            }
+
             // Per-panel y scales (stored so crosshair can use them)
             const yScales = [null, null, null];
 
@@ -1488,11 +1507,7 @@
             function drawXAxis() {
                 const xAxis = d3.axisBottom(xView)
                     .ticks(Math.max(4, Math.floor(INNER_W / 80)))
-                    .tickFormat(d => {
-                        const m = Math.floor(d / 60);
-                        const s = Math.round(d % 60);
-                        return m > 0 ? `${m}m${s}s` : `${Math.round(d)}s`;
-                    });
+                    .tickFormat(d => formatTime(d));
                 xAxisG.call(xAxis);
                 xAxisG.select('.domain').attr('stroke', '#6b7280');
                 xAxisG.selectAll('.tick line').attr('stroke', '#e5e7eb');
@@ -1536,9 +1551,7 @@
                 });
 
                 // Tooltip content — show all 3 panel values
-                const m   = Math.floor(timeVal / 60);
-                const s   = Math.round(timeVal % 60);
-                const tStr = m > 0 ? `${m}m${s}s` : `${Math.round(timeVal)}s`;
+                const tStr = formatTime(timeVal);
                 const vals = coordsByPanel().map(coords => {
                     const pt = coords[idx];
                     return pt ? Math.round(pt[1]) : null;
