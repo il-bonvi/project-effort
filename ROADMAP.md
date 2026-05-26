@@ -1,11 +1,3 @@
-INSPECXTION: 
-
-aggiustare i piccoli bug grafici (barre orizzontali bianche..., aggiungere barre verticali?)
-
-
-
-
-
 1)
 aggiustamenti hover mini alt (doppio per selezione, trascinamento ON)
 
