@@ -1047,14 +1047,16 @@
                 .style('cursor', 'crosshair');
 
             // ── Y-scale helper ────────────────────────────────────────────────────
-            function getYScale(coords) {
+            function getYScale(coords, pi) {
+                const chartH = PANEL_H - LABEL_SPACES[pi];
                 const [d0, d1] = xView.domain();
                 let maxP = cp || 1;
                 for (const [t, p] of coords) {
                     if (t >= d0 && t <= d1 && p != null && p > maxP) maxP = p;
                 }
-                const yMax = Math.ceil(maxP * 1.05) || Math.ceil(maxPowerRaw * 1.05);
-                return d3.scaleLinear().domain([0, yMax]).range([PANEL_H, 0]);
+                let yMax = Math.ceil(maxP * 1.05);
+                yMax = Math.ceil(yMax / 50) * 50;
+                return d3.scaleLinear().domain([0, yMax]).range([chartH, 0]);
             }
 
             // ── Zone-colored fill (clipPath approach) ─────────────────────────────
@@ -1087,50 +1089,51 @@
                 _rafId = requestAnimationFrame(() => { _rafId = null; drawAllPanels(); });
             }
 
-            function drawZoneColoredCurve(clipG, coords, yS) {
+            function drawZoneColoredCurve(clipG, coords, yS, chartH) {
                 const vis = visibleSlice(coords);
                 if (vis.length < 2) return;
 
                 const lineFn = d3.line().x(([t]) => xView(t)).y(([, p]) => yS(p)).curve(d3.curveLinear);
-                const areaFn = d3.area().x(([t]) => xView(t)).y0(PANEL_H + 2).y1(([, p]) => yS(p)).curve(d3.curveLinear);
+                const areaFn = d3.area().x(([t]) => xView(t)).y0(chartH + 2).y1(([, p]) => yS(p)).curve(d3.curveLinear);
 
-                // 1. clipPath = filled area shape (baseline → curve)
+                // 1. Grid lines PRIMA di tutto — finiscono sotto il fill colorato
+                const yMax = yS.domain()[1];
+                for (let w = 100; w <= yMax; w += 100) {
+                    const yy = yS(w);
+                    if (yy >= 0 && yy <= chartH) {
+                        clipG.append('line')
+                            .attr('x1', 0).attr('x2', INNER_W)
+                            .attr('y1', yy).attr('y2', yy)
+                            .attr('stroke', '#e5e7eb').attr('stroke-width', 0.25).attr('opacity', 0.1);
+                    }
+                }
+
+                // 2. clipPath = filled area shape (baseline → curve)
                 const clipId = `zc-${++_zoneClipCount}`;
                 defs.append('clipPath').attr('id', clipId)
                     .append('path').attr('d', areaFn(vis));
 
-                // 2. Zone coloured rectangles, clipped to curve area
+                // 3. Zone coloured rectangles, clipped to curve area
                 localZones.forEach(zone => {
                     const minW = (zone.min / 100) * cp;
                     const maxW = zone.max === 999 ? maxPowerRaw * 2 : (zone.max / 100) * cp;
                     const y1 = yS(maxW), y2 = yS(minW);
-                    if (y1 >= PANEL_H || y2 <= 0) return;
+                    if (y1 >= chartH || y2 <= 0) return;
                     clipG.append('rect')
                         .attr('x', 0).attr('width', INNER_W)
-                        .attr('y', Math.max(-2, y1))
-                        .attr('height', Math.max(0, Math.min(PANEL_H + 2, y2) - Math.max(-2, y1)))
-                        .attr('fill', zone.color).attr('opacity', 0.82)
+                        .attr('y', Math.max(-2, y1 - 0.5))
+                        .attr('height', Math.max(0, Math.min(chartH + 2, y2 + 0.5) - Math.max(-2, y1 - 0.5)))
+                        .attr('fill', zone.color).attr('opacity', 1)
+                        .style('shape-rendering', 'crispEdges')
                         .attr('clip-path', `url(#${clipId})`);
                 });
 
-                // 3. White mask above the curve
+                // 4. White mask above the curve
                 clipG.append('path')
                     .attr('fill', 'white')
                     .attr('d', d3.area().x(([t]) => xView(t)).y0(-4).y1(([, p]) => yS(p)).curve(d3.curveLinear)(vis));
 
-                // 4. Grid lines every 100 W (drawn above white mask)
-                const yMax = yS.domain()[1];
-                for (let w = 100; w <= yMax; w += 100) {
-                    const yy = yS(w);
-                    if (yy >= 0 && yy <= PANEL_H) {
-                        clipG.append('line')
-                            .attr('x1', 0).attr('x2', INNER_W)
-                            .attr('y1', yy).attr('y2', yy)
-                            .attr('stroke', '#f3f4f6').attr('stroke-width', 1);
-                    }
-                }
-
-                // 5. Zone-coloured line — grouped runs (no duplicate boundary point bug)
+                // 5. Zone-coloured line — grouped runs
                 const segG = clipG.append('g');
                 let curColor = null, curPts = [];
                 const flush = () => {
@@ -1148,32 +1151,31 @@
                 for (const pt of vis) {
                     const color = getZoneColor(pt[1]);
                     if (color !== curColor) {
-                        // share boundary point: close old run WITH this point, start new run WITH it
                         if (curPts.length > 0) {
-                            curPts.push(pt);   // close previous run cleanly
+                            curPts.push(pt);
                             flush();
-                            curPts = [pt];     // open new run from same boundary point
+                            curPts = [pt];
                         }
                         curColor = color;
                     } else {
-                        curPts.push(pt);       // normal: only add once
+                        curPts.push(pt);
                     }
                 }
                 flush();
             }
 
-            function drawSolidCurve(clipG, coords, yS, color, fillOpacity) {
+            function drawSolidCurve(clipG, coords, yS, color, fillOpacity, chartH) {
                 const vis = visibleSlice(coords);
                 if (vis.length < 2) return;
                 // Grid lines
                 const yMax = yS.domain()[1];
                 for (let w = 100; w <= yMax; w += 100) {
                     const yy = yS(w);
-                    if (yy >= 0 && yy <= PANEL_H) {
+                    if (yy >= 0 && yy <= chartH) {
                         clipG.append('line')
                             .attr('x1', 0).attr('x2', INNER_W)
                             .attr('y1', yy).attr('y2', yy)
-                            .attr('stroke', '#f3f4f6').attr('stroke-width', 1);
+                            .attr('stroke', '#f3f4f6').attr('stroke-width', 0.5).attr('opacity', 0.1);
                     }
                 }
                 // Area fill
@@ -1181,7 +1183,7 @@
                     .datum(vis)
                     .attr('fill', color).attr('fill-opacity', fillOpacity)
                     .attr('d', d3.area()
-                        .x(([t]) => xView(t)).y0(PANEL_H).y1(([t, p]) => yS(p))
+                        .x(([t]) => xView(t)).y0(chartH).y1(([t, p]) => yS(p))
                         .curve(d3.curveLinear)(vis));
                 // Line
                 clipG.append('path')
@@ -1193,12 +1195,12 @@
                         .curve(d3.curveLinear)(vis));
             }
 
-            function drawZoneBands(clipG, yS) {
+            function drawZoneBands(clipG, yS, chartH) {
                 localZones.forEach(zone => {
                     const minW = (zone.min / 100) * cp;
                     const maxW = zone.max === 999 ? yS.domain()[1] * 1.5 : (zone.max / 100) * cp;
                     const y1 = Math.max(0, yS(maxW));
-                    const y2 = Math.min(PANEL_H, yS(minW));
+                    const y2 = Math.min(chartH, yS(minW));
                     if (y2 - y1 <= 0) return;
                     clipG.append('rect')
                         .attr('x', 0).attr('width', INNER_W)
@@ -1207,7 +1209,7 @@
                 });
             }
 
-            function drawEffortOverlays(chartArea, yS, pi, pg) {
+            function drawEffortOverlays(chartArea, yS, pi, pg, chartH) {
                 // Pulisci le label vecchie solo il primo pannello (pi === 0)
                 if (pi === 0) {
                     pg.selectAll('g.effort-label-group').remove();
@@ -1225,7 +1227,7 @@
                     // Colored rect
                     chartArea.append('rect')
                         .attr('x', rx0).attr('y', 0)
-                        .attr('width', w).attr('height', PANEL_H - LABEL_SPACES[pi])
+                        .attr('width', w).attr('height', chartH)
                         .attr('fill', effort.color).attr('fill-opacity', 0.15)
                         .attr('stroke', effort.color).attr('stroke-width', 1).attr('stroke-opacity', 0.5);
 
@@ -1288,7 +1290,7 @@
 
                     chartArea.append('rect')
                         .attr('x', rx0).attr('y', 0)
-                        .attr('width', w).attr('height', PANEL_H - LABEL_SPACES[pi])
+                        .attr('width', w).attr('height', chartH)
                         .attr('fill', sprint.color).attr('fill-opacity', 0.25)
                         .attr('stroke', sprint.color).attr('stroke-width', 2).attr('stroke-opacity', 0.7);
 
@@ -1442,22 +1444,22 @@
 
                 chartArea.selectAll('*').remove();
 
-                // Y scale for this panel based on visible data
-                const yS = getYScale(coords);
+                // ── chartH: altezza effettiva dell'area di disegno per questo pannello
+                const chartH = PANEL_H - LABEL_SPACES[pi];
+
+                // Y scale per questo pannello basata sui dati visibili
+                const yS = getYScale(coords, pi);   // ← passa pi
                 yScales[pi] = yS;
 
-                // Aggiorna la label dell'asse Y con il titolo dinamico
+                // Asse Y — traslato verso il basso di LABEL_SPACES[pi] per allinearsi a chartArea
+                yAx.attr('transform', `translate(0,${LABEL_SPACES[pi]})`);
+
                 let yLabelText = '';
-                if (pi === 0) {
-                    yLabelText = 'Raw Power (W)';
-                } else if (pi === 1) {
-                    yLabelText = `${avg30sSeconds}s Power (W)`;
-                } else if (pi === 2) {
-                    yLabelText = `${avg60sSeconds}s Power (W)`;
-                }
+                if (pi === 0) yLabelText = 'Raw Power (W)';
+                else if (pi === 1) yLabelText = `${avg30sSeconds}s Power (W)`;
+                else if (pi === 2) yLabelText = `${avg60sSeconds}s Power (W)`;
                 panelYLabels[pi].text(yLabelText);
 
-                // Y axis (ticks + grid lines)
                 const yAxis = d3.axisLeft(yS).ticks(5).tickSize(-INNER_W);
                 yAx.call(yAxis);
                 yAx.select('.domain').attr('stroke', '#d1d5db').attr('stroke-width', 0.5);
@@ -1466,22 +1468,22 @@
                 yAx.selectAll('.tick text')
                     .attr('fill', '#374151').attr('font-size', 9).attr('x', -5);
 
-                // Zone bands (behind curve)
+                // Zone bands (dietro la curva)
                 if (zoneColorEnabled) {
-                    drawZoneBands(chartArea, yS);
+                    drawZoneBands(chartArea, yS, chartH);   // ← passa chartArea, non clipG
                 }
 
-                // Curve
+                // Curva
                 if (zoneColorEnabled) {
-                    drawZoneColoredCurve(chartArea, coords, yS);
+                    drawZoneColoredCurve(chartArea, coords, yS, chartH);   // ← passa chartH
                 } else {
-                    drawSolidCurve(chartArea, coords, yS, solidColors()[pi], zoneFillOpacity);
+                    drawSolidCurve(chartArea, coords, yS, solidColors()[pi], zoneFillOpacity, chartH);  // ← passa chartH
                 }
 
-                // CP dashed line
+                // Linea CP tratteggiata
                 if (cp > 0) {
                     const cpy = yS(cp);
-                    if (cpy >= 0 && cpy <= PANEL_H) {
+                    if (cpy >= 0 && cpy <= chartH) {   // ← usa chartH, non PANEL_H
                         chartArea.append('line')
                             .attr('x1', 0).attr('x2', INNER_W)
                             .attr('y1', cpy).attr('y2', cpy)
@@ -1496,10 +1498,10 @@
                     }
                 }
 
-                // Effort / Sprint overlays — passa sia chartArea che pg per disegnare le label nel pannello principale
-                drawEffortOverlays(chartArea, yS, pi, pg);
+                // Effort/Sprint overlay — passa chartH
+                drawEffortOverlays(chartArea, yS, pi, pg, chartH);
 
-                // START/END markers on first panel only
+                // START/END markers solo sul primo pannello
                 if (pi === 0) drawStartEndMarkers(chartArea, yS);
             }
 
