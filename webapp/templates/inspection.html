@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PEFFORT Web - Inspection: {{ safe_filename }}</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -32,6 +32,8 @@
             border: 1px solid #d1d5db;
             background: #ffffff;
             margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
         }
         .legend {
             display: grid;
@@ -217,11 +219,7 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             overflow: hidden;
         }
-
-        .zones-table-container {
-            padding: 10px;
-        }
-
+        .zones-table-container { padding: 10px; }
         .zones-table {
             width: 100%;
             border-collapse: collapse;
@@ -230,11 +228,7 @@
             overflow: hidden;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
-
-        .zones-table thead {
-            background: #f8fafc;
-        }
-
+        .zones-table thead { background: #f8fafc; }
         .zones-table th {
             padding: 6px 4px;
             text-align: left;
@@ -245,315 +239,103 @@
             letter-spacing: 0.5px;
             border-bottom: 1px solid #e2e8f0;
         }
-
-        .zones-table td:nth-child(1) {
-            text-align: center;
-            padding: 8px 4px;
-        }
-
-        .zones-table tbody tr:hover {
-            background: #f8fafc;
-        }
-
+        .zones-table td:nth-child(1) { text-align: center; padding: 8px 4px; }
+        .zones-table tbody tr:hover { background: #f8fafc; }
         .zones-table input[type="color"] {
-            width: 32px;
-            height: 32px;
-            border: 1px solid #9ca3af;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            background: none;
-            padding: 0;
-            position: relative;
-            overflow: hidden;
+            width: 32px; height: 32px;
+            border: 1px solid #9ca3af; border-radius: 50%;
+            cursor: pointer; background: none; padding: 0;
         }
-
-        .zones-table input[type="color"]:hover {
-            border-color: #3b82f6;
-            transform: scale(1.08);
-        }
-
-        .zones-table input[type="color"]:focus {
-            outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15), 0 4px 12px rgba(37, 99, 235, 0.2);
-            transform: scale(1.05);
-        }
-
-        .zones-table input[type="color"]::before {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            border-radius: 50%;
-            background: linear-gradient(45deg, transparent, rgb(255, 255, 255), transparent);
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            pointer-events: none;
-        }
-
-        .zones-table input[type="color"]:hover::before {
-            opacity: 1;
-        }
-
+        .zones-table input[type="color"]:hover { border-color: #3b82f6; transform: scale(1.08); }
         .zones-table input[type="number"] {
-            width: 45px;
-            padding: 3px 4px;
-            border: 1px solid #d1d5db;
-            border-radius: 2px;
-            font-size: 10px;
-            text-align: center;
-            background: white;
-            transition: border-color 0.2s ease;
+            width: 45px; padding: 3px 4px;
+            border: 1px solid #d1d5db; border-radius: 2px;
+            font-size: 10px; text-align: center; background: white;
         }
-
-        /* Small spinner: compact and nudged to the right edge of the cell */
-        .zones-table input[type="number"] {
-            box-sizing: border-box;
-            padding-left: 6px;
-            padding-right: 2px;
-        }
-
-        .zones-table input[type="number"]::-webkit-outer-spin-button,
-        .zones-table input[type="number"]::-webkit-inner-spin-button {
-            -webkit-appearance: auto; /* keep native spinner look */
-            margin: 0;
-            width: 14px;
-            height: 14px;
-            opacity: 0.6;
-            transform: translateX(4px); /* nudge toward right edge */
-        }
-
-        .zones-table input[type="number"]::-webkit-outer-spin-button:hover,
-        .zones-table input[type="number"]::-webkit-inner-spin-button:hover {
-            opacity: 1;
-            transform: translateX(4px);
-        }
-
-        /* Firefox fallback: keep smaller padding so spinner is close to the edge */
-        @-moz-document url-prefix() {
-            .zones-table input[type="number"] { padding-right: 2px; }
-        }
-
-        .zones-table input[type="number"]:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
-        }
-
+        .zones-table input[type="number"]:focus { outline: none; border-color: #3b82f6; }
         .zones-table input[type="text"] {
-            width: 90px;
-            padding: 3px 4px;
-            border: 1px solid #d1d5db;
-            border-radius: 2px;
-            font-size: 10px;
-            background: white;
-            transition: border-color 0.2s ease;
+            width: 90px; padding: 3px 4px;
+            border: 1px solid #d1d5db; border-radius: 2px;
+            font-size: 10px; background: white;
         }
-
-        .zones-table input[type="text"]:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
-        }
-
-        .range-label {
-            font-size: 9px;
-            color: #64748b;
-            font-weight: 500;
-            background: #f1f5f9;
-            padding: 2px 6px;
-            border-radius: 8px;
-            display: inline-block;
-        }
-
+        .zones-table input[type="text"]:focus { outline: none; border-color: #3b82f6; }
         .watt-display {
-            font-size: 10px;
-            font-weight: 600;
-            color: #059669;
-            background: #ecfdf5;
-            padding: 2px 6px;
-            border-radius: 4px;
-            display: inline-block;
-            min-width: 32px;
-            text-align: center;
+            font-size: 10px; font-weight: 600; color: #059669;
+            background: #ecfdf5; padding: 2px 6px; border-radius: 4px;
+            display: inline-block; min-width: 32px; text-align: center;
         }
-
         .delete-zone-btn {
-            background: #ef4444;
-            color: white;
-            border: none;
-            border-radius: 2px;
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-            font-size: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
+            background: #ef4444; color: white; border: none;
+            border-radius: 2px; width: 20px; height: 20px;
+            cursor: pointer; font-size: 10px;
+            display: flex; align-items: center; justify-content: center;
         }
-
-        .delete-zone-btn:hover {
-            background: #dc2626;
-            transform: scale(1.1);
-        }
-
-        .delete-zone-btn:disabled {
-            background: #d1d5db;
-            cursor: not-allowed;
-            transform: none;
-        }
-
+        .delete-zone-btn:hover { background: #dc2626; transform: scale(1.1); }
+        .delete-zone-btn:disabled { background: #d1d5db; cursor: not-allowed; transform: none; }
         .card-footer {
-            padding: 8px 10px;
-            background: #f8fafc;
-            border-top: 1px solid #e2e8f0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
+            padding: 8px 10px; background: #f8fafc; border-top: 1px solid #e2e8f0;
+            display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap;
         }
-
         .zone-controls {
-            padding: 8px 10px;
-            background: #ffffff;
-            border-top: 1px solid #e2e8f0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            flex-wrap: wrap;
+            padding: 8px 10px; background: #ffffff; border-top: 1px solid #e2e8f0;
+            display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
         }
-
-        .zone-toggle {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 10px;
-            color: #374151;
-            font-weight: 500;
-        }
-
-        .zone-toggle input[type="checkbox"] {
-            accent-color: #2563eb;
-            width: 14px;
-            height: 14px;
-        }
-
-        .zone-opacity-control {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 10px;
-            color: #374151;
-        }
-
-        .zone-opacity-control .value-display {
-            min-width: 36px;
-            text-align: right;
-            font-size: 10px;
-        }
-
-        .zone-opacity-control input[type="range"] {
-            width: 140px;
-        }
-
-        .zone-bands-opacity-control {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 10px;
-            color: #374151;
-        }
-
-        .zone-bands-opacity-control .value-display {
-            min-width: 36px;
-            text-align: right;
-            font-size: 10px;
-        }
-
-        .zone-bands-opacity-control input[type="range"] {
-            width: 140px;
-        }
-
-        .chart-colors-control {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 10px;
-            color: #374151;
-        }
-
+        .zone-toggle { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #374151; font-weight: 500; }
+        .zone-toggle input[type="checkbox"] { accent-color: #2563eb; width: 14px; height: 14px; }
+        .zone-opacity-control { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #374151; }
+        .zone-opacity-control .value-display { min-width: 36px; text-align: right; font-size: 10px; }
+        .zone-opacity-control input[type="range"] { width: 140px; }
+        .zone-bands-opacity-control { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #374151; }
+        .zone-bands-opacity-control .value-display { min-width: 36px; text-align: right; font-size: 10px; }
+        .zone-bands-opacity-control input[type="range"] { width: 140px; }
+        .chart-colors-control { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #374151; }
         .chart-colors-control input[type="color"] {
-            width: 24px;
-            height: 24px;
-            border: 1px solid #9ca3af;
-            border-radius: 50%;
-            cursor: pointer;
-            background: none;
-            padding: 0;
+            width: 24px; height: 24px; border: 1px solid #9ca3af;
+            border-radius: 50%; cursor: pointer; background: none; padding: 0;
         }
-
-        .chart-colors-control input[type="color"]:hover {
-            border-color: #3b82f6;
-            transform: scale(1.1);
-        }
-
         .btn-primary {
             background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 3px;
-            font-size: 10px;
-            font-weight: 500;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 3px;
-            transition: all 0.2s ease;
+            color: white; border: none; padding: 4px 8px; border-radius: 3px;
+            font-size: 10px; font-weight: 500; cursor: pointer;
+            display: flex; align-items: center; gap: 3px;
         }
-
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #059669, #047857);
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(255, 255, 255, 0.2);
-        }
-
+        .btn-primary:hover { background: linear-gradient(135deg, #059669, #047857); }
         .btn-secondary {
-            background: #f1f5f9;
-            color: #006aff;
-            border: 1px solid #e2e8f0;
-            padding: 4px 8px;
-            border-radius: 3px;
-            font-size: 10px;
-            font-weight: 500;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 3px;
-            transition: all 0.2s ease;
+            background: #f1f5f9; color: #006aff; border: 1px solid #e2e8f0;
+            padding: 4px 8px; border-radius: 3px; font-size: 10px;
+            font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 3px;
         }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .status-message { font-size: 10px; color: #10b981; font-weight: 500; opacity: 0; transition: opacity 0.3s ease; }
+        .status-message.show { opacity: 1; }
 
-        .btn-secondary:hover {
-            background: #e2e8f0;
-            border-color: #cbd5e1;
+        /* D3 DataZoom brush styling */
+        .insp-d3-brush .selection {
+            fill: rgba(59, 130, 246, 0.15);
+            stroke: rgba(59, 130, 246, 0.5);
+            stroke-width: 1;
         }
-
-        .status-message {
-            font-size: 10px;
-            color: #10b981;
-            font-weight: 500;
-            opacity: 0;
-            transition: opacity 0.3s ease;
+        .insp-d3-brush .handle {
+            fill: #3b82f6;
+            stroke: none;
         }
-
-        .status-message.show {
-            opacity: 1;
+        .insp-d3-brush .overlay {
+            cursor: default;
+        }
+        /* D3 tooltip */
+        .insp-tooltip {
+            position: absolute;
+            display: none;
+            background: #ffffff;
+            border: 2px solid #d1d5db;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            color: #111827;
+            pointer-events: none;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
     </style>
 </head>
@@ -562,7 +344,7 @@
         {{ stats_html | safe }}
     {% endif %}
 
-    <div id="mainChart" style="width: 100%; height: 800px; border-radius: 6px; border: 1px solid #d1d5db; background: #ffffff;"></div>
+    <div id="mainChart"></div>
 
     <div style="margin: 20px 0;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
@@ -598,48 +380,36 @@
     <div class="intensity-zones-card">
         <div style="padding: 15px; background: linear-gradient(135deg, #eff6ff, #f0f9ff); border-bottom: 1px solid #bfdbfe;">
             <div style="display: flex; align-items: center; justify-content: center; gap: 30px; flex-wrap: wrap;">
-                <!-- CP Control -->
                 <div class="cp-control">
                     <label for="cpInput">CP:</label>
                     <input type="number" id="cpInput" value="{{ cp | int }}" min="50" max="500" step="5">
                     <span style="font-size: 12px; color: #1e40af; font-weight: bold;">W</span>
                 </div>
-                
-                <!-- Chart 2 Slider -->
                 <div class="control-group" style="min-width: auto;">
                     <label for="avg30sSeconds" style="font-size: 12px; color: #1e40af;" title="Smoothing window for Chart 2 (1-60s)">🟠 Chart 2 - Avg (1-60s)</label>
                     <div class="slider-container" style="gap: 10px;">
                         <span class="value-display" id="avg30sValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">30s</span>
-                        <input type="range" id="avg30sSeconds" value="30" min="1" max="60" step="1" title="Smoothing window: 1 to 60 seconds">
+                        <input type="range" id="avg30sSeconds" value="30" min="1" max="60" step="1">
                     </div>
                 </div>
-                
-                <!-- Chart 3 Slider -->
                 <div class="control-group" style="min-width: auto;">
                     <label for="avg60sSeconds" style="font-size: 12px; color: #1e40af;" title="Smoothing window for Chart 3 (60-360s)">🔴 Chart 3 - Avg (60-360s)</label>
                     <div class="slider-container" style="gap: 10px;">
                         <span class="value-display" id="avg60sValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">60s</span>
-                        <input type="range" id="avg60sSeconds" value="60" min="60" max="360" step="1" title="Smoothing window: 60 to 360 seconds">
+                        <input type="range" id="avg60sSeconds" value="60" min="60" max="360" step="1">
                     </div>
                 </div>
             </div>
-            
-            <!-- Seconda riga con Colori grafici e Opacità bande -->
             <div style="display: flex; align-items: center; justify-content: center; gap: 30px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #bfdbfe; flex-wrap: wrap;">
-                <!-- Colori zone grafici Toggle -->
                 <label class="zone-toggle" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #1e40af; font-weight: bold;">
                     <input type="checkbox" id="zoneColorToggle" checked style="accent-color: #2563eb; width: 14px; height: 14px;">
                     Colori zone grafici
                 </label>
-                
-                <!-- Opacità riempimento -->
                 <div class="zone-opacity-control">
                     <label for="zoneOpacity" style="font-size: 12px; color: #1e40af; font-weight: bold;">Opacita riempimento</label>
                     <span class="value-display" id="zoneOpacityValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">10%</span>
                     <input type="range" id="zoneOpacity" min="0" max="100" step="5" value="10">
                 </div>
-                
-                <!-- Colori grafici -->
                 <div class="chart-colors-control">
                     <label style="font-size: 12px; color: #1e40af; font-weight: bold;">Colori grafici:</label>
                     <div style="display: flex; gap: 8px; align-items: center;">
@@ -657,8 +427,6 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Opacità bande -->
                 <div class="zone-bands-opacity-control">
                     <label for="zoneBandsOpacity" style="font-size: 12px; color: #1e40af; font-weight: bold;">Opacita bande</label>
                     <span class="value-display" id="zoneBandsOpacityValue" style="min-width: 40px; font-size: 13px; padding: 4px 8px; border: 2px solid #bfdbfe;">15%</span>
@@ -678,21 +446,12 @@
                         <th style="width: 50px;"></th>
                     </tr>
                 </thead>
-                <tbody id="zonesContainer">
-                    <!-- Zone saranno generate da JavaScript -->
-                </tbody>
+                <tbody id="zonesContainer"></tbody>
             </table>
         </div>
-
         <div class="card-footer">
-            <button id="addZoneBtn" class="btn-primary">
-                <span class="btn-icon">+</span>
-                Aggiungi Zona
-            </button>
-            <button id="resetZonesBtn" class="btn-secondary">
-                <span class="btn-icon">🔄</span>
-                Ripristina
-            </button>
+            <button id="addZoneBtn" class="btn-primary"><span>+</span> Aggiungi Zona</button>
+            <button id="resetZonesBtn" class="btn-secondary"><span>🔄</span> Ripristina</button>
             <div id="zonesStatus" class="status-message"></div>
         </div>
     </div>
@@ -708,27 +467,20 @@
         <div class="tip">• <strong>🔵 Grafico 1:</strong> Potenza istantanea per vedere i picchi</div>
         <div class="tip">• <strong>🟠 Grafico 2:</strong> Media centrata configurabile (1-60s, default 30s)</div>
         <div class="tip">• <strong>🔴 Grafico 3:</strong> Media centrata configurabile (60-360s, default 60s)</div>
-        <div class="tip">• <strong>Pan:</strong> Clic sinistro + drag per spostare qualsiasi grafico</div>
-        <div class="tip">• <strong>Zoom:</strong> Rotella del mouse per zoomare</div>
-        <div class="tip">• <strong>Drag & Drop:</strong> Clic destro sui punti START/END per modificare gli intervalli</div>
+        <div class="tip">• <strong>Pan:</strong> Trascina la barra zoom in basso per spostare la vista</div>
+        <div class="tip">• <strong>Zoom:</strong> Rotella del mouse per zoomare, oppure trascina i bordi della barra zoom</div>
+        <div class="tip">• <strong>Drag &amp; Drop:</strong> Clic destro sui punti START/END per modificare gli intervalli</div>
         <div class="tip">• <strong>Elimina Effort:</strong> Clicca il bottone '×' nella legenda</div>
         <div class="tip">• <strong>Aggiungi Effort:</strong> Clicca '＋ Aggiungi Effort' — crea un nuovo effort nell'area visibile, poi trascina START/END per posizionarlo</div>
     </div>
 
     <script>
-        // eslint-disable-next-line no-unused-vars
-        // prettier-ignore
         document.addEventListener('DOMContentLoaded', function() {
-            // Variables below use Jinja2 template syntax which is resolved server-side
-            // eslint-disable-next-line
-            const timeAxis = {{ time_axis_json | safe }};
-            // eslint-disable-next-line
-            const powerData = {{ power_data_json | safe }};
-            // eslint-disable-next-line
+            // ── Jinja2 data injection ──────────────────────────────────────────────
+            const timeAxis   = {{ time_axis_json | safe }};
+            const powerData  = {{ power_data_json | safe }};
             const effortsData = {{ efforts_data_json | safe }};
-            // eslint-disable-next-line
             const sprintsData = {{ sprints_data_json | safe }};
-            // eslint-disable-next-line
             let cp = {{ cp_json | safe }};
 
             const samplingRate = timeAxis.length > 1 ? 1 / (timeAxis[1] - timeAxis[0]) : 1;
@@ -737,139 +489,47 @@
             let zoneColorEnabled = true;
             let zoneFillOpacity = 0.10;
             let zoneBandsOpacity = 0.15;
-            let powerColor = '#3b82f6';
-            let avg30sColor = '#f59e0b';
-            let avg60sColor = '#ef4444';
+            let powerColor   = '#3b82f6';
+            let avg30sColor  = '#f59e0b';
+            let avg60sColor  = '#ef4444';
 
             if (sprintsData.length === 0) {
                 document.getElementById('sprintsContainer').style.display = 'none';
             }
 
-            // All subsequent code uses Jinja2 template variables which are safe at runtime
-            // eslint-disable-next-line no-redeclare
-
+            // ── Moving average ─────────────────────────────────────────────────────
             function calculateCenteredMovingAverage(data, windowSize) {
                 const result = [];
                 const halfWindow = Math.floor(windowSize / 2);
                 for (let i = 0; i < data.length; i++) {
                     const start = Math.max(0, i - halfWindow);
-                    const end = Math.min(data.length, i + halfWindow + 1);
+                    const end   = Math.min(data.length, i + halfWindow + 1);
                     const slice = data.slice(start, end);
-                    const avg = slice.reduce((sum, val) => sum + val, 0) / slice.length;
-                    result.push(avg);
+                    result.push(slice.reduce((s, v) => s + v, 0) / slice.length);
                 }
                 return result;
             }
 
-            const power30s = calculateCenteredMovingAverage(powerData, Math.round(avg30sSeconds * samplingRate));
-            const power60s = calculateCenteredMovingAverage(powerData, Math.round(avg60sSeconds * samplingRate));
+            // Build coord arrays
+            const powerCoords   = timeAxis.map((t, i) => [t, powerData[i]]);
+            let   power30sCoords = [];
+            let   power60sCoords = [];
 
-            const powerCoords = timeAxis.map((time, idx) => [time, powerData[idx]]);
-            const power30sCoords = timeAxis.map((time, idx) => [time, power30s[idx]]);
-            const power60sCoords = timeAxis.map((time, idx) => [time, power60s[idx]]);
-
-            // Helper to build per-zone series with colored curve
-            function makeZoneSeries(dataCoords, gridIdx, axisIdx, zone) {
-                const minW = Math.round((zone.min / 100) * cp);
-                const maxW = zone.max === 999 ? Infinity : Math.round((zone.max / 100) * cp);
-
-                // Linear interpolation helper
-                function interpCross(x0, y0, x1, y1, target) {
-                    if (y1 === y0) return null;
-                    const t = (target - y0) / (y1 - y0);
-                    if (t < 0 || t > 1) return null;
-                    return [x0 + (x1 - x0) * t, target];
-                }
-
-                const curveData = [];
-                let lastWasInZone = false;
-
-                for (let i = 0; i < dataCoords.length - 1; i++) {
-                    const [x0, y0] = dataCoords[i];
-                    const [x1, y1] = dataCoords[i + 1];
-
-                    const inZone0 = y0 !== null && typeof y0 !== 'undefined' && y0 >= minW && (maxW === Infinity || y0 <= maxW);
-                    const inZone1 = y1 !== null && typeof y1 !== 'undefined' && y1 >= minW && (maxW === Infinity || y1 <= maxW);
-
-                    // Always include points that are in zone
-                    if (inZone0) {
-                        curveData.push([x0, y0]);
-                        lastWasInZone = true;
-                    }
-
-                    let crossings = null;
-
-                    // Check for crossings to add precise boundary points
-                    if (y0 !== null && y1 !== null && typeof y0 !== 'undefined' && typeof y1 !== 'undefined') {
-                        crossings = [];
-
-                        if (maxW === Infinity) {
-                            // Only check minW crossing
-                            if ((y0 < minW && y1 >= minW) || (y0 >= minW && y1 < minW)) {
-                                const crossPt = interpCross(x0, y0, x1, y1, minW);
-                                if (crossPt) crossings.push(crossPt);
-                            }
-                        } else {
-                            // Check both minW and maxW crossings
-                            if ((y0 < minW && y1 >= minW) || (y0 >= minW && y1 < minW)) {
-                                const crossPt = interpCross(x0, y0, x1, y1, minW);
-                                if (crossPt) crossings.push(crossPt);
-                            }
-                            if ((y0 < maxW && y1 >= maxW) || (y0 >= maxW && y1 < maxW)) {
-                                const crossPt = interpCross(x0, y0, x1, y1, maxW);
-                                if (crossPt) crossings.push(crossPt);
-                            }
-                        }
-
-                        // Sort crossings by x and add them
-                        crossings.sort((a, b) => a[0] - b[0]);
-                        for (const cross of crossings) {
-                            curveData.push(cross);
-                            lastWasInZone = !lastWasInZone; // Toggle zone status at crossing
-                            if (!lastWasInZone) {
-                                curveData.push([cross[0], null]);
-                            }
-                        }
-                    }
-
-                    if (lastWasInZone && !inZone1 && (!crossings || crossings.length === 0)) {
-                        curveData.push([x0, null]);
-                        lastWasInZone = false;
-                    }
-                }
-
-                // Handle last point
-                const last = dataCoords[dataCoords.length - 1];
-                if (last) {
-                    const [xl, yl] = last;
-                    const inZoneLast = yl !== null && typeof yl !== 'undefined' && yl >= minW && (maxW === Infinity || yl <= maxW);
-                    if (inZoneLast) {
-                        curveData.push([xl, yl]);
-                    }
-                }
-
-                // Return colored curve segments
-                return {
-                    name: zone.name,
-                    type: 'line',
-                    xAxisIndex: gridIdx,
-                    yAxisIndex: axisIdx,
-                    data: curveData,
-                    connectNulls: false,
-                    smooth: true,
-                    showSymbol: false,
-                    sampling: 'none',
-                    lineStyle: { color: zone.color, width: 2 },
-                    z: 2,
-                    silent: true
-                };
+            function recomputeAverages() {
+                const w30 = Math.round(avg30sSeconds * samplingRate);
+                const w60 = Math.round(avg60sSeconds * samplingRate);
+                const a30 = calculateCenteredMovingAverage(powerData, w30);
+                const a60 = calculateCenteredMovingAverage(powerData, w60);
+                power30sCoords = timeAxis.map((t, i) => [t, a30[i]]);
+                power60sCoords = timeAxis.map((t, i) => [t, a60[i]]);
             }
+            recomputeAverages();
 
-            const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6'];
-
+            // ── Legend management (unchanged logic) ────────────────────────────────
             const deletedEfforts = new Set();
             const deletedSprints = new Set();
-            const legendDiv = document.getElementById('legend');
+            const legendDiv      = document.getElementById('legend');
+            const colors         = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6'];
 
             function addEffortCard(effort, idx) {
                 const item = document.createElement('div');
@@ -877,84 +537,44 @@
                 item.id = `effort-${idx}`;
                 item.style.borderLeftColor = effort.color;
                 item.innerHTML = `
-                    <div style="display: flex; gap: 8px; align-items: center; flex: 1;">
-                        <div class="legend-color" style="background: ${effort.color};"></div>
+                    <div style="display:flex;gap:8px;align-items:center;flex:1;">
+                        <div class="legend-color" style="background:${effort.color};"></div>
                         <div>
                             <strong>${effort.label}</strong><br>
-                            <span style="color: #9ca3b8;" id="effort-info-${idx}">
-                                ${effort.start.toFixed(0)}s - ${effort.end.toFixed(0)}s | ${(effort.end - effort.start).toFixed(0)}s | ${effort.avg_power.toFixed(0)}W
+                            <span style="color:#9ca3b8;" id="effort-info-${idx}">
+                                ${effort.start.toFixed(0)}s - ${effort.end.toFixed(0)}s | ${(effort.end-effort.start).toFixed(0)}s | ${effort.avg_power.toFixed(0)}W
                             </span>
                         </div>
                     </div>
-                    <button class="delete-btn" data-effort-idx="${idx}">×</button>
-                `;
+                    <button class="delete-btn" data-effort-idx="${idx}">×</button>`;
                 legendDiv.appendChild(item);
-
                 item.querySelector('.delete-btn').addEventListener('click', function(e) {
                     e.preventDefault();
-                    const effortIdx = parseInt(this.dataset.effortIdx);
-                    if (deletedEfforts.has(effortIdx)) {
-                        deletedEfforts.delete(effortIdx);
-                        item.classList.remove('deleted');
-                    } else {
-                        deletedEfforts.add(effortIdx);
-                        item.classList.add('deleted');
-                    }
+                    const eidx = parseInt(this.dataset.effortIdx);
+                    if (deletedEfforts.has(eidx)) { deletedEfforts.delete(eidx); item.classList.remove('deleted'); }
+                    else                           { deletedEfforts.add(eidx);   item.classList.add('deleted'); }
                     rebuildChart();
                 });
             }
-
-            effortsData.forEach((effort, idx) => { addEffortCard(effort, idx); });
+            effortsData.forEach((effort, idx) => addEffortCard(effort, idx));
 
             document.getElementById('addEffortBtn').addEventListener('click', function() {
-                // Get current visible range from chart dataZoom
-                const chartOption = myChart.getOption();
-                const zoom = chartOption.dataZoom ? chartOption.dataZoom[0] : null;
-                const totalDuration = timeAxis[timeAxis.length - 1];
-
-                let visStart, visEnd;
-                if (zoom) {
-                    visStart = totalDuration * (zoom.start / 100);
-                    visEnd   = totalDuration * (zoom.end   / 100);
-                } else {
-                    visStart = 0;
-                    visEnd   = totalDuration;
-                }
-
-                // Place new effort in the middle third of the visible window
-                const span    = visEnd - visStart;
-                const newStart = visStart + span / 3;
-                const newEnd   = visStart + (span * 2) / 3;
-
-                // Calculate avg power for the new range
-                const startSample = timeAxis.findIndex(t => t >= newStart);
-                const endSample   = timeAxis.findIndex(t => t >= newEnd);
-                const slice = powerData.slice(
-                    Math.max(0, startSample),
-                    Math.max(1, endSample)
-                );
-                const avgPow = slice.length > 0
-                    ? slice.reduce((a, b) => a + b, 0) / slice.length
-                    : 0;
-
+                const [d0, d1] = xView.domain();
+                const span = d1 - d0;
+                const newStart = d0 + span / 3;
+                const newEnd   = d0 + (span * 2) / 3;
+                const si = timeAxis.findIndex(t => t >= newStart);
+                const ei = timeAxis.findIndex(t => t >= newEnd);
+                const slice = powerData.slice(Math.max(0,si), Math.max(1,ei));
+                const avgPow = slice.length > 0 ? slice.reduce((a,b)=>a+b,0)/slice.length : 0;
                 const newIdx = effortsData.length;
-                const newEffort = {
-                    id: newIdx,
-                    start: newStart,
-                    end: newEnd,
-                    avg_power: avgPow,
-                    color: colors[newIdx % colors.length],
-                    label: `Effort ${newIdx + 1}`
-                };
-
+                const newEffort = { id: newIdx, start: newStart, end: newEnd,
+                    avg_power: avgPow, color: colors[newIdx % colors.length],
+                    label: `Effort ${newIdx+1}` };
                 effortsData.push(newEffort);
-                recalculateIntervalLabels();  // Normalize labels BEFORE creating card
+                recalculateIntervalLabels();
                 addEffortCard(newEffort, newIdx);
                 rebuildChart();
-
-                // Scroll to the new card
-                document.getElementById(`effort-${newIdx}`)
-                    .scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
 
             const sprintsLegendDiv = document.getElementById('sprintsLegend');
@@ -965,201 +585,99 @@
                 item.style.borderLeftColor = sprint.color;
                 item.style.background = '#fef2f2';
                 item.innerHTML = `
-                    <div style="display: flex; gap: 8px; align-items: center; flex: 1;">
-                        <div class="legend-color" style="background: ${sprint.color};"></div>
+                    <div style="display:flex;gap:8px;align-items:center;flex:1;">
+                        <div class="legend-color" style="background:${sprint.color};"></div>
                         <div>
                             <strong>${sprint.label}</strong><br>
-                            <span style="color: #9ca3b8;">
+                            <span style="color:#9ca3b8;" id="sprint-info-${idx}">
                                 ${sprint.start.toFixed(0)}s - ${sprint.end.toFixed(0)}s | ${sprint.duration.toFixed(0)}s | ${sprint.max_power.toFixed(0)}W | ${sprint.avg_power.toFixed(0)}W
                             </span>
                         </div>
                     </div>
-                    <button class="delete-btn" data-sprint-idx="${idx}">×</button>
-                `;
+                    <button class="delete-btn" data-sprint-idx="${idx}">×</button>`;
                 sprintsLegendDiv.appendChild(item);
-
-                const deleteBtn = item.querySelector('.delete-btn');
-                deleteBtn.addEventListener('click', function(e) {
+                item.querySelector('.delete-btn').addEventListener('click', function(e) {
                     e.preventDefault();
-                    const sprintIdx = parseInt(this.dataset.sprintIdx);
-                    if (deletedSprints.has(sprintIdx)) {
-                        deletedSprints.delete(sprintIdx);
-                        item.classList.remove('deleted');
-                    } else {
-                        deletedSprints.add(sprintIdx);
-                        item.classList.add('deleted');
-                    }
+                    const sidx = parseInt(this.dataset.sprintIdx);
+                    if (deletedSprints.has(sidx)) { deletedSprints.delete(sidx); item.classList.remove('deleted'); }
+                    else                           { deletedSprints.add(sidx);   item.classList.add('deleted'); }
                     rebuildChart();
                 });
             });
 
             document.getElementById('addSprintBtn').addEventListener('click', function() {
-                // Get current visible range from chart dataZoom
-                const chartOption = myChart.getOption();
-                const zoom = chartOption.dataZoom ? chartOption.dataZoom[0] : null;
-                const totalDuration = timeAxis[timeAxis.length - 1];
-
-                let visStart, visEnd;
-                if (zoom) {
-                    visStart = totalDuration * (zoom.start / 100);
-                    visEnd   = totalDuration * (zoom.end   / 100);
-                } else {
-                    visStart = 0;
-                    visEnd   = totalDuration;
-                }
-
-                // Place new sprint in the middle third of the visible window
-                const span    = visEnd - visStart;
-                const newStart = visStart + span / 3;
-                const newEnd   = visStart + (span * 2) / 3;
-
-                // Calculate avg power and max power for the new range
-                const startSample = timeAxis.findIndex(t => t >= newStart);
-                const endSample   = timeAxis.findIndex(t => t >= newEnd);
-                const slice = powerData.slice(
-                    Math.max(0, startSample),
-                    Math.max(1, endSample)
-                );
-                const avgPow = slice.length > 0
-                    ? slice.reduce((a, b) => a + b, 0) / slice.length
-                    : 0;
-                const maxPow = slice.length > 0
-                    ? Math.max(...slice)
-                    : 0;
-
+                const [d0, d1] = xView.domain();
+                const span = d1 - d0;
+                const newStart = d0 + span / 3;
+                const newEnd   = d0 + (span * 2) / 3;
+                const si = timeAxis.findIndex(t => t >= newStart);
+                const ei = timeAxis.findIndex(t => t >= newEnd);
+                const slice = powerData.slice(Math.max(0,si), Math.max(1,ei));
+                const avgPow = slice.length > 0 ? slice.reduce((a,b)=>a+b,0)/slice.length : 0;
+                const maxPow = slice.length > 0 ? Math.max(...slice) : 0;
                 const newIdx = sprintsData.length;
-                const newSprint = {
-                    id: newIdx,
-                    start: newStart,
-                    end: newEnd,
-                    duration: newEnd - newStart,
-                    avg_power: avgPow,
-                    max_power: maxPow,
-                    color: '#000000',
-                    label: `Sprint ${newIdx + 1}`
-                };
-
+                const newSprint = { id: newIdx, start: newStart, end: newEnd,
+                    duration: newEnd-newStart, avg_power: avgPow, max_power: maxPow,
+                    color: '#000000', label: `Sprint ${newIdx+1}` };
                 sprintsData.push(newSprint);
-                recalculateIntervalLabels();  // Normalize labels BEFORE creating card
-                
-                // Create and add sprint card to legend
+                recalculateIntervalLabels();
+                // Create sprint card
                 const item = document.createElement('div');
                 item.className = 'legend-item';
                 item.id = `sprint-${newIdx}`;
                 item.style.borderLeftColor = newSprint.color;
                 item.style.background = '#fef2f2';
                 item.innerHTML = `
-                    <div style="display: flex; gap: 8px; align-items: center; flex: 1;">
-                        <div class="legend-color" style="background: ${newSprint.color};"></div>
+                    <div style="display:flex;gap:8px;align-items:center;flex:1;">
+                        <div class="legend-color" style="background:${newSprint.color};"></div>
                         <div>
                             <strong>${newSprint.label}</strong><br>
-                            <span style="color: #9ca3b8;">
-                                ${newSprint.start.toFixed(0)}s - ${newSprint.end.toFixed(0)}s | ${newSprint.duration.toFixed(0)}s | ${newSprint.max_power.toFixed(0)}W | ${newSprint.avg_power.toFixed(0)}W
+                            <span style="color:#9ca3b8;" id="sprint-info-${newIdx}">
+                                ${newSprint.start.toFixed(0)}s - ${newSprint.end.toFixed(0)}s | ${newSprint.duration.toFixed(0)}s | ${maxPow.toFixed(0)}W | ${avgPow.toFixed(0)}W
                             </span>
                         </div>
                     </div>
-                    <button class="delete-btn" data-sprint-idx="${newIdx}">×</button>
-                `;
+                    <button class="delete-btn" data-sprint-idx="${newIdx}">×</button>`;
                 sprintsLegendDiv.appendChild(item);
-
-                const deleteBtn = item.querySelector('.delete-btn');
-                deleteBtn.addEventListener('click', function(e) {
+                item.querySelector('.delete-btn').addEventListener('click', function(e) {
                     e.preventDefault();
-                    const sprintIdx = parseInt(this.dataset.sprintIdx);
-                    if (deletedSprints.has(sprintIdx)) {
-                        deletedSprints.delete(sprintIdx);
-                        item.classList.remove('deleted');
-                    } else {
-                        deletedSprints.add(sprintIdx);
-                        item.classList.add('deleted');
-                    }
+                    const sidx = parseInt(this.dataset.sprintIdx);
+                    if (deletedSprints.has(sidx)) { deletedSprints.delete(sidx); item.classList.remove('deleted'); }
+                    else                           { deletedSprints.add(sidx);   item.classList.add('deleted'); }
                     rebuildChart();
                 });
-
                 rebuildChart();
-
-                // Scroll to the new card
-                document.getElementById(`sprint-${newIdx}`)
-                    .scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
 
             function recalculateIntervalLabels() {
-                // Efforts: chronological order by start time (excluding deleted efforts)
                 const effortOrder = effortsData
-                    .map((effort, idx) => ({ idx, start: Number(effort.start) || 0, end: Number(effort.end) || 0 }))
-                    .filter(item => !deletedEfforts.has(item.idx))  // Exclude deleted efforts
-                    .sort((a, b) => (a.start - b.start) || (a.end - b.end));
-                effortOrder.forEach((item, rank) => {
-                    if (effortsData[item.idx]) {
-                        effortsData[item.idx].label = `Effort ${rank + 1}`;
-                    }
-                });
-
-                // Sprints: descending by avg power (excluding deleted sprints)
+                    .map((e, i) => ({ i, start: Number(e.start)||0, end: Number(e.end)||0 }))
+                    .filter(x => !deletedEfforts.has(x.i))
+                    .sort((a,b) => (a.start-b.start)||(a.end-b.end));
+                effortOrder.forEach((x, rank) => { if (effortsData[x.i]) effortsData[x.i].label = `Effort ${rank+1}`; });
                 const sprintOrder = sprintsData
-                    .map((sprint, idx) => ({ idx, avg: Number(sprint.avg_power) || 0, start: Number(sprint.start) || 0 }))
-                    .filter(item => !deletedSprints.has(item.idx))  // Exclude deleted sprints
-                    .sort((a, b) => (b.avg - a.avg) || (a.start - b.start));
-                sprintOrder.forEach((item, rank) => {
-                    if (sprintsData[item.idx]) {
-                        sprintsData[item.idx].label = `Sprint ${rank + 1}`;
-                    }
-                });
+                    .map((s, i) => ({ i, avg: Number(s.avg_power)||0, start: Number(s.start)||0 }))
+                    .filter(x => !deletedSprints.has(x.i))
+                    .sort((a,b) => (b.avg-a.avg)||(a.start-b.start));
+                sprintOrder.forEach((x, rank) => { if (sprintsData[x.i]) sprintsData[x.i].label = `Sprint ${rank+1}`; });
             }
 
             function refreshLegendLabels() {
                 effortsData.forEach((effort, idx) => {
                     const card = document.getElementById(`effort-${idx}`);
                     if (!card) return;
-                    const strongEl = card.querySelector('strong');
-                    const infoEl = document.getElementById(`effort-info-${idx}`);
-                    if (strongEl) strongEl.textContent = effort.label;
-                    if (infoEl) {
-                        infoEl.textContent = `${effort.start.toFixed(0)}s - ${effort.end.toFixed(0)}s | ${(effort.end - effort.start).toFixed(0)}s | ${effort.avg_power.toFixed(0)}W`;
-                    }
+                    const strong = card.querySelector('strong');
+                    const info   = document.getElementById(`effort-info-${idx}`);
+                    if (strong) strong.textContent = effort.label;
+                    if (info)   info.textContent   = `${effort.start.toFixed(0)}s - ${effort.end.toFixed(0)}s | ${(effort.end-effort.start).toFixed(0)}s | ${effort.avg_power.toFixed(0)}W`;
                 });
-
                 sprintsData.forEach((sprint, idx) => {
                     const card = document.getElementById(`sprint-${idx}`);
                     if (!card) return;
-                    const strongEl = card.querySelector('strong');
-                    const infoEl = card.querySelector('span[style*="color: #9ca3b8"]');
-                    if (strongEl) strongEl.textContent = sprint.label;
-                    if (infoEl) {
-                        infoEl.textContent = `${sprint.start.toFixed(0)}s - ${sprint.end.toFixed(0)}s | ${sprint.duration.toFixed(0)}s | ${sprint.max_power.toFixed(0)}W | ${sprint.avg_power.toFixed(0)}W`;
-                    }
-                });
-            }
-
-            function reorderLegendItems() {
-                // Riordina gli effort e sprint nella legend basandosi sull'ordine canonico
-                if (!legendDiv) return;
-                
-                // Calcola ordine canonico per efforts (cronologico)
-                const effortOrder = effortsData
-                    .map((effort, idx) => ({ idx, start: Number(effort.start) || 0, end: Number(effort.end) || 0 }))
-                    .filter(item => !deletedEfforts.has(item.idx))
-                    .sort((a, b) => (a.start - b.start) || (a.end - b.end));
-                
-                // Calcola ordine canonico per sprints (power desc)
-                const sprintOrder = sprintsData
-                    .map((sprint, idx) => ({ idx, avg: Number(sprint.avg_power) || 0, start: Number(sprint.start) || 0 }))
-                    .filter(item => !deletedSprints.has(item.idx))
-                    .sort((a, b) => (b.avg - a.avg) || (a.start - b.start));
-                
-                // Riordina DOM: muovi tutti gli effort in ordine canonico, poi tutti gli sprint
-                effortOrder.forEach(item => {
-                    const el = document.getElementById(`effort-${item.idx}`);
-                    if (el && el.parentNode === legendDiv) {
-                        legendDiv.appendChild(el);  // Move to end = reorder
-                    }
-                });
-                
-                sprintOrder.forEach(item => {
-                    const el = document.getElementById(`sprint-${item.idx}`);
-                    if (el && el.parentNode === legendDiv) {
-                        legendDiv.appendChild(el);
-                    }
+                    const strong = card.querySelector('strong');
+                    const info   = document.getElementById(`sprint-info-${idx}`);
+                    if (strong) strong.textContent = sprint.label;
+                    if (info)   info.textContent   = `${sprint.start.toFixed(0)}s - ${sprint.end.toFixed(0)}s | ${sprint.duration.toFixed(0)}s | ${sprint.max_power.toFixed(0)}W | ${sprint.avg_power.toFixed(0)}W`;
                 });
             }
 
@@ -1167,628 +685,1105 @@
                 recalculateIntervalLabels();
                 refreshLegendLabels();
             }
-
-            // Ensure labels are canonical on first render as well.
             normalizeFrontendLabels();
 
-            // =====================
-            // LOCAL INTENSITY ZONES (Independent from global coloring)
-            // =====================
-            
-            // Default zones (copied from global config - completely independent)
+            // ── Local Intensity Zones ──────────────────────────────────────────────
             const defaultZones = [
-                { min: 0, max: 60, color: '#009e80', name: 'Z1' },
-                { min: 60, max: 80, color: '#009e00', name: 'Z2' },
-                { min: 80, max: 90, color: '#ffcb0e', name: 'Z3' },
-                { min: 90, max: 105, color: '#ff7f0e', name: 'Z4' },
-                { min: 105, max: 135, color: '#dd0447', name: 'Z5' },
-                { min: 135, max: 300, color: '#6633cc', name: 'Z6' },
-                { min: 300, max: 999, color: '#504861', name: 'Z7' }
+                { min:0,   max:60,  color:'#009e80', name:'Z1' },
+                { min:60,  max:80,  color:'#009e00', name:'Z2' },
+                { min:80,  max:90,  color:'#ffcb0e', name:'Z3' },
+                { min:90,  max:105, color:'#ff7f0e', name:'Z4' },
+                { min:105, max:135, color:'#dd0447', name:'Z5' },
+                { min:135, max:300, color:'#6633cc', name:'Z6' },
+                { min:300, max:999, color:'#504861', name:'Z7' }
             ];
-            const INSPECTION_ZONES_KEY = 'inspection_zones_v2_{{ session_id }}';
-            const INSPECTION_ZONES_KEY_LEGACY_VERSION = 'inspection_zones_v2';
-            const INSPECTION_ZONES_LEGACY_KEY = 'inspection_zones';
-            
-            // Load local zones from localStorage or use defaults
+            const INSPECTION_ZONES_KEY        = 'inspection_zones_v2_{{ session_id }}';
+            const INSPECTION_ZONES_KEY_LEGACY  = 'inspection_zones_v2';
+            const INSPECTION_ZONES_LEGACY_KEY  = 'inspection_zones';
+
             let localZones = JSON.parse(
                 localStorage.getItem(INSPECTION_ZONES_KEY)
-                || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY_VERSION)
+                || localStorage.getItem(INSPECTION_ZONES_KEY_LEGACY)
                 || localStorage.getItem(INSPECTION_ZONES_LEGACY_KEY)
-            ) || defaultZones.map(z => ({ ...z }));
+            ) || defaultZones.map(z => ({...z}));
 
-            // Check if we need to update to new default structure (min/max format)
             if (localZones.length === 0 || typeof localZones[0].threshold !== 'undefined') {
-                localZones = defaultZones.map(z => ({ ...z }));
+                localZones = defaultZones.map(z => ({...z}));
                 localStorage.setItem(INSPECTION_ZONES_KEY, JSON.stringify(localZones));
             }
-            
-            // Initialize zones UI
+
+            function getZoneColor(watts) {
+                if (!cp || cp <= 0) return '#374151';
+                const pct = watts / cp * 100;
+                for (const z of localZones) {
+                    if (pct >= z.min && (z.max === 999 || pct < z.max)) return z.color;
+                }
+                return '#374151';
+            }
+
             function initializeZonesUI() {
                 const container = document.getElementById('zonesContainer');
                 container.innerHTML = '';
-
                 localZones.forEach((zone, idx) => {
                     const row = document.createElement('tr');
-
-                    // Color input cell
                     const colorCell = document.createElement('td');
-                    const colorContainer = document.createElement('div');
-                    colorContainer.style.display = 'flex';
-                    colorContainer.style.alignItems = 'center';
-                    colorContainer.style.justifyContent = 'center';
-                    colorContainer.style.gap = '6px';
-
                     const colorInput = document.createElement('input');
-                    colorInput.type = 'color';
-                    colorInput.value = zone.color;
-                    colorInput.title = 'Clicca per cambiare colore della zona';
+                    colorInput.type = 'color'; colorInput.value = zone.color;
                     colorInput.addEventListener('change', function() {
                         localZones[idx].color = this.value;
-                        saveLocalZones();
-                        rebuildChart();
+                        saveLocalZones(); rebuildChart();
                     });
+                    colorCell.appendChild(colorInput); row.appendChild(colorCell);
 
-                    colorContainer.appendChild(colorInput);
-                    colorCell.appendChild(colorContainer);
-                    row.appendChild(colorCell);
-
-                    // Min input cell
                     const minCell = document.createElement('td');
                     const minInput = document.createElement('input');
-                    minInput.type = 'number';
-                    minInput.value = zone.min;
-                    minInput.min = '0';
-                    minInput.max = '999';
-                    minInput.step = '1';
+                    minInput.type='number'; minInput.value=zone.min; minInput.min=0; minInput.max=999; minInput.step=1;
                     minInput.addEventListener('change', function() {
-                        const newMin = parseInt(this.value) || zone.min;
-                        localZones[idx].min = newMin;
-                        // Update max of previous zone
-                        if (idx > 0) {
-                            localZones[idx - 1].max = newMin;
-                        }
-                        saveLocalZones();
-                        initializeZonesUI();
-                        rebuildChart();
-                        updateWattDisplays();
+                        localZones[idx].min = parseInt(this.value)||zone.min;
+                        if (idx>0) localZones[idx-1].max = localZones[idx].min;
+                        saveLocalZones(); initializeZonesUI(); rebuildChart(); updateWattDisplays();
                     });
-                    minCell.appendChild(minInput);
-                    row.appendChild(minCell);
+                    minCell.appendChild(minInput); row.appendChild(minCell);
 
-                    // Watt display cell (range from CP)
                     const wattCell = document.createElement('td');
                     const wattDisplay = document.createElement('span');
                     wattDisplay.className = 'watt-display';
-                    const cpValue = parseInt(document.getElementById('cpInput').value) || 250;
-                    const minWatt = Math.round((zone.min / 100) * cpValue);
-                    if (zone.max === 999) {
-                        wattDisplay.textContent = minWatt + 'W+';
-                    } else {
-                        const maxWatt = Math.round((zone.max / 100) * cpValue);
-                        wattDisplay.textContent = minWatt + ' - ' + maxWatt + 'W';
-                    }
-                    wattCell.appendChild(wattDisplay);
-                    row.appendChild(wattCell);
+                    const cpVal = parseInt(document.getElementById('cpInput').value)||250;
+                    const minW  = Math.round((zone.min/100)*cpVal);
+                    wattDisplay.textContent = zone.max===999 ? minW+'W+' : minW+' - '+Math.round((zone.max/100)*cpVal)+'W';
+                    wattCell.appendChild(wattDisplay); row.appendChild(wattCell);
 
-                    // Max input cell
                     const maxCell = document.createElement('td');
                     const maxInput = document.createElement('input');
-                    maxInput.type = 'number';
-                    maxInput.value = zone.max;
-                    maxInput.min = '0';
-                    maxInput.max = '999';
-                    maxInput.step = '1';
+                    maxInput.type='number'; maxInput.value=zone.max; maxInput.min=0; maxInput.max=999; maxInput.step=1;
                     maxInput.addEventListener('change', function() {
-                        const newMax = parseInt(this.value) || zone.max;
-                        localZones[idx].max = newMax;
-                        // Update min of next zone
-                        if (idx < localZones.length - 1) {
-                            localZones[idx + 1].min = newMax;
-                        }
-                        saveLocalZones();
-                        initializeZonesUI();
-                        rebuildChart();
-                        updateWattDisplays();
+                        localZones[idx].max = parseInt(this.value)||zone.max;
+                        if (idx<localZones.length-1) localZones[idx+1].min = localZones[idx].max;
+                        saveLocalZones(); initializeZonesUI(); rebuildChart(); updateWattDisplays();
                     });
-                    maxCell.appendChild(maxInput);
-                    row.appendChild(maxCell);
+                    maxCell.appendChild(maxInput); row.appendChild(maxCell);
 
-                    // Name input cell
                     const nameCell = document.createElement('td');
                     const nameInput = document.createElement('input');
-                    nameInput.type = 'text';
-                    nameInput.value = zone.name;
+                    nameInput.type='text'; nameInput.value=zone.name;
                     nameInput.addEventListener('change', function() {
-                        localZones[idx].name = this.value;
-                        saveLocalZones();
-                        rebuildChart();
+                        localZones[idx].name = this.value; saveLocalZones(); rebuildChart();
                     });
-                    nameCell.appendChild(nameInput);
-                    row.appendChild(nameCell);
+                    nameCell.appendChild(nameInput); row.appendChild(nameCell);
 
-                    // Delete button cell
                     const actionCell = document.createElement('td');
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'delete-zone-btn';
-                    deleteBtn.textContent = '×';
-                    deleteBtn.title = 'Elimina zona';
-                    if (localZones.length <= 2) {
-                        deleteBtn.disabled = true;
-                    }
-                    deleteBtn.addEventListener('click', function() {
-                        if (localZones.length > 2) {
-                            localZones.splice(idx, 1);
-                            saveLocalZones();
-                            initializeZonesUI();
+                    const delBtn = document.createElement('button');
+                    delBtn.className='delete-zone-btn'; delBtn.textContent='×';
+                    if (localZones.length<=2) delBtn.disabled=true;
+                    delBtn.addEventListener('click', function() {
+                        if (localZones.length>2) {
+                            localZones.splice(idx,1); saveLocalZones(); initializeZonesUI();
                         }
                     });
-                    actionCell.appendChild(deleteBtn);
-                    row.appendChild(actionCell);
-
+                    actionCell.appendChild(delBtn); row.appendChild(actionCell);
                     container.appendChild(row);
                 });
             }
 
             function saveLocalZones() {
                 localStorage.setItem(INSPECTION_ZONES_KEY, JSON.stringify(localZones));
-                const statusEl = document.getElementById('zonesStatus');
-                statusEl.textContent = '✓ Zone salvate localmente';
-                statusEl.classList.add('show');
-                setTimeout(() => {
-                    statusEl.classList.remove('show');
-                    statusEl.textContent = '';
-                }, 2000);
+                const st = document.getElementById('zonesStatus');
+                st.textContent='✓ Zone salvate localmente'; st.classList.add('show');
+                setTimeout(() => { st.classList.remove('show'); st.textContent=''; }, 2000);
             }
 
-            // Reset zones to default
+            function updateWattDisplays() {
+                const cpVal = parseInt(document.getElementById('cpInput').value)||280;
+                document.querySelectorAll('.watt-display').forEach((d, idx) => {
+                    const zone = localZones[idx];
+                    if (!zone) return;
+                    const minW = Math.round((zone.min/100)*cpVal);
+                    d.textContent = zone.max===999 ? minW+'W+' : minW+' - '+Math.round((zone.max/100)*cpVal)+'W';
+                });
+            }
+
             document.getElementById('resetZonesBtn').addEventListener('click', function() {
-                localZones = defaultZones.map(z => ({ ...z }));
-                saveLocalZones();
-                initializeZonesUI();
-                rebuildChart();
-                updateWattDisplays();
+                localZones = defaultZones.map(z=>({...z}));
+                saveLocalZones(); initializeZonesUI(); rebuildChart(); updateWattDisplays();
             });
-
-            // Add new zone button
             document.getElementById('addZoneBtn').addEventListener('click', function() {
-                // Add a new zone using min/max scheme: extend last zone max and add new one
-                const last = localZones[localZones.length - 1];
-                if (last.max === 999) {
-                    return; // Cannot add zone beyond the unlimited sentinel
-                }
-                const newMin = Math.min(last.max + 1, 999);
-                localZones.push({ min: newMin, max: Math.min(newMin + 10, 999), color: '#6366f1', name: 'Nuova Zona' });
-                saveLocalZones();
-                initializeZonesUI();
-                rebuildChart();
+                const last = localZones[localZones.length-1];
+                if (last.max===999) return;
+                const newMin = Math.min(last.max+1,999);
+                localZones.push({ min:newMin, max:Math.min(newMin+10,999), color:'#6366f1', name:'Nuova Zona' });
+                saveLocalZones(); initializeZonesUI(); rebuildChart();
             });
 
-            // Initialize zones on page load and always persist to localStorage
-            // so that the export function can always read the current zones.
             initializeZonesUI();
             updateWattDisplays();
             saveLocalZones();
 
-            // Function to update watt displays when CP changes
-            function updateWattDisplays() {
-                const cpValue = parseInt(document.getElementById('cpInput').value) || 280;
-                const wattDisplays = document.querySelectorAll('.watt-display');
-                wattDisplays.forEach((display, idx) => {
-                    const zone = localZones[idx];
-                    if (zone) {
-                        const minWatt = Math.round((zone.min / 100) * cpValue);
-                        if (zone.max === 999) {
-                            display.textContent = minWatt + 'W+';
-                        } else {
-                            const maxWatt = Math.round((zone.max / 100) * cpValue);
-                            display.textContent = minWatt + ' - ' + maxWatt + 'W';
-                        }
+            // ══════════════════════════════════════════════════════════════════════
+            // D3 CHART  — full implementation replacing ECharts
+            // ══════════════════════════════════════════════════════════════════════
+
+            const mainChartDiv = document.getElementById('mainChart');
+
+            // ── Layout constants (match ECharts proportions) ───────────────────────
+            const CHART_H  = 800;
+            const ML = 65, MR = 30, MT = 8;
+            const PANEL_H  = 238;   // Altezza pannelli
+            const PANEL_GAP = 0;    // panels are adjacent like ECharts grids
+            const P0_TOP = MT;                                       // 8
+            const P1_TOP = P0_TOP + PANEL_H + PANEL_GAP;            // 246
+            const P2_TOP = P1_TOP + PANEL_H + PANEL_GAP;            // 484
+            const XAXIS_TOP = P2_TOP + PANEL_H + 4;                 // 726
+            const SLIDER_TOP = XAXIS_TOP + 24;                      // 750
+            const SLIDER_H  = 22;
+
+            let chartW  = Math.max(400, mainChartDiv.clientWidth);
+            let INNER_W = chartW - ML - MR;
+
+            const maxTime    = timeAxis.length > 0 ? timeAxis[timeAxis.length-1] : 0;
+            const minTime    = timeAxis.length > 0 ? timeAxis[0] : 0;
+            const maxPowerRaw = Math.max(1, ...powerData);
+
+            // ── Scales ────────────────────────────────────────────────────────────
+            // xBase: full data domain, never changes
+            let xBase = d3.scaleLinear().domain([minTime, maxTime]).range([0, INNER_W]);
+            // xView: current zoomed view, changes on zoom/pan
+            let xView = xBase.copy();
+
+            // ── SVG ───────────────────────────────────────────────────────────────
+            const chartSvg = d3.select(mainChartDiv)
+                .append('svg')
+                .attr('width', chartW)
+                .attr('height', CHART_H)
+                .style('display', 'block')
+                .style('border-radius', '5px');
+
+            const defs = chartSvg.append('defs');
+
+            // Shared panel clip (updated on resize)
+            const panelClipRect = defs.append('clipPath').attr('id', 'insp-clip')
+                .append('rect')
+                .attr('x', 0).attr('y', -4)
+                .attr('width', INNER_W + 1)
+                .attr('height', PANEL_H + 8);
+
+            const rootG = chartSvg.append('g').attr('transform', `translate(${ML},0)`);
+
+            // ── Per-panel structure ────────────────────────────────────────────────
+            const PANEL_TOPS = [P0_TOP, P1_TOP, P2_TOP];
+            const LABEL_SPACES = [30, 10, 10];  // Panel 0: 30px (etichette), Panel 1-2: 10px (spazio ridotto)
+            const panelGroups  = []; // top-level <g> per panel
+            const panelClipGs  = []; // clipped content group
+            const panelChartAreas = []; // chart area group (traslato verso il basso)
+            const panelYAxes   = []; // y-axis group
+            const panelYLabels = []; // y-axis labels (testo dinamico)
+            const crossVLines  = []; // crosshair vertical line
+            const crossDots    = []; // crosshair dot
+
+            for (let pi = 0; pi < 3; pi++) {
+                const pg = rootG.append('g')
+                    .attr('class', `panel panel-${pi}`)
+                    .attr('transform', `translate(0,${PANEL_TOPS[pi]})`);
+
+                // Background rect
+                pg.append('rect')
+                    .attr('class', 'panel-bg')
+                    .attr('width', INNER_W).attr('height', PANEL_H)
+                    .attr('fill', '#ffffff')
+                    .attr('stroke', '#d1d5db').attr('stroke-width', 0.5);
+
+                // Clipped content
+                const clipG = pg.append('g')
+                    .attr('class', 'panel-clip')
+                    .attr('clip-path', 'url(#insp-clip)');
+                panelClipGs.push(clipG);
+
+                // Chart area (traslato verso il basso di LABEL_SPACES[pi] per fare spazio alle label)
+                const chartArea = clipG.append('g')
+                    .attr('class', 'chart-area')
+                    .attr('transform', `translate(0, ${LABEL_SPACES[pi]})`);
+                panelChartAreas.push(chartArea);
+
+                // Y axis
+                const yAx = pg.append('g').attr('class', 'y-axis');
+                panelYAxes.push(yAx);
+
+                // Y axis label (dinamico: mostrerà titolo e unità)
+                const yLabelElem = pg.append('text')
+                    .attr('class', 'y-label')
+                    .attr('transform', 'rotate(-90)')
+                    .attr('x', -(LABEL_SPACES[pi] + PANEL_H) / 2).attr('y', -52)
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#6b7280').attr('font-size', 11);
+                panelYLabels.push(yLabelElem);
+
+                // Panel title - HIDDEN (moved to y-axis label)
+
+                // Crosshair
+                const cv = pg.append('line')
+                    .attr('class', 'cross-v')
+                    .attr('y1', LABEL_SPACES[pi]).attr('y2', PANEL_H)
+                    .attr('stroke', '#9ca3af').attr('stroke-width', 0.8)
+                    .attr('stroke-dasharray', '3,2')
+                    .style('display', 'none').style('pointer-events', 'none');
+                crossVLines.push(cv);
+
+                const cd = pg.append('circle')
+                    .attr('class', 'cross-dot')
+                    .attr('r', 3.5)
+                    .attr('fill', 'white').attr('stroke', '#374151').attr('stroke-width', 1.5)
+                    .style('display', 'none').style('pointer-events', 'none');
+                crossDots.push(cd);
+
+                panelGroups.push(pg);
+            }
+
+            // ── X axis ─────────────────────────────────────────────────────────────
+            const xAxisG = rootG.append('g')
+                .attr('class', 'x-axis')
+                .attr('transform', `translate(0,${XAXIS_TOP})`);
+            rootG.append('text')
+                .attr('class', 'x-label')
+                .attr('x', INNER_W/2).attr('y', XAXIS_TOP + 34)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#374151').attr('font-size', 11)
+                .text('Tempo (secondi)');
+
+            // ── DataZoom strip ─────────────────────────────────────────────────────
+            const zoomG = rootG.append('g')
+                .attr('class', 'zoom-strip')
+                .attr('transform', `translate(0,${SLIDER_TOP})`);
+
+            zoomG.append('rect')
+                .attr('width', INNER_W).attr('height', SLIDER_H)
+                .attr('fill', '#f9fafb').attr('stroke', '#e5e7eb').attr('stroke-width', 1)
+                .attr('rx', 3);
+
+            // Mini power overview
+            const miniY = d3.scaleLinear().domain([0, maxPowerRaw]).range([SLIDER_H - 3, 3]);
+            const miniPath = zoomG.append('path')
+                .attr('fill', 'rgba(156,163,175,0.4)')
+                .attr('stroke', '#9ca3af').attr('stroke-width', 0.8);
+
+            function updateMiniPath() {
+                const areaFn = d3.area()
+                    .x((d, i) => xBase(timeAxis[i]))
+                    .y0(SLIDER_H - 1)
+                    .y1(d => miniY(d))
+                    .defined(d => d != null);
+                miniPath.attr('d', areaFn(powerData));
+            }
+            updateMiniPath();
+
+            // Brush
+            let _suppressBrushEvents = false;
+
+            const brushFn = d3.brushX()
+                .extent([[0, 0], [INNER_W, SLIDER_H]])
+                .on('brush end', onBrush);
+
+            const brushG = zoomG.append('g')
+                .attr('class', 'insp-d3-brush')
+                .call(brushFn);
+
+            // Move brush to full range without triggering onBrush
+            _suppressBrushEvents = true;
+            brushG.call(brushFn.move, [0, INNER_W]);
+            _suppressBrushEvents = false;
+
+            function onBrush(event) {
+                if (_suppressBrushEvents || !event.sourceEvent) return;
+                const sel = event.selection;
+                if (!sel || sel[1] - sel[0] < 2) {
+                    _suppressBrushEvents = true;
+                    brushG.call(brushFn.move, [0, INNER_W]);
+                    _suppressBrushEvents = false;
+                    xView = xBase.copy();
+                } else {
+                    const d0 = xBase.invert(sel[0]);
+                    const d1 = xBase.invert(sel[1]);
+                    if (d1 - d0 < 5) return;
+                    xView = d3.scaleLinear().domain([d0, d1]).range([0, INNER_W]);
+                }
+                drawAllPanels();
+            }
+
+            function syncBrush() {
+                const [d0, d1] = xView.domain();
+                _suppressBrushEvents = true;
+                brushG.call(brushFn.move, [xBase(d0), xBase(d1)]);
+                _suppressBrushEvents = false;
+            }
+
+            // Wheel zoom on chart area
+            mainChartDiv.addEventListener('wheel', function(event) {
+                const rect = mainChartDiv.getBoundingClientRect();
+                const mx = event.clientX - rect.left - ML;
+                if (mx < 0 || mx > INNER_W) return;
+                event.preventDefault();
+                const [d0, d1] = xView.domain();
+                const center   = xView.invert(mx);
+                const factor   = event.deltaY > 0 ? 1.15 : 1 / 1.15;
+                const newD0 = Math.max(minTime, center - (center - d0) * factor);
+                const newD1 = Math.min(maxTime, center + (d1 - center) * factor);
+                if (newD1 - newD0 < 5) return;
+                xView = d3.scaleLinear().domain([newD0, newD1]).range([0, INNER_W]);
+                scheduleDraw();   // rAF-debounced: at most 1 redraw per frame
+                syncBrush();
+            }, { passive: false });
+
+            // ── Tooltip ───────────────────────────────────────────────────────────
+            const tooltipEl = document.createElement('div');
+            tooltipEl.className = 'insp-tooltip';
+            mainChartDiv.appendChild(tooltipEl);
+
+            // ── Invisible overlay for mouse events (covers all 3 panels) ──────────
+            const TOTAL_PANELS_H = P2_TOP + PANEL_H - P0_TOP; // from panel 0 top to panel 2 bottom
+            const overlayRect = rootG.append('rect')
+                .attr('class', 'insp-overlay')
+                .attr('x', 0).attr('y', P0_TOP)
+                .attr('width', INNER_W).attr('height', TOTAL_PANELS_H)
+                .attr('fill', 'transparent')
+                .style('pointer-events', 'all')
+                .style('cursor', 'crosshair');
+
+            // ── Y-scale helper ────────────────────────────────────────────────────
+            function getYScale(coords, pi) {
+                const chartH = PANEL_H - LABEL_SPACES[pi];
+                const [d0, d1] = xView.domain();
+                let maxP = cp || 1;
+                for (const [t, p] of coords) {
+                    if (t >= d0 && t <= d1 && p != null && p > maxP) maxP = p;
+                }
+                let yMax = Math.ceil(maxP * 1.05);
+                yMax = Math.ceil(yMax / 50) * 50;
+                return d3.scaleLinear().domain([0, yMax]).range([chartH, 0]);
+            }
+
+            // ── Zone-colored fill (clipPath approach) ─────────────────────────────
+            let _zoneClipCount = 0;
+            function clearZoneClips() {
+                defs.selectAll('[id^="zc-"]').remove();
+                _zoneClipCount = 0;
+            }
+
+            // Binary-search visible slice — much faster than .filter() on large arrays
+            function visibleSlice(coords) {
+                const [d0, d1] = xView.domain();
+                const lo0 = d0 - 2, hi0 = d1 + 2;
+                let lo = 0, hi = coords.length;
+                // left bound
+                let a = 0, b = coords.length;
+                while (a < b) { const m = (a + b) >> 1; if (coords[m][0] < lo0) a = m + 1; else b = m; }
+                lo = Math.max(0, a - 1);
+                // right bound
+                a = lo; b = coords.length;
+                while (a < b) { const m = (a + b) >> 1; if (coords[m][0] <= hi0) a = m + 1; else b = m; }
+                hi = Math.min(coords.length, a + 1);
+                return coords.slice(lo, hi);
+            }
+
+            // rAF-debounced redraw — ensures at most one draw per animation frame
+            let _rafId = null;
+            function scheduleDraw() {
+                if (_rafId) cancelAnimationFrame(_rafId);
+                _rafId = requestAnimationFrame(() => { _rafId = null; drawAllPanels(); });
+            }
+
+            function drawZoneColoredCurve(clipG, coords, yS, chartH) {
+                const vis = visibleSlice(coords);
+                if (vis.length < 2) return;
+
+                const lineFn = d3.line().x(([t]) => xView(t)).y(([, p]) => yS(p)).curve(d3.curveLinear);
+                const areaFn = d3.area().x(([t]) => xView(t)).y0(chartH + 2).y1(([, p]) => yS(p)).curve(d3.curveLinear);
+
+                // 1. Grid lines PRIMA di tutto — finiscono sotto il fill colorato
+                const yMax = yS.domain()[1];
+                for (let w = 100; w <= yMax; w += 100) {
+                    const yy = yS(w);
+                    if (yy >= 0 && yy <= chartH) {
+                        clipG.append('line')
+                            .attr('x1', 0).attr('x2', INNER_W)
+                            .attr('y1', yy).attr('y2', yy)
+                            .attr('stroke', '#e5e7eb').attr('stroke-width', 0.25).attr('opacity', 0.1);
                     }
+                }
+
+                // 2. clipPath = filled area shape (baseline → curve)
+                const clipId = `zc-${++_zoneClipCount}`;
+                defs.append('clipPath').attr('id', clipId)
+                    .append('path').attr('d', areaFn(vis));
+
+                // 3. Zone coloured rectangles, clipped to curve area
+                localZones.forEach(zone => {
+                    const minW = (zone.min / 100) * cp;
+                    const maxW = zone.max === 999 ? maxPowerRaw * 2 : (zone.max / 100) * cp;
+                    const y1 = yS(maxW), y2 = yS(minW);
+                    if (y1 >= chartH || y2 <= 0) return;
+                    clipG.append('rect')
+                        .attr('x', 0).attr('width', INNER_W)
+                        .attr('y', Math.max(-2, y1 - 0.5))
+                        .attr('height', Math.max(0, Math.min(chartH + 2, y2 + 0.5) - Math.max(-2, y1 - 0.5)))
+                        .attr('fill', zone.color).attr('opacity', 1)
+                        .style('shape-rendering', 'crispEdges')
+                        .attr('clip-path', `url(#${clipId})`);
+                });
+
+                // 4. White mask above the curve
+                clipG.append('path')
+                    .attr('fill', 'white')
+                    .attr('d', d3.area().x(([t]) => xView(t)).y0(-4).y1(([, p]) => yS(p)).curve(d3.curveLinear)(vis));
+
+                // 5. Zone-coloured line — grouped runs
+                const segG = clipG.append('g');
+                let curColor = null, curPts = [];
+                const flush = () => {
+                    if (curPts.length >= 2 && curColor) {
+                        segG.append('path')
+                            .attr('fill', 'none')
+                            .attr('stroke', curColor)
+                            .attr('stroke-width', 2)
+                            .attr('stroke-linecap', 'round')
+                            .attr('stroke-linejoin', 'round')
+                            .attr('d', lineFn(curPts));
+                    }
+                    curPts = [];
+                };
+                for (const pt of vis) {
+                    const color = getZoneColor(pt[1]);
+                    if (color !== curColor) {
+                        if (curPts.length > 0) {
+                            curPts.push(pt);
+                            flush();
+                            curPts = [pt];
+                        }
+                        curColor = color;
+                    } else {
+                        curPts.push(pt);
+                    }
+                }
+                flush();
+            }
+
+            function drawSolidCurve(clipG, coords, yS, color, fillOpacity, chartH) {
+                const vis = visibleSlice(coords);
+                if (vis.length < 2) return;
+                // Grid lines
+                const yMax = yS.domain()[1];
+                for (let w = 100; w <= yMax; w += 100) {
+                    const yy = yS(w);
+                    if (yy >= 0 && yy <= chartH) {
+                        clipG.append('line')
+                            .attr('x1', 0).attr('x2', INNER_W)
+                            .attr('y1', yy).attr('y2', yy)
+                            .attr('stroke', '#f3f4f6').attr('stroke-width', 0.5).attr('opacity', 0.1);
+                    }
+                }
+                // Area fill
+                clipG.append('path')
+                    .datum(vis)
+                    .attr('fill', color).attr('fill-opacity', fillOpacity)
+                    .attr('d', d3.area()
+                        .x(([t]) => xView(t)).y0(chartH).y1(([t, p]) => yS(p))
+                        .curve(d3.curveLinear)(vis));
+                // Line
+                clipG.append('path')
+                    .datum(vis)
+                    .attr('fill', 'none')
+                    .attr('stroke', color).attr('stroke-width', 2)
+                    .attr('d', d3.line()
+                        .x(([t]) => xView(t)).y(([t, p]) => yS(p))
+                        .curve(d3.curveLinear)(vis));
+            }
+
+            function drawZoneBands(clipG, yS, chartH) {
+                localZones.forEach(zone => {
+                    const minW = (zone.min / 100) * cp;
+                    const maxW = zone.max === 999 ? yS.domain()[1] * 1.5 : (zone.max / 100) * cp;
+                    const y1 = Math.max(0, yS(maxW));
+                    const y2 = Math.min(chartH, yS(minW));
+                    if (y2 - y1 <= 0) return;
+                    clipG.append('rect')
+                        .attr('x', 0).attr('width', INNER_W)
+                        .attr('y', y1).attr('height', y2 - y1)
+                        .attr('fill', zone.color).attr('fill-opacity', zoneBandsOpacity);
                 });
             }
 
-            const mainChartDiv = document.getElementById('mainChart');
-            let myChart = echarts.init(mainChartDiv, 'light');
-            const minTime = Math.min(...timeAxis);
-            const maxTime = Math.max(...timeAxis);
-            const maxPower = Math.max(...powerData);
-
-            function buildOption() {
-                const option = {
-                    animation: true,
-                    animationDuration: 300,
-                    animationEasing: 'cubicOut',
-                    tooltip: {
-                        trigger: 'axis',
-                        backgroundColor: '#ffffff',
-                        borderColor: '#d1d5db',
-                        borderWidth: 2,
-                        textStyle: { color: '#111827', fontSize: 12 },
-                        axisPointer: {
-                            type: 'line',
-                            lineStyle: { color: '#9ca3af', type: 'dashed' },
-                            link: [{ xAxisIndex: 'all' }]
-                        },
-                        formatter: function(params) {
-                            // Custom formatter to show time without thousand separator and no decimals
-                            const timeValue = params[0].value[0];
-                            const mins = Math.floor(timeValue / 60);
-                            const secs = Math.round(timeValue % 60);
-                            const timeStr = mins > 0 ? mins + 'm' + secs + 's' : Math.round(timeValue) + 's';
-                            
-                            let result = '<div style="font-weight: bold; margin-bottom: 5px;">' + timeStr + '</div>';
-                            
-                            // Find the power value from any series (excluding CP)
-                            let powerValue = null;
-                            for (const param of params) {
-                                if (param.value[1] !== null && param.value[1] !== undefined && param.seriesName !== 'CP') {
-                                    powerValue = param.value[1];
-                                    break;
-                                }
-                            }
-                            
-                            if (powerValue !== null) {
-                                // Determine the zone based on power relative to CP
-                                const powerPercent = (powerValue / cp) * 100;
-                                let zoneColor = '#3b82f6'; // Default to main power color if no zone matches
-                                for (const zone of localZones) {
-                                    if (powerPercent >= zone.min && (zone.max === 999 || powerPercent < zone.max)) {
-                                        zoneColor = zone.color;
-                                        break;
-                                    }
-                                }
-                                
-                                result += '<div style="margin: 2px 0;">' +
-                                         '<span style="font-weight: bold; color: ' + zoneColor + ';">' + Math.round(powerValue) + 'W</span>' +
-                                         '</div>';
-                            }
-                            
-                            return result;
-                        }
-                    },
-                    grid: [
-                        { left: 70, right: 30, top: '4%', height: '26%', show: true },
-                        { left: 70, right: 30, top: '30%', height: '26%', show: true },
-                        { left: 70, right: 30, top: '56%', bottom: 50, show: true }
-                    ],
-                    xAxis: [
-                        { gridIndex: 0, type: 'value', min: 0, max: maxTime, show: false },
-                        { gridIndex: 1, type: 'value', min: 0, max: maxTime, show: false },
-                        { gridIndex: 2, type: 'value', name: 'Tempo (secondi)', min: 0, max: maxTime,
-                           nameTextStyle: { color: '#374151', fontSize: 11 },
-                           axisLabel: { color: '#374151', fontSize: 10, formatter: function(val) {
-                               const mins = Math.floor(val / 60);
-                               const secs = Math.round(val % 60);
-                               return mins > 0 ? mins + 'm' + secs + 's' : val.toFixed(0) + 's';
-                           } },
-                           splitLine: { lineStyle: { color: '#f3f4f6' } },
-                           axisLine: { lineStyle: { color: '#6b7280', width: 1 } }
-                        }
-                    ],
-                          yAxis: [
-                                { gridIndex: 0, type: 'value', name: 'Power (W)', min: 0, max: function(value) { return Math.ceil((value.max || 0) * 1.05) || Math.ceil(maxPower * 1.05); },
-                                    nameLocation: 'middle', nameRotate: 90, nameGap: 40, nameTextStyle: { color: '#374151', fontSize: 10 },
-                                    axisLabel: { color: '#374151', fontSize: 9 }, splitLine: { lineStyle: { color: '#f3f4f6' } } },
-                                { gridIndex: 1, type: 'value', name: avg30sSeconds + 's Avg (W)', min: 0, max: function(value) { return Math.ceil((value.max || 0) * 1.05) || Math.ceil(maxPower * 1.05); },
-                                    nameLocation: 'middle', nameRotate: 90, nameGap: 40, nameTextStyle: { color: '#374151', fontSize: 10 },
-                                    axisLabel: { color: '#374151', fontSize: 9 }, splitLine: { lineStyle: { color: '#f3f4f6' } } },
-                                { gridIndex: 2, type: 'value', name: avg60sSeconds + 's Avg (W)', min: 0, max: function(value) { return Math.ceil((value.max || 0) * 1.05) || Math.ceil(maxPower * 1.05); },
-                                    nameLocation: 'middle', nameRotate: 90, nameGap: 40, nameTextStyle: { color: '#374151', fontSize: 10 },
-                                    axisLabel: { color: '#374151', fontSize: 9 }, splitLine: { lineStyle: { color: '#f3f4f6' } } }
-                          ],
-                    dataZoom: [
-                        { type: 'slider', show: true, xAxisIndex: [0, 1, 2], start: 0, end: 100,
-                           textStyle: { color: '#374151' }, fillerColor: 'rgba(59, 130, 246, 0.15)',
-                           borderColor: '#d1d5db', backgroundColor: '#f9fafb', height: 20, bottom: 10 },
-                        { type: 'inside', xAxisIndex: [0, 1, 2], start: 0, end: 100 }
-                    ],
-                    series: [
-                        // Power series - either single line or zone-colored segments
-                        // Will be added below conditionally
-                        
-                        // 30s avg colored by zones
-                        // for each zone we add a series that shows only the segments within the zone
-                        // (this paints the curve in zone colors)
-                        // We'll add these below dynamically using localZones
-                        
-                        // 60s avg colored by zones will be added below as well
-                        
-
-                    ]
-                };
-
-                // Add Power series conditionally
-                if (zoneColorEnabled) {
-                    // Add zone-colored segments for raw power
-                    localZones.forEach((zone) => {
-                        option.series.push(makeZoneSeries(powerCoords, 0, 0, zone));
-                    });
-                } else {
-                    option.series.push({
-                        name: 'Power', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: powerCoords,
-                        smooth: 0.5, lineStyle: { color: powerColor, width: 2 },
-                        areaStyle: { color: powerColor, opacity: zoneFillOpacity }, symbol: 'none',
-                        sampling: 'none', itemStyle: { color: powerColor }, z: 1
-                    });
-                }
-
-                if (zoneColorEnabled) {
-                    // Insert per-zone series for 30s avg (gridIndex 1)
-                    localZones.forEach((zone) => {
-                        option.series.push(makeZoneSeries(power30sCoords, 1, 1, zone));
-                    });
-
-                    // Insert per-zone series for 60s avg (gridIndex 2)
-                    localZones.forEach((zone) => {
-                        option.series.push(makeZoneSeries(power60sCoords, 2, 2, zone));
-                    });
-
-                    // Add horizontal zone bands for all three grids (lightweight markArea)
-                    // Each zone becomes one markArea series per grid so we can apply per-zone color
-                    localZones.forEach((zone) => {
-                        const minW = Math.round((zone.min / 100) * cp);
-                        const maxW = zone.max === 999 ? Math.ceil(maxPower * 1.05) : Math.round((zone.max / 100) * cp);
-                        for (let gridIdx = 0; gridIdx < 3; gridIdx++) {
-                            option.series.push({
-                                name: zone.name + '_band',
-                                type: 'line',
-                                xAxisIndex: gridIdx,
-                                yAxisIndex: gridIdx,
-                                data: [],
-                                lineStyle: { opacity: 0 },
-                                markArea: {
-                                    silent: true,
-                                    itemStyle: { color: zone.color, opacity: zoneBandsOpacity },
-                                    data: [[{ yAxis: minW }, { yAxis: maxW }]]
-                                },
-                                z: 0
-                            });
-                        }
-                    });
-                } else {
-                    option.series.push({
-                        name: avg30sSeconds + 's Avg',
-                        type: 'line',
-                        xAxisIndex: 1,
-                        yAxisIndex: 1,
-                        data: power30sCoords,
-                        smooth: true,
-                        showSymbol: false,
-                        sampling: 'none',
-                        lineStyle: { color: avg30sColor, width: 2 },
-                        areaStyle: { color: avg30sColor, opacity: zoneFillOpacity },
-                        z: 2
-                    });
-                    option.series.push({
-                        name: avg60sSeconds + 's Avg',
-                        type: 'line',
-                        xAxisIndex: 2,
-                        yAxisIndex: 2,
-                        data: power60sCoords,
-                        smooth: true,
-                        showSymbol: false,
-                        sampling: 'none',
-                        lineStyle: { color: avg60sColor, width: 2 },
-                        areaStyle: { color: avg60sColor, opacity: zoneFillOpacity },
-                        z: 2
-                    });
+            function drawEffortOverlays(chartArea, yS, pi, pg, chartH) {
+                // Pulisci le label vecchie solo il primo pannello (pi === 0)
+                if (pi === 0) {
+                    pg.selectAll('g.effort-label-group').remove();
+                    pg.selectAll('g.sprint-label-group').remove();
                 }
 
                 effortsData.forEach((effort, idx) => {
                     if (deletedEfforts.has(idx)) return;
-                    const startIdx = timeAxis.findIndex(t => t >= effort.start);
-                    const endIdx = timeAxis.findIndex(t => t >= effort.end);
-                    const startPower = startIdx >= 0 ? powerData[startIdx] : 0;
-                    const endPower = endIdx >= 0 ? powerData[endIdx] : 0;
+                    const x0 = xView(effort.start);
+                    const x1 = xView(effort.end);
+                    if (x1 < 0 || x0 > INNER_W) return;
+                    const rx0 = Math.max(0, x0), rx1 = Math.min(INNER_W, x1);
+                    const w = rx1 - rx0; if (w <= 0) return;
 
-                    for (let gridIdx = 0; gridIdx < 3; gridIdx++) {
-                        option.series.push({
-                            name: effort.label, type: 'line', xAxisIndex: gridIdx, yAxisIndex: gridIdx,
-                            data: [], lineStyle: { opacity: 0 },
-                            markArea: {
-                                silent: true,
-                                itemStyle: { color: effort.color, opacity: 0.15, borderColor: effort.color, borderWidth: 1 },
-                                label: {
-                                    show: gridIdx === 0, position: 'top', color: effort.color,
-                                    fontSize: 11, fontWeight: 'bold', formatter: effort.label,
-                                    backgroundColor: '#ffffff', borderColor: effort.color, borderWidth: 1, borderRadius: 3, padding: [2, 6]
-                                },
-                                data: [[{ xAxis: effort.start }, { xAxis: effort.end }]]
-                            }, z: 0
-                        });
+                    // Colored rect
+                    chartArea.append('rect')
+                        .attr('x', rx0).attr('y', 0)
+                        .attr('width', w).attr('height', chartH)
+                        .attr('fill', effort.color).attr('fill-opacity', 0.15)
+                        .attr('stroke', effort.color).attr('stroke-width', 1).attr('stroke-opacity', 0.5);
 
-                        if (gridIdx === 0) {
-                            option.series.push({
-                                name: effort.label + ' (punti)', type: 'scatter', xAxisIndex: gridIdx, yAxisIndex: gridIdx,
-                                data: [[effort.start, startPower], [effort.end, endPower]],
-                                symbolSize: 10, color: effort.color,
-                                itemStyle: { color: effort.color, borderColor: '#fff', borderWidth: 1, opacity: 0.8 },
-                                label: {
-                                    show: true, position: 'top', color: effort.color, fontSize: 9, fontWeight: 'bold',
-                                    formatter: function(params) { return params.dataIndex === 0 ? 'START' : 'END'; },
-                                    backgroundColor: '#ffffff', borderColor: effort.color, borderWidth: 1, borderRadius: 2, padding: [1, 3]
-                                }, z: 4
+                    // Label on first panel only (pi === 0) — disegnata nel margine superiore (pg)
+                    if (pi === 0) {
+                        const midX = (Math.max(0, x0) + Math.min(INNER_W, x1)) / 2;
+                        const dur  = Math.round(effort.end - effort.start);
+                        const avg  = Math.round(effort.avg_power);
+                        const boxW = 60, boxH = 34, boxY = 2;
+                        const labelG = pg.append('g').attr('class', 'effort-label-group')
+                            .style('cursor', 'default');
+                        labelG.append('rect')
+                            .attr('x', midX - boxW/2).attr('y', boxY)
+                            .attr('width', boxW).attr('height', boxH).attr('rx', 3)
+                            .attr('fill', 'white').attr('fill-opacity', 0.92)
+                            .attr('stroke', effort.color).attr('stroke-width', 1);
+                        const txt = labelG.append('text')
+                            .attr('x', midX).attr('text-anchor', 'middle')
+                            .attr('fill', effort.color).attr('font-size', 9).attr('font-weight', 700);
+                        txt.append('tspan').attr('x', midX).attr('dy', 11).text(effort.label);
+                        txt.append('tspan').attr('x', midX).attr('dy', 10).attr('font-weight', 400).attr('font-size', 10).text(`${avg}W`);
+                        txt.append('tspan').attr('x', midX).attr('dy', 9).attr('font-weight', 400).attr('font-size', 10).text(`${dur}s`);
+                        // × delete button — top-right corner of the label box
+                        const btnX = midX + boxW/2 - 1, btnY = boxY - 1;
+                        const delBtnG = labelG.append('g')
+                            .attr('class', 'effort-del-btn')
+                            .style('cursor', 'pointer')
+                            .on('click', function(event) {
+                                event.stopPropagation();
+                                const card = document.getElementById(`effort-${idx}`);
+                                if (deletedEfforts.has(idx)) {
+                                    deletedEfforts.delete(idx);
+                                    if (card) card.classList.remove('deleted');
+                                } else {
+                                    deletedEfforts.add(idx);
+                                    if (card) card.classList.add('deleted');
+                                }
+                                rebuildChart();
                             });
-                        }
+                        delBtnG.append('circle')
+                            .attr('cx', btnX).attr('cy', btnY).attr('r', 7)
+                            .attr('fill', '#ef4444').attr('stroke', 'white').attr('stroke-width', 1.5);
+                        delBtnG.append('text')
+                            .attr('x', btnX).attr('y', btnY + 4)
+                            .attr('text-anchor', 'middle')
+                            .attr('fill', 'white').attr('font-size', 10).attr('font-weight', 700)
+                            .style('pointer-events', 'none')
+                            .text('×');
                     }
                 });
 
-                const cpLineData = timeAxis.map(t => [t, cp]);
-                for (let i = 0; i < 3; i++) {
-                    option.series.push({
-                        name: 'CP', type: 'line', xAxisIndex: i, yAxisIndex: i, data: cpLineData,
-                        lineStyle: { color: '#4b5563', width: 1, type: 'dashed' },
-                        smooth: false, z: 999, symbol: 'none', animation: false
-                    });
-                }
-
+                // Sprint overlays (all panels for tint, label on panel 0)
                 sprintsData.forEach((sprint, idx) => {
                     if (deletedSprints.has(idx)) return;
-                    option.series.push({
-                        name: sprint.label, type: 'line', xAxisIndex: 0, yAxisIndex: 0,
-                        data: [], lineStyle: { opacity: 0 },
-                        markArea: {
-                            silent: true,
-                            itemStyle: { color: sprint.color, opacity: 0.25, borderColor: sprint.color, borderWidth: 2, borderType: 'solid' },
-                            label: {
-                                show: true, position: 'insideTop', color: '#fff',
-                                fontSize: 10, fontWeight: 'bold', formatter: sprint.label,
-                                backgroundColor: sprint.color, borderRadius: 3, padding: [2, 6]
-                            },
-                            data: [[{ xAxis: sprint.start }, { xAxis: sprint.end }]]
-                        }, z: 2
-                    });
-                    
-                    // Add draggable points for sprints (only on first grid)
-                    const startPower = powerData[Math.min(Math.floor(sprint.start / samplingRate), powerData.length - 1)] || 0;
-                    const endPower = powerData[Math.min(Math.floor(sprint.end / samplingRate), powerData.length - 1)] || 0;
-                    
-                    option.series.push({
-                        name: sprint.label + ' (punti)', type: 'scatter', xAxisIndex: 0, yAxisIndex: 0,
-                        data: [[sprint.start, startPower], [sprint.end, endPower]],
-                        symbolSize: 10, color: sprint.color,
-                        itemStyle: { color: sprint.color, borderColor: '#fff', borderWidth: 1, opacity: 0.8 },
-                        label: {
-                            show: true, position: 'top', color: sprint.color, fontSize: 9, fontWeight: 'bold',
-                            formatter: function(params) { return params.dataIndex === 0 ? 'START' : 'END'; },
-                            backgroundColor: '#ffffff', borderColor: sprint.color, borderWidth: 1, borderRadius: 2, padding: [1, 3]
-                        }, z: 4
+                    const x0 = xView(sprint.start);
+                    const x1 = xView(sprint.end);
+                    if (x1 < 0 || x0 > INNER_W) return;
+                    const rx0 = Math.max(0, x0), rx1 = Math.min(INNER_W, x1);
+                    const w = rx1 - rx0; if (w <= 0) return;
+
+                    chartArea.append('rect')
+                        .attr('x', rx0).attr('y', 0)
+                        .attr('width', w).attr('height', chartH)
+                        .attr('fill', sprint.color).attr('fill-opacity', 0.25)
+                        .attr('stroke', sprint.color).attr('stroke-width', 2).attr('stroke-opacity', 0.7);
+
+                    if (pi === 0) {
+                        const midX = (Math.max(0, x0) + Math.min(INNER_W, x1)) / 2;
+                        const dur  = Math.round(sprint.end - sprint.start);
+                        const avg  = Math.round(sprint.avg_power);
+                        const maxP = Math.round(sprint.max_power);
+                        const boxW = 60, boxH = 34, boxY = 2;
+                        const labelG = pg.append('g').attr('class', 'sprint-label-group')
+                            .style('cursor', 'default');
+                        labelG.append('rect')
+                            .attr('x', midX - boxW/2).attr('y', boxY)
+                            .attr('width', boxW).attr('height', boxH).attr('rx', 3)
+                            .attr('fill', sprint.color).attr('fill-opacity', 0.9);
+                        const txt = labelG.append('text')
+                            .attr('x', midX).attr('text-anchor', 'middle')
+                            .attr('fill', 'white').attr('font-size', 9).attr('font-weight', 700);
+                        txt.append('tspan').attr('x', midX).attr('dy', 11).text(sprint.label);
+                        txt.append('tspan').attr('x', midX).attr('dy', 10).attr('font-weight', 400).attr('font-size', 8).text(`${avg}W`);
+                        txt.append('tspan').attr('x', midX).attr('dy', 9).attr('font-weight', 400).attr('font-size', 8).text(`${dur}s`);
+                        // × delete button — top-right corner of the label box
+                        const sBtnX = midX + boxW/2 - 1, sBtnY = boxY - 1;
+                        const sDelBtnG = labelG.append('g')
+                            .attr('class', 'sprint-del-btn')
+                            .style('cursor', 'pointer')
+                            .on('click', function(event) {
+                                event.stopPropagation();
+                                const card = document.getElementById(`sprint-${idx}`);
+                                if (deletedSprints.has(idx)) {
+                                    deletedSprints.delete(idx);
+                                    if (card) card.classList.remove('deleted');
+                                } else {
+                                    deletedSprints.add(idx);
+                                    if (card) card.classList.add('deleted');
+                                }
+                                rebuildChart();
+                            });
+                        sDelBtnG.append('circle')
+                            .attr('cx', sBtnX).attr('cy', sBtnY).attr('r', 7)
+                            .attr('fill', '#1f2937').attr('stroke', 'white').attr('stroke-width', 1.5);
+                        sDelBtnG.append('text')
+                            .attr('x', sBtnX).attr('y', sBtnY + 4)
+                            .attr('text-anchor', 'middle')
+                            .attr('fill', 'white').attr('font-size', 10).attr('font-weight', 700)
+                            .style('pointer-events', 'none')
+                            .text('×');
+                    }
+                });
+            }
+
+            function drawStartEndMarkers(chartArea, yS) {
+                const bisect = d3.bisectLeft(timeAxis, 0);
+                function getPowerAt(time) {
+                    const i = d3.bisectLeft(timeAxis, time);
+                    const safeI = Math.max(0, Math.min(i, powerData.length-1));
+                    return powerData[safeI] || 0;
+                }
+
+                effortsData.forEach((effort, idx) => {
+                    if (deletedEfforts.has(idx)) return;
+                    [[effort.start,'START'],[effort.end,'END']].forEach(([time, label]) => {
+                        const x = xView(time);
+                        if (x < -30 || x > INNER_W + 30) return;
+                        const p = getPowerAt(time);
+                        const y = yS(p);
+                        const markerG = chartArea.append('g');
+                        markerG.append('circle')
+                            .attr('cx', x).attr('cy', y).attr('r', 5)
+                            .attr('fill', effort.color).attr('stroke', 'white').attr('stroke-width', 1.5)
+                            .attr('fill-opacity', 0.85);
+                        markerG.append('rect')
+                            .attr('x', x - 16).attr('y', y - 21)
+                            .attr('width', 32).attr('height', 14).attr('rx', 2)
+                            .attr('fill', 'white').attr('fill-opacity', 0.9)
+                            .attr('stroke', effort.color).attr('stroke-width', 1);
+                        markerG.append('text')
+                            .attr('x', x).attr('y', y - 10)
+                            .attr('text-anchor', 'middle')
+                            .attr('fill', effort.color)
+                            .attr('font-size', 9).attr('font-weight', 700)
+                            .text(label);
                     });
                 });
 
-                return option;
+                sprintsData.forEach((sprint, idx) => {
+                    if (deletedSprints.has(idx)) return;
+                    [[sprint.start,'START'],[sprint.end,'END']].forEach(([time, label]) => {
+                        const x = xView(time);
+                        if (x < -30 || x > INNER_W + 30) return;
+                        const p = getPowerAt(time);
+                        const y = yS(p);
+                        const markerG = chartArea.append('g');
+                        markerG.append('circle')
+                            .attr('cx', x).attr('cy', y).attr('r', 5)
+                            .attr('fill', sprint.color).attr('stroke', 'white').attr('stroke-width', 1.5)
+                            .attr('fill-opacity', 0.85);
+                        markerG.append('rect')
+                            .attr('x', x - 16).attr('y', y - 21)
+                            .attr('width', 32).attr('height', 14).attr('rx', 2)
+                            .attr('fill', 'white').attr('fill-opacity', 0.9)
+                            .attr('stroke', sprint.color).attr('stroke-width', 1);
+                        markerG.append('text')
+                            .attr('x', x).attr('y', y - 10)
+                            .attr('text-anchor', 'middle')
+                            .attr('fill', sprint.color)
+                            .attr('font-size', 9).attr('font-weight', 700)
+                            .text(label);
+                    });
+                });
             }
 
-            function rebuildChart(skipAnimation = false) {
+            // ── Draw one panel ────────────────────────────────────────────────────
+            // NOTE: use a getter so it always returns the current (possibly re-assigned) arrays
+            const coordsByPanel = () => [powerCoords, power30sCoords, power60sCoords];
+            const solidColors   = () => [powerColor, avg30sColor, avg60sColor];
+            const panelTitles_  = () => [
+                'Grafico 1 (Raw Power)',
+                `Grafico 2 (${avg30sSeconds}s Avg)`,
+                `Grafico 3 (${avg60sSeconds}s Avg)`
+            ];
+
+            // ── Time formatting helper ─────────────────────────────────────────
+            function formatTime(seconds) {
+                if (seconds >= 3600) {
+                    let h = Math.floor(seconds / 3600);
+                    let m = Math.floor((seconds % 3600) / 60);
+                    let s = Math.round(seconds % 60);
+                    if (s === 60) { m++; s = 0; }
+                    if (m === 60) { h++; m = 0; }
+                    return `${h}h${String(m).padStart(2, '0')}m${String(s).padStart(2, '0')}s`;
+                } else if (seconds >= 60) {
+                    let m = Math.floor(seconds / 60);
+                    let s = Math.round(seconds % 60);
+                    if (s === 60) { m++; s = 0; }
+                    return `${m}m${s}s`;
+                } else {
+                    return `${Math.round(seconds)}s`;
+                }
+            }
+
+            // Per-panel y scales (stored so crosshair can use them)
+            const yScales = [null, null, null];
+
+            function drawPanel(pi) {
+                const coords = coordsByPanel()[pi];
+                const chartArea = panelChartAreas[pi];
+                const yAx    = panelYAxes[pi];
+                const pg     = panelGroups[pi];
+                const clipG  = panelClipGs[pi];
+
+                chartArea.selectAll('*').remove();
+
+                // ── chartH: altezza effettiva dell'area di disegno per questo pannello
+                const chartH = PANEL_H - LABEL_SPACES[pi];
+
+                // Y scale per questo pannello basata sui dati visibili
+                const yS = getYScale(coords, pi);   // ← passa pi
+                yScales[pi] = yS;
+
+                // Asse Y — traslato verso il basso di LABEL_SPACES[pi] per allinearsi a chartArea
+                yAx.attr('transform', `translate(0,${LABEL_SPACES[pi]})`);
+
+                let yLabelText = '';
+                if (pi === 0) yLabelText = 'Raw Power (W)';
+                else if (pi === 1) yLabelText = `${avg30sSeconds}s Power (W)`;
+                else if (pi === 2) yLabelText = `${avg60sSeconds}s Power (W)`;
+                panelYLabels[pi].text(yLabelText);
+
+                const yAxis = d3.axisLeft(yS).ticks(5).tickSize(-INNER_W);
+                yAx.call(yAxis);
+                yAx.select('.domain').attr('stroke', '#d1d5db').attr('stroke-width', 0.5);
+                yAx.selectAll('.tick line')
+                    .attr('stroke', '#f3f4f6').attr('stroke-width', 1);
+                yAx.selectAll('.tick text')
+                    .attr('fill', '#374151').attr('font-size', 9).attr('x', -5);
+
+                // Zone bands (dietro la curva)
+                if (zoneColorEnabled) {
+                    drawZoneBands(chartArea, yS, chartH);   // ← passa chartArea, non clipG
+                }
+
+                // Curva
+                if (zoneColorEnabled) {
+                    drawZoneColoredCurve(chartArea, coords, yS, chartH);   // ← passa chartH
+                } else {
+                    drawSolidCurve(chartArea, coords, yS, solidColors()[pi], zoneFillOpacity, chartH);  // ← passa chartH
+                }
+
+                // Linea CP tratteggiata
+                if (cp > 0) {
+                    const cpy = yS(cp);
+                    if (cpy >= 0 && cpy <= chartH) {   // ← usa chartH, non PANEL_H
+                        chartArea.append('line')
+                            .attr('x1', 0).attr('x2', INNER_W)
+                            .attr('y1', cpy).attr('y2', cpy)
+                            .attr('stroke', '#4b5563').attr('stroke-width', 1)
+                            .attr('stroke-dasharray', '5,3')
+                            .style('pointer-events', 'none');
+                        chartArea.append('text')
+                            .attr('x', INNER_W - 4).attr('y', cpy - 3)
+                            .attr('text-anchor', 'end')
+                            .attr('fill', '#4b5563').attr('font-size', 8)
+                            .text(`CP ${cp}W`);
+                    }
+                }
+
+                // Effort/Sprint overlay — passa chartH
+                drawEffortOverlays(chartArea, yS, pi, pg, chartH);
+
+                // START/END markers solo sul primo pannello
+                if (pi === 0) drawStartEndMarkers(chartArea, yS);
+            }
+
+            // ── X axis ────────────────────────────────────────────────────────────
+            function drawXAxis() {
+                const xAxis = d3.axisBottom(xView)
+                    .ticks(Math.max(4, Math.floor(INNER_W / 80)))
+                    .tickFormat(d => formatTime(d));
+                xAxisG.call(xAxis);
+                xAxisG.select('.domain').attr('stroke', '#6b7280');
+                xAxisG.selectAll('.tick line').attr('stroke', '#e5e7eb');
+                xAxisG.selectAll('.tick text').attr('fill', '#374151').attr('font-size', 10);
+            }
+
+            // ── Full redraw ───────────────────────────────────────────────────────
+            function drawAllPanels() {
+                clearZoneClips();
+                for (let pi = 0; pi < 3; pi++) drawPanel(pi);
+                drawXAxis();
+            }
+
+            // ── Public rebuildChart (called by all controls) ───────────────────────
+            function rebuildChart(skipAnimation) {
                 recalculateIntervalLabels();
-                const currentOption = myChart.getOption();
-                let dataZoomState = null;
-                if (currentOption && currentOption.dataZoom && currentOption.dataZoom[0]) {
-                    dataZoomState = { start: currentOption.dataZoom[0].start, end: currentOption.dataZoom[0].end };
-                }
-                const newOption = buildOption();
-                if (dataZoomState) {
-                    newOption.dataZoom[0].start = dataZoomState.start;
-                    newOption.dataZoom[0].end = dataZoomState.end;
-                    newOption.dataZoom[1].start = dataZoomState.start;
-                    newOption.dataZoom[1].end = dataZoomState.end;
-                }
-                
-                // Disabilita temporaneamente l'animazione solo se richiesto (per gli slider)
-                if (skipAnimation) {
-                    newOption.animation = false;
-                }
-                
-                myChart.setOption(newOption, { notMerge: true });
+                drawAllPanels();
             }
 
-            function updateMovingAverages() {
-                const window30sSize = Math.round(avg30sSeconds * samplingRate);
-                const power30sAvg = calculateCenteredMovingAverage(powerData, window30sSize);
-                const power30sNewCoords = timeAxis.map((time, idx) => [time, power30sAvg[idx]]);
-                const window60sSize = Math.round(avg60sSeconds * samplingRate);
-                const power60sAvg = calculateCenteredMovingAverage(powerData, window60sSize);
-                const power60sNewCoords = timeAxis.map((time, idx) => [time, power60sAvg[idx]]);
-                power30sCoords.length = 0;
-                power30sCoords.push(...power30sNewCoords);
-                power60sCoords.length = 0;
-                power60sCoords.push(...power60sNewCoords);
-                rebuildChart(true); // Salta l'animazione per evitare glitch
-            }
+            // ── Mouse: tooltip + crosshair ────────────────────────────────────────
+            overlayRect.on('mousemove', function(event) {
+                const [mx, my] = d3.pointer(event);
+                const localMy = my - P0_TOP; // relative to panel 0 top
 
-            myChart.setOption(buildOption());
+                const timeVal = xView.invert(mx);
+                const bi  = d3.bisectLeft(timeAxis, timeVal);
+                const idx = Math.max(0, Math.min(bi, powerData.length - 1));
+                const powerVal = powerData[idx] || 0;
 
-            const avg30sInput = document.getElementById('avg30sSeconds');
-            const avg30sValue = document.getElementById('avg30sValue');
-            const avg60sInput = document.getElementById('avg60sSeconds');
-            const avg60sValue = document.getElementById('avg60sValue');
-            const cpInput = document.getElementById('cpInput');
+                // Crosshair across all panels
+                crossVLines.forEach((cv, pi) => {
+                    cv.style('display', null).attr('x1', mx).attr('x2', mx);
+                });
+                crossDots.forEach((cd, pi) => {
+                    const yS2 = yScales[pi];
+                    if (!yS2) return;
+                    const panelCoords = coordsByPanel()[pi];
+                    const p = panelCoords[idx] ? panelCoords[idx][1] : 0;
+                    const cy = yS2(p || 0) + LABEL_SPACES[pi];  // Aggiungi LABEL_SPACES[pi] per il traslamento
+                    cd.style('display', null).attr('cx', mx).attr('cy', cy);
+                });
+
+                // Tooltip content — show all 3 panel values
+                const tStr = formatTime(timeVal);
+                const vals = coordsByPanel().map(coords => {
+                    const pt = coords[idx];
+                    return pt ? Math.round(pt[1]) : null;
+                });
+                const zColor = getZoneColor(powerVal);
+                const panelColors = [powerColor, avg30sColor, avg60sColor];
+                const panelNames  = ['Raw', `${avg30sSeconds}s avg`, `${avg60sSeconds}s avg`];
+                tooltipEl.innerHTML =
+                    `<div style="font-weight:bold;margin-bottom:4px;">${tStr}</div>` +
+                    vals.map((v, i) => {
+                        if (v === null) return '';
+                        const col = i === 0 ? getZoneColor(v) : panelColors[i];
+                        return `<div style="margin:1px 0"><span style="color:${col};font-weight:bold;">${v}W</span> <span style="color:#9ca3af;font-size:10px;">${panelNames[i]}</span></div>`;
+                    }).join('');
+                tooltipEl.style.display = 'block';
+
+                // Position tooltip
+                const rect = mainChartDiv.getBoundingClientRect();
+                let tx = event.clientX - rect.left + 14;
+                let ty = event.clientY - rect.top - 40;
+                if (tx + 140 > chartW) tx -= 155;
+                if (ty < 5) ty = 5;
+                tooltipEl.style.left = tx + 'px';
+                tooltipEl.style.top  = ty + 'px';
+            });
+
+            overlayRect.on('mouseleave', function() {
+                if (draggingState) return;
+                crossVLines.forEach(cv => cv.style('display', 'none'));
+                crossDots.forEach(cd => cd.style('display', 'none'));
+                tooltipEl.style.display = 'none';
+            });
+
+            // ── Right-click drag for START/END markers + left-click pan ────────────
+            let draggingState = null;
+            let panState = null;  // { startX, startDomain }
+
+            mainChartDiv.addEventListener('contextmenu', function(e) {
+                if (e.target.closest('#mainChart svg')) e.preventDefault();
+            });
+
+            // Left-click: start pan (unless right-click drag is active)
+            overlayRect.on('mousedown', function(event) {
+                if (event.button !== 0) return;
+                if (draggingState) return;
+                event.preventDefault();
+                panState = { startX: d3.pointer(event)[0], startDomain: xView.domain().slice() };
+                overlayRect.style('cursor', 'grabbing');
+            });
+
+            // Right-click: pick nearest START/END marker
+            mainChartDiv.addEventListener('mousedown', function(e) {
+                if (e.button !== 2) return;
+                e.preventDefault();
+                panState = null;
+                const rect = mainChartDiv.getBoundingClientRect();
+                const mx   = e.clientX - rect.left - ML;
+                const timeVal = xView.invert(mx);
+                const tol = (xView.domain()[1] - xView.domain()[0]) * 0.015;
+                let best = null, bestDist = Infinity;
+
+                effortsData.forEach((effort, idx) => {
+                    if (deletedEfforts.has(idx)) return;
+                    const ds = Math.abs(timeVal - effort.start);
+                    if (ds < tol && ds < bestDist) { bestDist = ds; best = { type:'effort', idx, isStart:true }; }
+                    const de = Math.abs(timeVal - effort.end);
+                    if (de < tol && de < bestDist) { bestDist = de; best = { type:'effort', idx, isStart:false }; }
+                });
+                sprintsData.forEach((sprint, idx) => {
+                    if (deletedSprints.has(idx)) return;
+                    const ds = Math.abs(timeVal - sprint.start);
+                    if (ds < tol && ds < bestDist) { bestDist = ds; best = { type:'sprint', idx, isStart:true }; }
+                    const de = Math.abs(timeVal - sprint.end);
+                    if (de < tol && de < bestDist) { bestDist = de; best = { type:'sprint', idx, isStart:false }; }
+                });
+                if (best) {
+                    draggingState = best;
+                }
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                // ── Pan ───────────────────────────────────────────────────────────
+                if (panState && !draggingState) {
+                    const rect = mainChartDiv.getBoundingClientRect();
+                    const mx   = e.clientX - rect.left - ML;
+                    const dx   = mx - panState.startX;
+                    const [d0, d1] = panState.startDomain;
+                    const range    = d1 - d0;
+                    const dt = -(dx / INNER_W) * range;   // time units panned
+                    const newD0 = Math.max(minTime, d0 + dt);
+                    const newD1 = Math.min(maxTime, newD0 + range);
+                    xView = d3.scaleLinear().domain([newD0, newD1]).range([0, INNER_W]);
+                    scheduleDraw();
+                    syncBrush();
+                    return;
+                }
+
+                // ── Effort/Sprint START/END drag ──────────────────────────────────
+                if (!draggingState) return;
+                const rect = mainChartDiv.getBoundingClientRect();
+                const mx   = e.clientX - rect.left - ML;
+                const newTime = Math.max(minTime, Math.min(maxTime, xView.invert(mx)));
+
+                if (draggingState.type === 'effort') {
+                    const effort = effortsData[draggingState.idx];
+                    if (draggingState.isStart) { if (newTime < effort.end - 5) effort.start = newTime; }
+                    else                       { if (newTime > effort.start + 5) effort.end = newTime; }
+                    const si = timeAxis.findIndex(t => t >= effort.start);
+                    const ei = timeAxis.findIndex(t => t >= effort.end);
+                    const sl = powerData.slice(Math.max(0,si), Math.max(1,ei));
+                    if (sl.length > 0) effort.avg_power = sl.reduce((a,b)=>a+b,0)/sl.length;
+                    const infoEl = document.getElementById(`effort-info-${draggingState.idx}`);
+                    if (infoEl) infoEl.textContent = `${effort.start.toFixed(0)}s - ${effort.end.toFixed(0)}s | ${(effort.end-effort.start).toFixed(0)}s | ${effort.avg_power.toFixed(0)}W`;
+                } else {
+                    const sprint = sprintsData[draggingState.idx];
+                    if (draggingState.isStart) { if (newTime < sprint.end - 5) sprint.start = newTime; }
+                    else                       { if (newTime > sprint.start + 5) sprint.end = newTime; }
+                    const si = timeAxis.findIndex(t => t >= sprint.start);
+                    const ei = timeAxis.findIndex(t => t >= sprint.end);
+                    const sl = powerData.slice(Math.max(0,si), Math.max(1,ei));
+                    if (sl.length > 0) { sprint.avg_power = sl.reduce((a,b)=>a+b,0)/sl.length; sprint.max_power = Math.max(...sl); }
+                    sprint.duration = sprint.end - sprint.start;
+                    const infoEl = document.getElementById(`sprint-info-${draggingState.idx}`);
+                    if (infoEl) infoEl.textContent = `${sprint.start.toFixed(0)}s - ${sprint.end.toFixed(0)}s | ${sprint.duration.toFixed(0)}s | ${sprint.max_power.toFixed(0)}W | ${sprint.avg_power.toFixed(0)}W`;
+                }
+                scheduleDraw();   // rAF-debounced during drag for smoothness
+            });
+
+            document.addEventListener('mouseup', function(e) {
+                if (panState) {
+                    panState = null;
+                    overlayRect.style('cursor', 'crosshair');
+                }
+                if (draggingState) {
+                    draggingState = null;
+                    normalizeFrontendLabels();
+                    drawAllPanels();   // final full redraw after drag ends
+                }
+            });
+
+            // ── Resize ────────────────────────────────────────────────────────────
+            const resizeObserver = new ResizeObserver(() => {
+                const newW = Math.max(400, mainChartDiv.clientWidth);
+                if (Math.abs(newW - chartW) < 2) return;
+                chartW  = newW;
+                INNER_W = chartW - ML - MR;
+                chartSvg.attr('width', chartW);
+                xBase.range([0, INNER_W]);
+                // Preserve zoom ratio
+                const [d0, d1] = xView.domain();
+                xView = d3.scaleLinear().domain([d0, d1]).range([0, INNER_W]);
+                // Update brush extent
+                brushFn.extent([[0,0],[INNER_W, SLIDER_H]]);
+                panelClipRect.attr('width', INNER_W + 1);
+                overlayRect.attr('width', INNER_W);
+                panelGroups.forEach(pg => pg.select('.panel-bg').attr('width', INNER_W));
+                panelYAxes.forEach(yAx => yAx.selectAll('.tick line').attr('x2', -INNER_W));
+                // Update mini overview
+                zoomG.select('rect').attr('width', INNER_W);
+                miniPath.attr('d', ''); // Will be redrawn
+                updateMiniPath();
+                // Update x label position
+                rootG.select('.x-label').attr('x', INNER_W / 2);
+                syncBrush();
+                drawAllPanels();
+                buildQuickAddBtns();
+            });
+            resizeObserver.observe(mainChartDiv);
+
+            // ── Slider event handlers ─────────────────────────────────────────────
+            let updateTimeout = null;
+
+            document.getElementById('avg30sSeconds').addEventListener('input', function() {
+                avg30sSeconds = parseInt(this.value);
+                document.getElementById('avg30sValue').textContent = avg30sSeconds + 's';
+                if (updateTimeout) clearTimeout(updateTimeout);
+                updateTimeout = setTimeout(() => { recomputeAverages(); rebuildChart(); }, 30);
+            });
+
+            document.getElementById('avg60sSeconds').addEventListener('input', function() {
+                avg60sSeconds = parseInt(this.value);
+                document.getElementById('avg60sValue').textContent = avg60sSeconds + 's';
+                if (updateTimeout) clearTimeout(updateTimeout);
+                updateTimeout = setTimeout(() => { recomputeAverages(); rebuildChart(); }, 30);
+            });
+
+            // Restore persisted slider/toggle values
+            const storedZCE = localStorage.getItem('inspection_zone_color_enabled');
+            if (storedZCE !== null) zoneColorEnabled = storedZCE === 'true';
+            const storedZO = parseFloat(localStorage.getItem('inspection_zone_fill_opacity'));
+            if (!isNaN(storedZO)) zoneFillOpacity = storedZO;
+            const storedZBO = parseFloat(localStorage.getItem('inspection_zone_bands_opacity'));
+            if (!isNaN(storedZBO)) zoneBandsOpacity = storedZBO;
+            const storedPC = localStorage.getItem('inspection_power_color');
+            if (storedPC) powerColor = storedPC;
+            const storedA30 = localStorage.getItem('inspection_avg30s_color');
+            if (storedA30) avg30sColor = storedA30;
+            const storedA60 = localStorage.getItem('inspection_avg60s_color');
+            if (storedA60) avg60sColor = storedA60;
+
             const zoneColorToggle = document.getElementById('zoneColorToggle');
             const zoneOpacityInput = document.getElementById('zoneOpacity');
             const zoneOpacityValue = document.getElementById('zoneOpacityValue');
             const zoneBandsOpacityInput = document.getElementById('zoneBandsOpacity');
             const zoneBandsOpacityValue = document.getElementById('zoneBandsOpacityValue');
 
-            const storedZoneColorEnabled = localStorage.getItem('inspection_zone_color_enabled');
-            if (storedZoneColorEnabled !== null) {
-                zoneColorEnabled = storedZoneColorEnabled === 'true';
-            }
-
-            const storedZoneOpacity = parseFloat(localStorage.getItem('inspection_zone_fill_opacity'));
-            if (!Number.isNaN(storedZoneOpacity)) {
-                zoneFillOpacity = storedZoneOpacity;
-            }
-
-            const storedZoneBandsOpacity = parseFloat(localStorage.getItem('inspection_zone_bands_opacity'));
-            if (!Number.isNaN(storedZoneBandsOpacity)) {
-                zoneBandsOpacity = storedZoneBandsOpacity;
-            }
-
-            const storedPowerColor = localStorage.getItem('inspection_power_color');
-            if (storedPowerColor) {
-                powerColor = storedPowerColor;
-            }
-
-            const storedAvg30sColor = localStorage.getItem('inspection_avg30s_color');
-            if (storedAvg30sColor) {
-                avg30sColor = storedAvg30sColor;
-            }
-
-            const storedAvg60sColor = localStorage.getItem('inspection_avg60s_color');
-            if (storedAvg60sColor) {
-                avg60sColor = storedAvg60sColor;
-            }
-
             zoneColorToggle.checked = zoneColorEnabled;
-            zoneOpacityInput.value = Math.round(zoneFillOpacity * 100);
+            zoneOpacityInput.value  = Math.round(zoneFillOpacity * 100);
             zoneOpacityValue.textContent = zoneOpacityInput.value + '%';
-            zoneBandsOpacityInput.value = Math.round(zoneBandsOpacity * 100);
+            zoneBandsOpacityInput.value  = Math.round(zoneBandsOpacity * 100);
             zoneBandsOpacityValue.textContent = zoneBandsOpacityInput.value + '%';
-
-            // Set color picker values
             document.getElementById('powerColorPicker').value = powerColor;
             document.getElementById('avg30sColorPicker').value = avg30sColor;
             document.getElementById('avg60sColorPicker').value = avg60sColor;
+
             function updateOpacityControlsVisibility() {
-                const zoneOpacityControl = document.querySelector('.zone-opacity-control');
-                const zoneBandsOpacityControl = document.querySelector('.zone-bands-opacity-control');
-                const chartColorsControl = document.querySelector('.chart-colors-control');
-                
+                const zoc  = document.querySelector('.zone-opacity-control');
+                const zboc = document.querySelector('.zone-bands-opacity-control');
+                const ccc  = document.querySelector('.chart-colors-control');
                 if (zoneColorEnabled) {
-                    // Quando il toggle è ON, mostra solo opacità bande
-                    zoneOpacityControl.style.display = 'none';
-                    zoneBandsOpacityControl.style.display = 'flex';
-                    chartColorsControl.style.display = 'none';
+                    if (zoc) zoc.style.display  = 'none';
+                    if (zboc) zboc.style.display = 'flex';
+                    if (ccc) ccc.style.display   = 'none';
                 } else {
-                    // Quando il toggle è OFF, mostra solo opacità riempimento e colori grafici
-                    zoneOpacityControl.style.display = 'flex';
-                    zoneBandsOpacityControl.style.display = 'none';
-                    chartColorsControl.style.display = 'flex';
+                    if (zoc) zoc.style.display  = 'flex';
+                    if (zboc) zboc.style.display = 'none';
+                    if (ccc) ccc.style.display   = 'flex';
                 }
             }
-
-            // Inizializza la visibilità
             updateOpacityControlsVisibility();
-
-            avg30sValue.title = `Chart 2 smoothing window: ${avg30sSeconds}s`;
-            avg60sValue.title = `Chart 3 smoothing window: ${avg60sSeconds}s`;
-
-            let updateTimeout = null;
-            avg30sInput.addEventListener('input', function() {
-                avg30sSeconds = parseInt(this.value);
-                avg30sValue.textContent = avg30sSeconds + 's';
-                avg30sValue.title = `Chart 2 smoothing window: ${avg30sSeconds}s`;
-                if (updateTimeout) clearTimeout(updateTimeout);
-                updateTimeout = setTimeout(updateMovingAverages, 1);
-            });
-
-            avg60sInput.addEventListener('input', function() {
-                avg60sSeconds = parseInt(this.value);
-                avg60sValue.textContent = avg60sSeconds + 's';
-                avg60sValue.title = `Chart 3 smoothing window: ${avg60sSeconds}s`;
-                if (updateTimeout) clearTimeout(updateTimeout);
-                updateTimeout = setTimeout(updateMovingAverages, 1);
-            });
 
             zoneColorToggle.addEventListener('change', function() {
                 zoneColorEnabled = this.checked;
@@ -1796,344 +1791,147 @@
                 updateOpacityControlsVisibility();
                 rebuildChart();
             });
-
             zoneOpacityInput.addEventListener('input', function() {
-                const opacityValue = Math.max(0, Math.min(100, parseInt(this.value) || 0));
-                zoneFillOpacity = opacityValue / 100;
-                zoneOpacityValue.textContent = opacityValue + '%';
+                const v = Math.max(0, Math.min(100, parseInt(this.value)||0));
+                zoneFillOpacity = v / 100;
+                zoneOpacityValue.textContent = v + '%';
                 localStorage.setItem('inspection_zone_fill_opacity', String(zoneFillOpacity));
                 rebuildChart();
             });
-
             zoneBandsOpacityInput.addEventListener('input', function() {
-                const opacityValue = Math.max(0, Math.min(100, parseInt(this.value) || 0));
-                zoneBandsOpacity = opacityValue / 100;
-                zoneBandsOpacityValue.textContent = opacityValue + '%';
+                const v = Math.max(0, Math.min(100, parseInt(this.value)||0));
+                zoneBandsOpacity = v / 100;
+                zoneBandsOpacityValue.textContent = v + '%';
                 localStorage.setItem('inspection_zone_bands_opacity', String(zoneBandsOpacity));
                 rebuildChart();
             });
-
             document.getElementById('powerColorPicker').addEventListener('change', function() {
-                powerColor = this.value;
-                localStorage.setItem('inspection_power_color', powerColor);
-                rebuildChart();
+                powerColor = this.value; localStorage.setItem('inspection_power_color', powerColor); rebuildChart();
             });
-
             document.getElementById('avg30sColorPicker').addEventListener('change', function() {
-                avg30sColor = this.value;
-                localStorage.setItem('inspection_avg30s_color', avg30sColor);
-                rebuildChart();
+                avg30sColor = this.value; localStorage.setItem('inspection_avg30s_color', avg30sColor); rebuildChart();
             });
-
             document.getElementById('avg60sColorPicker').addEventListener('change', function() {
-                avg60sColor = this.value;
-                localStorage.setItem('inspection_avg60s_color', avg60sColor);
-                rebuildChart();
+                avg60sColor = this.value; localStorage.setItem('inspection_avg60s_color', avg60sColor); rebuildChart();
             });
 
+            const cpInput = document.getElementById('cpInput');
             cpInput.addEventListener('change', function() {
                 cp = parseInt(this.value);
                 localStorage.setItem('inspection_cp', cp);
-                rebuildChart();
-                updateWattDisplays();
+                rebuildChart(); updateWattDisplays();
             });
-
             cpInput.addEventListener('input', function() {
                 cp = parseInt(this.value) || cp;
                 localStorage.setItem('inspection_cp', cp);
-                updateWattDisplays();
-                rebuildChart();
+                updateWattDisplays(); rebuildChart();
             });
 
-            let draggingState = null;
-            document.addEventListener('contextmenu', function(e) {
-                if (mainChartDiv.contains(e.target)) e.preventDefault();
-            });
-
-            document.addEventListener('mousedown', function(e) {
-                if (!mainChartDiv.contains(e.target) || e.button !== 2) return;
-                e.preventDefault();
-                const rect = mainChartDiv.getBoundingClientRect();
-                const relativeY = e.clientY - rect.top;
-                const gridIndex = Math.floor(relativeY / rect.height * 3);
-                const pixelCoords = myChart.convertFromPixel({ gridIndex: Math.min(gridIndex, 2) }, [e.clientX - rect.left, relativeY]);
-                if (!pixelCoords) return;
-                const clickTime = pixelCoords[0];
-                const tolerance = (maxTime - minTime) * 0.01;
-                let closestMatch = null;
-                let closestDistance = Infinity;
-                
-                // Check efforts
-                effortsData.forEach((effort, effortIdx) => {
-                    if (deletedEfforts.has(effortIdx)) return;
-                    const distToStart = Math.abs(clickTime - effort.start);
-                    if (distToStart < tolerance && distToStart < closestDistance) {
-                        closestMatch = { type: 'effort', idx: effortIdx, isStart: true };
-                        closestDistance = distToStart;
-                    }
-                    const distToEnd = Math.abs(clickTime - effort.end);
-                    if (distToEnd < tolerance && distToEnd < closestDistance) {
-                        closestMatch = { type: 'effort', idx: effortIdx, isStart: false };
-                        closestDistance = distToEnd;
-                    }
-                });
-                
-                // Check sprints
-                sprintsData.forEach((sprint, sprintIdx) => {
-                    if (deletedSprints.has(sprintIdx)) return;
-                    const distToStart = Math.abs(clickTime - sprint.start);
-                    if (distToStart < tolerance && distToStart < closestDistance) {
-                        closestMatch = { type: 'sprint', idx: sprintIdx, isStart: true };
-                        closestDistance = distToStart;
-                    }
-                    const distToEnd = Math.abs(clickTime - sprint.end);
-                    if (distToEnd < tolerance && distToEnd < closestDistance) {
-                        closestMatch = { type: 'sprint', idx: sprintIdx, isStart: false };
-                        closestDistance = distToEnd;
-                    }
-                });
-                
-                if (closestMatch) {
-                    draggingState = { ...closestMatch, gridIndex: Math.min(gridIndex, 2) };
-                }
-            });
-
-            document.addEventListener('mousemove', function(e) {
-                if (!draggingState) return;
-                
-                let item, legendPrefix;
-                if (draggingState.type === 'effort') {
-                    item = effortsData[draggingState.idx];
-                    legendPrefix = 'effort-';
-                } else {
-                    item = sprintsData[draggingState.idx];
-                    legendPrefix = 'sprint-';
-                }
-                
-                const rect = mainChartDiv.getBoundingClientRect();
-                const pixelCoords = myChart.convertFromPixel({ gridIndex: draggingState.gridIndex }, [e.clientX - rect.left, e.clientY - rect.top]);
-                if (!pixelCoords) return;
-                const newTime = Math.max(0, Math.min(maxTime, pixelCoords[0]));
-                
-                if (draggingState.isStart) {
-                    if (newTime < item.end - 5) item.start = newTime;
-                } else {
-                    if (newTime > item.start + 5) item.end = newTime;
-                }
-
-                // Recalculate avg_power for the updated range
-                if (draggingState.type === 'effort') {
-                    const s = timeAxis.findIndex(t => t >= item.start);
-                    const e2 = timeAxis.findIndex(t => t >= item.end);
-                    const slice = powerData.slice(Math.max(0, s), Math.max(1, e2));
-                    if (slice.length > 0) {
-                        item.avg_power = slice.reduce((a, b) => a + b, 0) / slice.length;
-                    }
-                } else if (draggingState.type === 'sprint') {
-                    // Recalculate sprint metrics
-                    const s = timeAxis.findIndex(t => t >= item.start);
-                    const e2 = timeAxis.findIndex(t => t >= item.end);
-                    const slice = powerData.slice(Math.max(0, s), Math.max(1, e2));
-                    if (slice.length > 0) {
-                        item.avg_power = slice.reduce((a, b) => a + b, 0) / slice.length;
-                        item.max_power = Math.max(...slice);
-                    } else {
-                        item.avg_power = 0;
-                        item.max_power = 0;
-                    }
-                    item.duration = item.end - item.start;
-                }
-                
-                rebuildChart();
-                
-                const legendItem = document.getElementById(`${legendPrefix}${draggingState.idx}`);
-                if (legendItem) {
-                    const infoDiv = legendItem.querySelector('div > div:last-child');
-                    if (infoDiv) {
-                        if (draggingState.type === 'effort') {
-                            infoDiv.innerHTML = `
-                                <strong>${item.label}</strong><br>
-                                <span style="color: #9ca3b8;">
-                                    ${item.start.toFixed(0)}s - ${item.end.toFixed(0)}s | ${(item.end - item.start).toFixed(0)}s | ${item.avg_power.toFixed(0)}W
-                                </span>
-                            `;
-                        } else {
-                            infoDiv.innerHTML = `
-                                <strong>${item.label}</strong><br>
-                                <span style="color: #9ca3b8;">
-                                    ${item.start.toFixed(0)}s - ${item.end.toFixed(0)}s | ${item.duration.toFixed(0)}s | ${item.max_power.toFixed(0)}W | ${item.avg_power.toFixed(0)}W
-                                </span>
-                            `;
-                        }
-                    }
-                }
-            });
-
-            document.addEventListener('mouseup', function() {
-                draggingState = null;
-                normalizeFrontendLabels();
-                rebuildChart(true);
-            });
-
-            window.addEventListener('resize', function() {
-                myChart.resize();
-            });
-
+            // ── Save / Export ─────────────────────────────────────────────────────
             document.getElementById('saveButton').addEventListener('click', async function() {
-                const saveBtn = this;
-                const saveStatus = document.getElementById('saveStatus');
-                saveBtn.disabled = true;
-                saveBtn.textContent = '⏳ Salvataggio...';
-                
+                const btn = this;
+                const status = document.getElementById('saveStatus');
+                btn.disabled = true; btn.textContent = '⏳ Salvataggio...';
                 try {
-                    // Call backend export-modifications API
                     const response = await fetch(`/api/${'{{ session_id }}'}/export-modifications`);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const data = await response.json();
-                    const jsonData = JSON.stringify(data, null, 2);
-                    const blob = new Blob([jsonData], { type: 'application/json' });
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'effort_modifications.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
+                    a.href = url; a.download = 'effort_modifications.json';
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                    
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = '✅ File Scaricato!';
-                    saveStatus.textContent = 'File delle modifiche scaricato.';
-                    saveStatus.style.color = '#22c55e';
-                    setTimeout(() => {
-                        saveBtn.textContent = '📤 Esporta Modifiche';
-                        saveStatus.textContent = '';
-                    }, 3000);
-                } catch (error) {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = '❌ Errore!';
-                    saveStatus.textContent = `Errore: ${error.message}`;
-                    saveStatus.style.color = '#ef4444';
-                    setTimeout(() => {
-                        saveBtn.textContent = '📤 Esporta Modifiche';
-                        saveStatus.textContent = '';
-                    }, 5000);
+                    btn.disabled = false; btn.textContent = '✅ File Scaricato!';
+                    status.textContent = 'File delle modifiche scaricato.'; status.style.color = '#22c55e';
+                    setTimeout(() => { btn.textContent = '📤 Esporta Modifiche'; status.textContent = ''; }, 3000);
+                } catch(error) {
+                    btn.disabled = false; btn.textContent = '❌ Errore!';
+                    status.textContent = `Errore: ${error.message}`; status.style.color = '#ef4444';
+                    setTimeout(() => { btn.textContent = '📤 Esporta Modifiche'; status.textContent = ''; }, 5000);
                 }
             });
 
             document.getElementById('saveLocalButton').addEventListener('click', function() {
-                const saveBtn = this;
-                const saveStatus = document.getElementById('saveStatus');
-                saveBtn.disabled = true;
-                saveBtn.textContent = '⏳ Salvataggio locale...';
-                
+                const btn = this;
+                const status = document.getElementById('saveStatus');
+                btn.disabled = true; btn.textContent = '⏳ Salvataggio locale...';
                 try {
-                    // Keep labels aligned with canonical order before persisting modifications.
                     normalizeFrontendLabels();
-
-                    // Prepare data for API call - send modified efforts and sprints with their timestamps
-                    const modifiedEfforts = [];
-                    const deletedEffortIndices = Array.from(deletedEfforts);
-                    
-                    if (effortsData && Array.isArray(effortsData)) {
-                        effortsData.forEach((effort, idx) => {
-                            modifiedEfforts.push({
-                                start: effort.start,
-                                end: effort.end,
-                                label: effort.label,
-                                color: effort.color
-                            });
-                        });
-                    }
-                    
-                    const modifiedSprints = [];
-                    const deletedSprintIndices = Array.from(deletedSprints);
-                    
-                    if (sprintsData && Array.isArray(sprintsData)) {
-                        sprintsData.forEach((sprint, idx) => {
-                            modifiedSprints.push({
-                                start: sprint.start,
-                                end: sprint.end,
-                                label: sprint.label,
-                                color: sprint.color
-                            });
-                        });
-                    }
-                    
-                    const dataToSend = {
-                        efforts: modifiedEfforts,
-                        sprints: modifiedSprints,
-                        deleted_effort_indices: deletedEffortIndices,
-                        deleted_sprint_indices: deletedSprintIndices
-                    };
-                    
-                    // Send to server API
+                    const modifiedEfforts = effortsData.map(e => ({ start:e.start, end:e.end, label:e.label, color:e.color }));
+                    const modifiedSprints = sprintsData.map(s => ({ start:s.start, end:s.end, label:s.label, color:s.color }));
                     fetch(`/api/{{ session_id }}/apply-local-modifications`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(dataToSend)
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            efforts: modifiedEfforts,
+                            sprints: modifiedSprints,
+                            deleted_effort_indices: Array.from(deletedEfforts),
+                            deleted_sprint_indices: Array.from(deletedSprints)
+                        })
                     })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`Server error: ${response.status}`);
-                        }
-                        return response.json();
-                    })
+                    .then(r => { if (!r.ok) throw new Error(`Server error: ${r.status}`); return r.json(); })
                     .then(result => {
-                        // Reorder legend to reflect canonical order after save
-                        reorderLegendItems();
-                        
-                        saveBtn.disabled = false;
-                        saveBtn.textContent = '✅ Salvato Localmente!';
-                        saveStatus.textContent = `Modifiche applicate! ${result.total_efforts} efforts, ${result.total_sprints} sprints.`;
-                        saveStatus.style.color = '#22c55e';
-                        
-                        // Notify other tabs via BroadcastChannel
+                        btn.disabled = false; btn.textContent = '✅ Salvato Localmente!';
+                        status.textContent = `Modifiche applicate! ${result.total_efforts} efforts, ${result.total_sprints} sprints.`;
+                        status.style.color = '#22c55e';
                         try {
-                            const channel = new BroadcastChannel('peffort_{{ session_id }}');
-                            channel.postMessage({ type: 'efforts_updated' });
-                            channel.close();
-                        } catch (e) {
-                            console.warn('BroadcastChannel not supported on this browser', e);
-                        }
-                        
-                        setTimeout(() => {
-                            saveBtn.textContent = '💾 Salva Modifiche';
-                            saveStatus.textContent = '';
-                        }, 3000);
+                            const ch = new BroadcastChannel('peffort_{{ session_id }}');
+                            ch.postMessage({ type:'efforts_updated' }); ch.close();
+                        } catch(_) {}
+                        setTimeout(() => { btn.textContent = '💾 Salva Modifiche'; status.textContent = ''; }, 3000);
                     })
                     .catch(error => {
-                        saveBtn.disabled = false;
-                        saveBtn.textContent = '❌ Errore!';
-                        saveStatus.textContent = 'Errore nel salvataggio: ' + error.message;
-                        saveStatus.style.color = '#ef4444';
-                        console.error('Error applying local modifications:', error);
-                        
-                        setTimeout(() => {
-                            saveBtn.textContent = '💾 Salva Modifiche';
-                            saveStatus.textContent = '';
-                        }, 5000);
+                        btn.disabled = false; btn.textContent = '❌ Errore!';
+                        status.textContent = 'Errore nel salvataggio: ' + error.message; status.style.color = '#ef4444';
+                        setTimeout(() => { btn.textContent = '💾 Salva Modifiche'; status.textContent = ''; }, 5000);
                     });
-                    
-                } catch (e) {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = '❌ Errore!';
-                    saveStatus.textContent = 'Errore nella preparazione: ' + e.message;
-                    saveStatus.style.color = '#ef4444';
-                    console.error('Error preparing local modifications:', e);
-                    
-                    setTimeout(() => {
-                        saveBtn.textContent = '💾 Salva Modifiche';
-                        saveStatus.textContent = '';
-                    }, 5000);
+                } catch(e) {
+                    btn.disabled = false; btn.textContent = '❌ Errore!';
+                    status.textContent = 'Errore: ' + e.message; status.style.color = '#ef4444';
+                    setTimeout(() => { btn.textContent = '💾 Salva Modifiche'; status.textContent = ''; }, 5000);
                 }
             });
-        });
+
+            // ── Quick-add buttons overlay (above interactive overlay) ─────────────
+            const quickAddG = rootG.append('g').attr('class', 'quick-add-btns');
+
+            function buildQuickAddBtns() {
+                quickAddG.selectAll('*').remove();
+                const btnY = P0_TOP + 6;
+
+                // + Effort (green pill)
+                const qEG = quickAddG.append('g').style('cursor', 'pointer')
+                    .on('click', () => document.getElementById('addEffortBtn').click());
+                qEG.append('rect')
+                    .attr('x', INNER_W - 128).attr('y', btnY)
+                    .attr('width', 60).attr('height', 17).attr('rx', 8)
+                    .attr('fill', '#16a34a').attr('fill-opacity', 0.88);
+                qEG.append('text')
+                    .attr('x', INNER_W - 98).attr('y', btnY + 12)
+                    .attr('text-anchor', 'middle').attr('fill', 'white')
+                    .attr('font-size', 10).attr('font-weight', 700)
+                    .style('pointer-events', 'none').text('＋ Effort');
+
+                // + Sprint (blue pill)
+                const qSG = quickAddG.append('g').style('cursor', 'pointer')
+                    .on('click', () => document.getElementById('addSprintBtn').click());
+                qSG.append('rect')
+                    .attr('x', INNER_W - 63).attr('y', btnY)
+                    .attr('width', 58).attr('height', 17).attr('rx', 8)
+                    .attr('fill', '#1d4ed8').attr('fill-opacity', 0.88);
+                qSG.append('text')
+                    .attr('x', INNER_W - 34).attr('y', btnY + 12)
+                    .attr('text-anchor', 'middle').attr('fill', 'white')
+                    .attr('font-size', 10).attr('font-weight', 700)
+                    .style('pointer-events', 'none').text('＋ Sprint');
+            }
+            buildQuickAddBtns();
+
+            // ── Initial render ────────────────────────────────────────────────────
+            drawAllPanels();
+
+        }); // end DOMContentLoaded
     </script>
 </body>
 </html>
