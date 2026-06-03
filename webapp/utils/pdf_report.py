@@ -625,6 +625,8 @@ def build_effort_metrics_table(e: Dict, cp: float, styles) -> Table:
 def build_sprint_metrics_table(s: Dict, styles) -> Table:
     """Build a 2-col metrics table for one sprint."""
     rows = []
+    
+    # 1) GENERAL
     rows.append(_section_row("General", styles))
     rows.append(_metric_row("Rank",         f"#{s.get('rank', '?')}", styles))
     rows.append(_metric_row("Start",         s.get("start_time", ""), styles))
@@ -632,28 +634,45 @@ def build_sprint_metrics_table(s: Dict, styles) -> Table:
     rows.append(_metric_row("Distance",      f"{s.get('distance_tot', 0)} km", styles))
     rows.append(_metric_row("Elevation",     f"{s.get('elevation_gain', 0)} m", styles))
 
+    # 2) POWER & HEART RATE
     rows.append(_section_row("Power", styles))
-    rows.append(_metric_row("Avg Power",     f"{int(s.get('avg_power', 0))} W", styles))
-    rows.append(_metric_row("W/kg",          str(s.get("avg_power_per_kg", 0)), styles))
-    rows.append(_metric_row("Max Power",     f"{int(s.get('max_watt', 0))} W  @ {int(s.get('rpm_at_max', 0))} rpm", styles))
-    rows.append(_metric_row("Min Power",     f"{int(s.get('min_watt', 0))} W  @ {int(s.get('rpm_at_min', 0))} rpm", styles))
+    
+    avg_p = int(float(s.get('avg_power', 0)))
+    w_kg = s.get('avg_power_per_kg', 0)
+    # Nel dizionario degli sprint potrebbe non esserci cp_pct, usiamo un fallback sicuro
+    cp_pct = s.get('cp_pct', 0)
+    rows.append(_metric_row("Avg Power",    f"{avg_p} W  ({w_kg} W/kg)  [{cp_pct}%]" if cp_pct else f"{avg_p} W  ({w_kg} W/kg)", styles))
+    
+    rows.append(_metric_row("Max Power",     f"{int(float(s.get('max_watt', 0)))} W  @ {int(float(s.get('rpm_at_max', 0)))} rpm", styles))
+    rows.append(_metric_row("Min Power",     f"{int(float(s.get('min_watt', 0)))} W  @ {int(float(s.get('rpm_at_min', 0)))} rpm", styles))
+    
+    avg_hr = int(float(s.get('avg_hr', 0))) if s.get('avg_hr') else None
+    min_hr = int(float(s.get('min_hr', 0)))
+    max_hr = int(float(s.get('max_hr', 0)))
+    if avg_hr:
+        rows.append(_metric_row("HR (Avg | Max)", f"{avg_hr} | {max_hr} bpm", styles))
+    else:
+        rows.append(_metric_row("HR (Min / Max)", f"{min_hr} / {max_hr} bpm", styles))
 
-    rows.append(_section_row("Cadence", styles))
-    rows.append(_metric_row("Avg Cadence",   f"{int(s.get('avg_cadence', 0))} rpm", styles))
-    rows.append(_metric_row("Min / Max",     f"{int(s.get('min_cadence', 0))} / {int(s.get('max_cadence', 0))} rpm", styles))
+    # 3) CLIMB & ENVIRONMENT (Adattato con le dinamiche cinematiche dello sprint)
+    rows.append(_section_row("Climb & Environment", styles))
+    rows.append(_metric_row("Grade (Avg | Max)", f"{s.get('avg_grade', 0)}% | {s.get('max_grade', 0)}%", styles))
+    
+    # Velocità di picco e progressione (Inizio -> Max -> Fine) sulla stessa riga per massima densità grafica
+    v1 = s.get('v1', 0)
+    v_max = s.get('v_max', 0)
+    v2 = s.get('v2', 0)
+    rows.append(_metric_row("Speed (Start|Max|End)", f"{v1} | {v_max} | {v2} km/h", styles))
+    
+    avg_cad = int(float(s.get('avg_cadence', 0)))
+    min_cad = int(float(s.get('min_cadence', 0)))
+    max_cad = int(float(s.get('max_cadence', 0)))
+    rows.append(_metric_row("Cadence (Avg | Max)", f"{avg_cad} | {max_cad} rpm", styles))
 
-    rows.append(_section_row("Speed", styles))
-    rows.append(_metric_row("Start",         f"{s.get('v1', 0)} km/h", styles))
-    rows.append(_metric_row("Max",           f"{s.get('v_max', 0)} km/h", styles))
-    rows.append(_metric_row("End",           f"{s.get('v2', 0)} km/h", styles))
-
-    rows.append(_section_row("Physiology", styles))
-    rows.append(_metric_row("HR min / max",  f"{int(s.get('min_hr', 0))} / {int(s.get('max_hr', 0))} bpm", styles))
-    rows.append(_metric_row("Grade avg/max", f"{s.get('avg_grade', 0)}% / {s.get('max_grade', 0)}%", styles))
-
+    # 4) ENERGY
     rows.append(_section_row("Energy", styles))
-    rows.append(_metric_row("kJ Total",      f"{int(s.get('kj', 0))} kJ", styles))
-    rows.append(_metric_row("kJ > CP",       f"{int(s.get('kj_over_cp', 0))} kJ", styles))
+    rows.append(_metric_row("kJ Total",      f"{int(float(s.get('kj', 0)))} kJ", styles))
+    rows.append(_metric_row("kJ > CP",       f"{int(float(s.get('kj_over_cp', 0)))} kJ", styles))
     rows.append(_metric_row("kJ/kg",         str(s.get("kj_kg", 0)), styles))
     rows.append(_metric_row("kJ/h/kg",       str(s.get("kj_h_kg", 0)), styles))
 
