@@ -242,13 +242,31 @@ def build_altimetry_chart(chart_data: Dict, width_pt: float, height_pt: float,
     alts  = [p["alt"]  for p in elev_data]
 
     fig, ax = plt.subplots(figsize=(width_pt / 72, height_pt / 72))
-    fig.patch.set_facecolor("#1e293b")
-    ax.set_facecolor("#1e293b")
+    fig.patch.set_facecolor("#1e293b")  # Sfondo esterno della pagina
+    ax.set_facecolor("#0f172a")        # Contenitore interno del grafico scuro (Dashboard)
 
-    # Background elevation fill
-    ax.fill_between(dists, alts, min(alts), alpha=0.35,
-                    color="#9ca3af", linewidth=0)
-    ax.plot(dists, alts, color="#9ca3af", linewidth=0.8)
+    # Applichiamo i limiti geometrici verticali secondo le regole d3.js del tuo file
+    y_min, y_max = _calculate_altitude_limits(elev_data)
+    ax.set_ylim(y_min, y_max)
+
+    # --- EFFETTO SOLID/GRADIENT ANCORATO AL TERRENO (D3 Style) ---
+    ax.fill_between(dists, alts, y_min, color="#334155", alpha=0.45, linewidth=0, zorder=1)
+    
+    # Linea di cresta dell'altimetria
+    ax.plot(dists, alts, color="#cbd5e1", linewidth=1.2, zorder=2)
+
+    # --- CORREZIONE ASSE X: ELIMINAZIONE PADDING AUTOMATICO ---
+    # Forza l'inizio del grafico sul primo punto e la fine sull'ultimo punto della distanza
+    if dists:
+        ax.set_xlim(min(dists), max(dists))
+
+    # Stilizzazione assi e cornice geometrica pulita
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#334155")
+        spine.set_linewidth(0.6)
+        
+    ax.grid(axis="y", color="#334155", linewidth=0.4, alpha=0.5, zorder=0)
+    ax.tick_params(colors="#9ca3af", labelsize=6)
 
     # Effort segments
     for e in efforts:
@@ -294,13 +312,6 @@ def build_altimetry_chart(chart_data: Dict, width_pt: float, height_pt: float,
     ax.set_xlabel("Distance (km)", fontsize=7, color="#9ca3af")
     ax.set_ylabel("Altitude (m)", fontsize=7, color="#9ca3af")
     ax.tick_params(colors="#9ca3af", labelsize=6)
-    for spine in ax.spines.values():
-        spine.set_edgecolor("#334155")
-    ax.grid(axis="y", color="#334155", linewidth=0.5, alpha=0.6)
-    
-    # Apply d3.js altitude limits rules
-    y_min, y_max = _calculate_altitude_limits(elev_data)
-    ax.set_ylim(y_min, y_max)
 
     fig.tight_layout(pad=0.4)
     return mpl_fig_to_rl_image(fig, width_pt, height_pt)
