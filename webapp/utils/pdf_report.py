@@ -558,12 +558,24 @@ def build_stream_chart(segment: Dict, cp: float, width_pt: float, height_pt: flo
     # Panel 2: Altitude profile - full track with effort highlighted
     ax_alt.set_facecolor("#0f172a")
     
+    # --- CORREZIONE ASSE X: ELIMINAZIONE PADDING AUTOMATICO ---
+    altitude_for_limits = elevation_data if (elevation_data and len(elevation_data) > 0) else altitude_data
+    if altitude_for_limits:
+        # Forza l'inizio del grafico sul primo punto e la fine sull'ultimo punto della distanza
+        ax_alt.set_xlim(altitude_for_limits[0]["dist"], altitude_for_limits[-1]["dist"])
+    
     # Draw full track in grey
     if elevation_data and len(elevation_data) > 0:
         full_dists = [p["dist"] for p in elevation_data]
         full_alts  = [p["alt"]  for p in elevation_data]
-        ax_alt.fill_between(full_dists, full_alts, min(full_alts), alpha=0.25,
-                           color="#9ca3af", linewidth=0)
+        
+        # Calcoliamo i limiti Y temporaneamente per gestire correttamente l'altezza del fill
+        y_min_tmp, _ = _calculate_altitude_limits(altitude_for_limits) if altitude_for_limits else (0, 100)
+        
+        # --- CORREZIONE SPAZIO VUOTO SOTTO ---
+        # Facciamo scendere il fondo del riempimento grigio oltre il limite dell'asse per ancorarlo perfettamente a terra
+        ax_alt.fill_between(full_dists, full_alts, y_min_tmp - 500, alpha=0.25,
+                            color="#9ca3af", linewidth=0)
         ax_alt.plot(full_dists, full_alts, color="#9ca3af", linewidth=0.8)
     
     # Highlight effort segment in color
@@ -572,21 +584,31 @@ def build_stream_chart(segment: Dict, cp: float, width_pt: float, height_pt: flo
         effort_alts  = [p["alt"]  for p in altitude_data]
         effort_color = segment.get("color", "#60a5fa")
         ax_alt.plot(effort_dists, effort_alts, color=effort_color, linewidth=2.5,
-                   solid_capstyle="round", zorder=3)
+                    solid_capstyle="round", zorder=3)
     
     ax_alt.set_xlabel("Distance (km)", fontsize=6, color="#9ca3af")
     ax_alt.set_ylabel("Altitude (m)", fontsize=6, color="#9ca3af")
-    ax_alt.tick_params(colors="#9ca3af", labelsize=5)
+    
+    # 'left=False' rimuove i trattini fisici sporgenti a sinistra dei numeri Y
+    ax_alt.tick_params(colors="#9ca3af", labelsize=5, which='both', left=False)
     ax_alt.set_title("Altitude Profile", fontsize=7, color="#10b981", pad=2)
-    for sp in ax_alt.spines.values():
-        sp.set_edgecolor("#334155")
+    
+    # ── STILIZZAZIONE ASSI E RIMOZIONE BORDI (SPINES) COERENTE ────────────────
+    # Nasconde sopra, destra e sinistra; mantiene solo la retta inferiore colorata
+    ax_alt.spines['top'].set_visible(False)
+    ax_alt.spines['left'].set_visible(False)
+    ax_alt.spines['right'].set_visible(False)
+    ax_alt.spines['bottom'].set_color("#334155")
+    
     ax_alt.grid(axis="y", color="#334155", linewidth=0.3, alpha=0.5)
     
     # Apply d3.js altitude limits rules (prioritize full track if available)
-    altitude_for_limits = elevation_data if (elevation_data and len(elevation_data) > 0) else altitude_data
     if altitude_for_limits:
         y_min, y_max = _calculate_altitude_limits(altitude_for_limits)
         ax_alt.set_ylim(y_min, y_max)
+        
+        # Forza la visualizzazione dei valori a soli numeri interi senza decimali (.0)
+        ax_alt.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
     
     fig.tight_layout(pad=0.4, h_pad=0.6)
     return mpl_fig_to_rl_image(fig, width_pt, height_pt)
