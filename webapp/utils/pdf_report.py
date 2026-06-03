@@ -376,54 +376,108 @@ def build_stream_chart(segment: Dict, cp: float, width_pt: float, height_pt: flo
 
         ax_pow, ax_cad = axes
 
+        # Limiti esatti per l'asse X (inizio e fine perfetti sul tempo reale)
+        t_start = t_arr[0]
+        t_end = t_arr[-1]
+
         # Power panel
         ax_pow.set_facecolor("#0f172a")
-        ax_pow.fill_between(t_arr, p_arr, 0, alpha=0.3, color="#3b82f6")
+        
+        # Calcolo limiti dinamici per la Potenza
+        max_p = max(p_arr) if len(p_arr) > 0 else 100
+        min_p = min(p_arr) if len(p_arr) > 0 else 0
+        p_range = max_p - min_p
+        p_bottom = max(0, min_p - p_range * 0.1)
+        p_top = max_p + (p_range * 0.1 if p_range > 0 else max_p * 0.1)
+        
+        ax_pow.fill_between(t_arr, p_arr, p_bottom, alpha=0.3, color="#3b82f6")
         ax_pow.plot(t_arr, p_arr, color="#3b82f6", linewidth=1.2)
-        if cp > 0:
-            ax_pow.axhline(cp, color="#f59e0b", linewidth=0.8,
-                           linestyle="--", alpha=0.9)
-            ax_pow.text(t_arr[-1], cp + 5, f"CP {int(cp)}W",
-                        color="#f59e0b", fontsize=5, ha="right")
+        
+        ax_pow.set_xlim(t_start, t_end)
+        ax_pow.set_ylim(p_bottom, p_top)
+        
         ax_pow.set_ylabel("W", fontsize=6, color="#3b82f6")
-        ax_pow.tick_params(colors="#9ca3af", labelsize=5)
-        for sp in ax_pow.spines.values():
-            sp.set_edgecolor("#334155")
+        ax_pow.tick_params(colors="#9ca3af", labelsize=5, which='both', left=False)
         ax_pow.grid(color="#334155", linewidth=0.3, alpha=0.5)
         ax_pow.set_title("Power", fontsize=7, color="#60a5fa", pad=2)
+
+        # Rimozione bordi per il pannello Power
+        ax_pow.spines['top'].set_visible(False)
+        ax_pow.spines['left'].set_visible(False)
+        ax_pow.spines['right'].set_visible(False)
+        ax_pow.spines['bottom'].set_visible(False)
 
         # Cadence + Torque panel
         ax_cad.set_facecolor("#0f172a")
         cad_clean = [c if c and c > 0 else None for c in cad_arr]
         tor_clean = [tr if tr and tr > 0 else None for tr in tor_arr]
 
-        if any(c is not None for c in cad_clean):
-            ax_cad.fill_between(t_arr, [c or 0 for c in cad_clean], 0,
-                                alpha=0.25, color="#10b981")
-            ax_cad.plot(t_arr, [c or 0 for c in cad_clean],
-                        color="#10b981", linewidth=1.2, label="rpm")
+        # Gestione Cadence con smussamento (Media mobile a 3 punti)
+        valid_c = [c for c in cad_clean if c is not None]
+        if valid_c:
+            c_arr_filled = [c or 0 for c in cad_clean]
+            if len(c_arr_filled) >= 3:
+                c_smoothed = np.convolve(c_arr_filled, np.ones(3)/3, mode='same')
+                c_smoothed[0] = c_arr_filled[0]
+                c_smoothed[-1] = c_arr_filled[-1]
+            else:
+                c_smoothed = c_arr_filled
 
-        if any(tr is not None for tr in tor_clean):
+            max_c = max(c_smoothed)
+            min_c = min(c_smoothed)
+            c_range = max_c - min_c
+            c_bottom = max(0, min_c - c_range * 0.1)
+            c_top = max_c + (c_range * 0.1 if c_range > 0 else max_c * 0.1)
+            
+            ax_cad.fill_between(t_arr, c_smoothed, c_bottom, alpha=0.25, color="#10b981")
+            ax_cad.plot(t_arr, c_smoothed, color="#10b981", linewidth=1.2, label="rpm")
+            
+            ax_cad.set_xlim(t_start, t_end)
+            ax_cad.set_ylim(c_bottom, c_top)
+            
+            # Forziamo Matplotlib a usare solo numeri interi per i tick della Cadenza
+            ax_cad.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+
+        # Gestione Torque
+        valid_t = [tr for tr in tor_clean if tr is not None]
+        if valid_t:
             ax_tor = ax_cad.twinx()
+            max_t = max(valid_t)
+            min_t = min(valid_t)
+            t_range = max_t - min_t
+            t_bottom = max(0, min_t - t_range * 0.1)
+            t_top = max_t + (t_range * 0.1 if t_range > 0 else max_t * 0.1)
+            
             ax_tor.plot(t_arr, [tr or 0 for tr in tor_clean],
                         color="#f59e0b", linewidth=1.2,
                         linestyle="--", label="Nm")
+            ax_tor.set_ylim(t_bottom, t_top)
             ax_tor.set_ylabel("Nm", fontsize=6, color="#f59e0b")
-            ax_tor.tick_params(colors="#f59e0b", labelsize=5)
-            for sp in ax_tor.spines.values():
-                sp.set_edgecolor("#334155")
+            ax_tor.tick_params(colors="#f59e0b", labelsize=5, which='both', right=False)
+            
+            # Forziamo anche la coppia a numeri interi per coerenza
+            ax_tor.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+            
+            ax_tor.spines['top'].set_visible(False)
+            ax_tor.spines['left'].set_visible(False)
+            ax_tor.spines['right'].set_visible(False)
+            ax_tor.spines['bottom'].set_color("#334155")
 
         ax_cad.set_ylabel("rpm", fontsize=6, color="#10b981")
         ax_cad.set_xlabel("Time (s)", fontsize=6, color="#9ca3af")
-        ax_cad.tick_params(colors="#9ca3af", labelsize=5)
-        for sp in ax_cad.spines.values():
-            sp.set_edgecolor("#334155")
+        ax_cad.tick_params(colors="#9ca3af", labelsize=5, which='both', left=False)
         ax_cad.grid(color="#334155", linewidth=0.3, alpha=0.5)
         ax_cad.set_title("Cadence / Torque", fontsize=7, color="#10b981", pad=2)
 
+        # Allineamento perfetto e rimozione bordi sul pannello inferiore
+        ax_cad.spines['top'].set_visible(False)
+        ax_cad.spines['left'].set_visible(False)
+        ax_cad.spines['right'].set_visible(False)
+        ax_cad.spines['bottom'].set_color("#334155")
+
         fig.tight_layout(pad=0.4, h_pad=0.8)
         return mpl_fig_to_rl_image(fig, width_pt, height_pt)
-
+    
     # ── Effort: Raw Power + Altitude (with full track highlighted) ─────────
     fig, axes = plt.subplots(2, 1, figsize=(width_pt/72, height_pt/72), sharex=False)
     fig.patch.set_facecolor("#1e293b")
