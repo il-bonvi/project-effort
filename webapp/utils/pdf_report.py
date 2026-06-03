@@ -816,7 +816,7 @@ def build_pdf_report(
         buf,
         pagesize=(PAGE_W, PAGE_H),
         leftMargin=MARGIN, rightMargin=MARGIN,
-        topMargin=MARGIN + 8*mm, bottomMargin=MARGIN,
+        topMargin=MARGIN + 1*mm, bottomMargin=MARGIN,
         title=f"PEFFORT Report – {filename}",
     )
 
@@ -824,6 +824,7 @@ def build_pdf_report(
 
     # ── PAGE 1: Header ────────────────────────────────────────────────────────
     story.append(Paragraph(f"PEFFORT — {filename}", styles["title"]))
+    story.append(Spacer(1, 4*mm))
     story.append(Paragraph(
         f"CP: {int(cp)} W  |  Weight: {weight} kg  |  "
         f"Efforts: {len(efforts)}  |  Sprints: {len(sprints)}  |  "
