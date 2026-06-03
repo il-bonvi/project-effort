@@ -571,24 +571,31 @@ def build_effort_metrics_table(e: Dict, cp: float, styles) -> Table:
     rows.append(_metric_row("Elevation",    f"{e.get('elevation_gain', 0)} m", styles))
 
     rows.append(_section_row("Power", styles))
-    rows.append(_metric_row("Avg Power",    f"{e.get('avg_power', 0)} W  ({e.get('cp_pct', 0)}%)", styles))
-    rows.append(_metric_row("W/kg",         str(e.get("avg_power_per_kg", 0)), styles))
-    rows.append(_metric_row("5\" Peak",     f"{e.get('best_5s_watt', 0)} W  ({e.get('best_5s_watt_kg', 0)} W/kg)", styles))
-    rows.append(_metric_row("1st / 2nd",    f"{e.get('avg_watts_first', 0)} / {e.get('avg_watts_second', 0)} W  ratio {e.get('watts_ratio', 0)}", styles))
-    rows.append(_metric_row("Cadence",      f"{e.get('avg_cadence', 0)} rpm", styles))
-
-    rows.append(_section_row("Physiology", styles))
+    
+    avg_p = int(float(e.get('avg_power', 0)))
+    rows.append(_metric_row("Avg Power",    f"{avg_p} W  ({e.get('avg_power_per_kg', 0)} W/kg)  [{e.get('cp_pct', 0)}%]", styles))
+    
+    best_5s = int(float(e.get('best_5s_watt', 0)))
+    rows.append(_metric_row("5\" Peak",     f"{best_5s} W  ({e.get('best_5s_watt_kg', 0)} W/kg)", styles))
+    
+    p1 = int(float(e.get('avg_watts_first', 0)))
+    p2 = int(float(e.get('avg_watts_second', 0)))
+    rows.append(_metric_row("1st | 2nd",    f"{p1} | {p2} W  ratio {e.get('watts_ratio', 0)}", styles))
+    
+    cadence = int(float(e.get('avg_cadence', 0)))
+    rows.append(_metric_row("Cadence",      f"{cadence} rpm", styles))
     avg_hr = e.get("avg_hr", 0)
     max_hr = e.get("max_hr", 0)
-    rows.append(_metric_row("HR",           f"{int(avg_hr)} bpm  max {int(max_hr)} bpm" if avg_hr else "—", styles))
-    rows.append(_metric_row("Speed",        f"{e.get('avg_speed', 0)} km/h", styles))
-    rows.append(_metric_row("Grade avg/max",f"{e.get('avg_grade', 0)}% / {e.get('max_grade', 0)}%", styles))
+    rows.append(_metric_row("HR (Avg|Max)", f"{int(avg_hr)} | {int(max_hr)} bpm" if avg_hr else "—", styles))
 
-    rows.append(_section_row("Climbing", styles))
-    rows.append(_metric_row("VAM",          f"{int(e.get('vam', 0))} m/h", styles))
-    if show_vam:
-        rows.append(_metric_row("VAM Teor",     f"{int(e.get('vam_teorico', 0))} m/h", styles))
-        rows.append(_metric_row("W/kg Teor",    f"{e.get('wkg_teoric', 0)}", styles))
+    rows.append(_section_row("Climb & Environment", styles))
+    rows.append(_metric_row("Grade (Avg | Max)", f"{e.get('avg_grade', 0)}% | {e.get('max_grade', 0)}%", styles))
+    rows.append(_metric_row("Speed",        f"{e.get('avg_speed', 0)} km/h", styles))
+    
+    vam_real = int(e.get('vam', 0))
+    vam_teor = int(e.get('vam_teorico', 0))
+    w_teor = e.get('wkg_teoric', 0)
+    rows.append(_metric_row("VAM (Real | Teor | W/kg Teor)", f"{vam_real} | {vam_teor} m/h | {w_teor} W/kg", styles))
 
     rows.append(_section_row("Energy", styles))
     rows.append(_metric_row("kJ Total",     f"{int(e.get('kj', 0))} kJ", styles))
