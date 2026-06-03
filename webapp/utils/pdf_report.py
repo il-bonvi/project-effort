@@ -423,59 +423,72 @@ def build_stream_chart(segment: Dict, cp: float, width_pt: float, height_pt: flo
     ax_pow.set_facecolor("#0f172a")
     for sp in ax_pow.spines.values():
         sp.set_edgecolor("#334155")
-    ax_pow.grid(color="#334155", linewidth=0.3, alpha=0.5)
+    ax_pow.grid(color="#334155", linewidth=0.3, alpha=0.5, zorder=0)
     ax_pow.tick_params(colors="#9ca3af", labelsize=5)
-    ax_pow.set_title("Raw Power", fontsize=7, color="#3b82f6", pad=2)
+    ax_pow.set_title("Raw Power", fontsize=7, color="#3b82f6", pad=4)
     ax_pow.set_ylabel("W", fontsize=6, color="#9ca3af")
-    
-    max_p = max(v for v in p_arr if v is not None) if p_arr else 1
-    
-    # Zone-colored fill
+    ax_pow.set_xlabel("Time (s)", fontsize=6, color="#9ca3af")  # <-- Correzione 1: Asse X aggiunto
+
+    # --- SMOOTHING DELLA POTENZA (Media mobile a 3 secondi) ---
+    p_arr_smooth = moving_avg(p_arr, t_arr, window_sec=3) if p_arr else []
+    if not p_arr_smooth:
+        p_arr_smooth = list(p_arr)
+
+    max_p = max(v for v in p_arr_smooth if v is not None) if p_arr_smooth else 1
+    y_limit = max(max_p * 1.10, cp * 1.35)
+
+    # --- DISEGNO STRATI DELLE ZONE (Meno trasparenti) ---
     for zone in zones:
         min_w = (zone["min"] / 100) * cp
-        max_w_z = (zone["max"] / 100) * cp if zone["max"] != 999 else max_p * 1.5
-        zc = zone["color"]
-        ax_pow.fill_between(
-            t_arr, p_arr, 0,
-            where=[(min_w <= v < max_w_z) if v is not None else False for v in p_arr],
-            alpha=0.75, color=zc, linewidth=0, interpolate=False
-        )
+        max_w_z = (zone["max"] / 100) * cp if zone["max"] != 999 else y_limit * 2
+        # Alpha alzato a 0.70 come piace a te
+        ax_pow.axhspan(min_w, max_w_z, facecolor=zone["color"], alpha=0.70, zorder=1)
+
+    # --- CONFIGURAZIONE DOPPIA GRIGLIA (25W e 100W) AD ALTA VISIBILITÀ ---
+    import matplotlib.ticker as ticker
     
-    # White mask above curve
-    ax_pow.fill_between(t_arr, [v or 0 for v in p_arr], max_p * 1.12,
-                       alpha=1.0, color="#0f172a", linewidth=0)
+    # Attiviamo esplicitamente i minor ticks sul grafico, altrimenti Matplotlib potrebbe ignorare la griglia secondaria
+    ax_pow.minorticks_on()
     
-    # Zone-colored line segments
-    for i in range(len(t_arr) - 1):
-        v0 = p_arr[i] or 0
-        v1 = p_arr[i+1] or 0
-        mid_v = (v0 + v1) / 2
-        lc = zone_color_for_power(mid_v, cp, zones)
-        ax_pow.plot([t_arr[i], t_arr[i+1]], [v0, v1],
-                   color=lc, linewidth=1.0, solid_capstyle="round")
+    # Impostiamo i passaggi: 100W principali, 25W secondari
+    ax_pow.yaxis.set_major_locator(ticker.MultipleLocator(100))
+    ax_pow.yaxis.set_minor_locator(ticker.MultipleLocator(25))
+
+    # 1. Griglia secondaria (ogni 25W): colore chiaro (#94a3b8), solida (alpha=1.0) ma sottile (0.45)
+    ax_pow.grid(axis="y", which="minor", color="#94a3b8", linewidth=0.45, alpha=1.0, zorder=1.1)
     
-    # HR overlay
+    # 2. Griglia principale (ogni 100W): stessa tonalità ma molto più spessa (1.0) per staccare visivamente
+    ax_pow.grid(axis="y", which="major", color="#94a3b8", linewidth=1.0, alpha=1.0, zorder=1.2)
+
+    # Pulizia: disattiviamo i minorticks sull'asse X (perché non ci servono) e nascondiamo i trattini neri a sinistra
+    ax_pow.tick_params(axis="x", which="minor", bottom=False)
+    ax_pow.tick_params(axis="y", which="minor", left=False)
+
+    # Maschera scura sopra la linea di potenza per nascondere i colori non raggiunti
+    ax_pow.fill_between(t_arr, p_arr_smooth, y_limit, color="#0f172a", zorder=2)
+
+    # --- Correzione 3: ASSI E LIVELLAMENTO FREQUENZA CARDIACA (HR) ---
     hr_valid = [h for h in hr_arr if h is not None and h > 0] if hr_arr else []
     if hr_valid:
-        hr_clean = [h if h and h > 0 else None for h in hr_arr]
-        if any(h is not None for h in hr_clean):
-            ax2 = ax_pow.twinx()
-            ax2.plot(t_arr, [h or 0 for h in hr_clean],
-                     color="#60a5fa", linewidth=1.0,
-                     alpha=0.85, linestyle="-")
-            ax2.set_ylabel("bpm", fontsize=5, color="#60a5fa")
-            ax2.tick_params(colors="#60a5fa", labelsize=4)
-            for sp in ax2.spines.values():
-                sp.set_edgecolor("#334155")
-    
-    # CP line
+        t_hr_valid = [t for t, h in zip(t_arr, hr_arr) if h is not None and h > 0]
+        # Smoothing morbido a 5 secondi per la linea cardiaca
+        hr_smooth = moving_avg(hr_valid, t_hr_valid, window_sec=5)
+        
+        ax2 = ax_pow.twinx()
+        ax2.plot(t_hr_valid, hr_smooth, color="#ef4444", linewidth=1.2, zorder=4, alpha=0.85)
+        ax2.set_ylabel("bpm", fontsize=5, color="#ef4444")
+        ax2.tick_params(colors="#ef4444", labelsize=4)
+        ax2.set_ylim(min(hr_smooth) - 5, max(hr_smooth) + 5)
+        ax2.spines['right'].set_edgecolor("#334155")
+        ax2.grid(False) # Impedisce la sovrapposizione di griglie
+
+    # Linea di riferimento CP
     if cp > 0:
-        ax_pow.axhline(cp, color="#f59e0b", linewidth=0.7,
-                      linestyle="--", alpha=0.9, zorder=5)
-        ax_pow.text(t_arr[-1], cp * 1.02, f"CP {int(cp)}W",
-                   color="#f59e0b", fontsize=4.5, ha="right")
-    
-    ax_pow.set_ylim(bottom=0)
+        ax_pow.axhline(cp, color="#f59e0b", linewidth=0.8, linestyle="--", alpha=0.8, zorder=5)
+        ax_pow.text(t_arr[0], cp * 1.03, f"CP {int(cp)}W", color="#f59e0b", fontsize=4.5, ha="left", zorder=6)
+
+    ax_pow.set_ylim(0, y_limit)
+    ax_pow.set_xlim(min(t_arr), max(t_arr))
     
     # Panel 2: Altitude profile - full track with effort highlighted
     ax_alt.set_facecolor("#0f172a")
