@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PEFFORT Web</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -17,356 +13,349 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
-            padding: 8px 20px 20px 20px;
+            padding: 8px 20px 20px;
             color: #e2e8f0;
         }
-        .container {
-            max-width: 900px;
-            width: 100%;
-            background: #1e293b;
-            border-radius: 16px;
-            padding: 12px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            border: 1px solid #334155;
-        }
-        h1 {
-            font-size: 2.2rem;
-            margin-bottom: 4px;
-            background: linear-gradient(135deg, #60a5fa, #3b82f6);
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-align: center;
-        }
-        .subtitle {
-            color: #94a3b8;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 0.8rem;
-        }
-        .upload-area {
-            border: 2px dashed #475569;
-            border-radius: 12px;
-            padding: 12px;
-            text-align: center;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            background: #0f172a;
-        }
-        .upload-area:hover {
-            border-color: #3b82f6;
-            background: rgba(59, 130, 246, 0.1);
-        }
-        .upload-area.dragover {
-            border-color: #22c55e;
-            background: rgba(34, 197, 94, 0.1);
-        }
-        .upload-icon {
-            font-size: 2rem;
-            margin-bottom: 8px;
-        }
-        .upload-text {
-            color: #94a3b8;
-            margin-bottom: 12px;
-        }
-        input[type="file"] {
-            display: none;
-        }
-        .file-label {
-            display: inline-block;
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-        }
-        .file-label:hover {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            transform: translateY(-2px);
-        }
-        .settings-section {
-            margin-top: 8px;
-            padding: 8px;
-            background: #0f172a;
-            border-radius: 12px;
-            border: 1px solid #334155;
-        }
-        .settings-title {
-            font-size: 0.9rem;
-            color: #60a5fa;
-            margin-bottom: 6px;
-            font-weight: 600;
-        }
-        .form-row {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 6px;
-        }
-        .form-group {
-            flex: 1;
-        }
-        label {
-            display: block;
-            color: #94a3b8;
-            margin-bottom: 6px;
-            font-size: 0.9rem;
-        }
-        input[type="number"] {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #475569;
-            border-radius: 6px;
-            background: #1e293b;
-            color: #e2e8f0;
-            font-size: 1rem;
-        }
-        input[type="number"]:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-        }
-        .submit-btn {
-            width: 100%;
-            margin-top: 6px;
-            padding: 10px 30px;
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .submit-btn:hover {
-            background: linear-gradient(135deg, #16a34a, #15803d);
-            transform: translateY(-2px);
-        }
-        .submit-btn:disabled {
-            background: #475569;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .selected-file {
-            margin-top: 15px;
-            padding: 10px;
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid #22c55e;
-            border-radius: 6px;
-            color: #22c55e;
-            font-size: 0.9rem;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            margin-top: 20px;
-        }
-        .loading.active {
-            display: block;
-        }
-        .spinner {
-            display: inline-block;
-            width: 40px;
-            height: 40px;
-            border: 4px solid #334155;
-            border-top-color: #3b82f6;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        .container { max-width: 900px; width: 100%; background: #1e293b; border-radius: 16px; padding: 12px; box-shadow: 0 25px 50px -12px rgba(0,0,0,.5); border: 1px solid #334155; }
+        h1 { font-size: 2.2rem; margin-bottom: 4px; background: linear-gradient(135deg,#60a5fa,#3b82f6); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; }
+        .subtitle { color: #94a3b8; text-align: center; margin-bottom: 8px; font-size: .8rem; }
+
+        /* Upload area */
+        .upload-area { border: 2px dashed #475569; border-radius: 12px; padding: 12px; text-align: center; transition: all .3s; cursor: pointer; background: #0f172a; }
+        .upload-area:hover, .upload-area.dragover { border-color: #3b82f6; background: rgba(59,130,246,.1); }
+        .upload-icon { font-size: 2rem; margin-bottom: 8px; }
+        .upload-text { color: #94a3b8; margin-bottom: 12px; }
+        input[type="file"] { display: none; }
+        .file-label { display: inline-block; background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .9rem; transition: all .3s; }
+        .file-label:hover { background: linear-gradient(135deg,#2563eb,#1d4ed8); transform: translateY(-2px); }
+        .selected-file { margin-top: 15px; padding: 10px; background: rgba(34,197,94,.1); border: 1px solid #22c55e; border-radius: 6px; color: #22c55e; font-size: .9rem; display: none; }
+
+        /* Sections */
+        .settings-section { margin-top: 8px; padding: 10px; background: #0f172a; border-radius: 12px; border: 1px solid #334155; }
+        .settings-title { font-size: .85rem; color: #60a5fa; margin-bottom: 6px; font-weight: 700; }
+        .settings-desc { font-size: .72rem; color: #64748b; margin-bottom: 8px; line-height: 1.5; }
+        .form-row { display: flex; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 140px; }
+        label { display: block; color: #94a3b8; margin-bottom: 6px; font-size: .85rem; }
+        label small { display: block; color: #64748b; font-size: .7rem; margin-top: 1px; }
+        input[type="number"], select { width: 100%; padding: 10px 12px; border: 1px solid #475569; border-radius: 6px; background: #1e293b; color: #e2e8f0; font-size: 1rem; }
+        input[type="number"]:focus, select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
+
+        /* Method switch */
+        .method-switch { display: flex; gap: 0; margin-bottom: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #334155; }
+        .method-btn { flex: 1; padding: 10px; text-align: center; cursor: pointer; font-weight: 600; font-size: .85rem; transition: all .2s; background: #1e293b; color: #64748b; border: none; }
+        .method-btn.active-ruptures { background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; }
+        .method-btn.active-legacy   { background: linear-gradient(135deg,#f59e0b,#d97706); color: #fff; }
+        .method-badge { display: inline-block; font-size: .65rem; padding: 1px 6px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+        .badge-default { background: rgba(99,102,241,.3); color: #a5b4fc; }
+        .badge-legacy  { background: rgba(245,158,11,.3); color: #fde68a; }
+
+        /* Panel visibility */
+        .panel { display: none; }
+        .panel.visible { display: block; }
+
+        /* Slider */
+        .slider-row { display: flex; align-items: center; gap: 10px; }
+        .slider-row input[type="range"] { flex: 1; height: 6px; border-radius: 3px; background: linear-gradient(to right,#3b82f6,#8b5cf6); outline: none; cursor: pointer; padding: 0; border: none; }
+        .slider-value { min-width: 36px; text-align: right; color: #fbbf24; font-weight: 700; font-size: .9rem; }
+        .hint-box { margin-top: 6px; padding: 6px 10px; background: rgba(99,102,241,.12); border-left: 3px solid #6366f1; border-radius: 4px; font-size: .72rem; color: #a5b4fc; line-height: 1.5; }
+
+        /* Submit */
+        .submit-btn { width: 100%; margin-top: 6px; padding: 10px 30px; background: linear-gradient(135deg,#22c55e,#16a34a); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all .3s; }
+        .submit-btn:hover { background: linear-gradient(135deg,#16a34a,#15803d); transform: translateY(-2px); }
+        .submit-btn:disabled { background: #475569; cursor: not-allowed; transform: none; }
+        .loading { display: none; text-align: center; margin-top: 20px; }
+        .loading.active { display: block; }
+        .spinner { display: inline-block; width: 40px; height: 40px; border: 4px solid #334155; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🚴 PEFFORT Web</h1>
-        <p class="subtitle">Analisi Effort da File FIT</p>
+<div class="container">
+    <h1>🚴 PEFFORT Web</h1>
+    <p class="subtitle">Analisi FIT file — effort detection avanzata</p>
 
-        <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
-            <div class="upload-area" id="uploadArea">
-                <div class="upload-icon">📁</div>
-                <p class="upload-text">Trascina un file FIT qui o clicca per selezionare</p>
-                <label class="file-label" for="fitFile">Seleziona File FIT</label>
-                <input type="file" id="fitFile" name="file" accept=".fit" required>
-                <div class="selected-file" id="selectedFile" style="display: none;"></div>
-            </div>
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
 
-            <div class="settings-section">
-                <div class="settings-title">⚙️ Parametri Atleta</div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="cp">CP (W)</label>
-                        <input type="number" id="cp" name="cp" value="250" min="50" max="500" step="5">
-                    </div>
-                    <div class="form-group">
-                        <label for="weight">Weight (kg):</label>
-                        <input type="number" id="weight" name="weight" value="60" min="30" max="150" step="0.5">
-                    </div>
+        <!-- FILE -->
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <p class="upload-text">Trascina un file FIT qui o clicca per selezionare</p>
+            <label class="file-label" for="fitFile">Seleziona File FIT</label>
+            <input type="file" id="fitFile" name="file" accept=".fit" required>
+            <div class="selected-file" id="selectedFile"></div>
+        </div>
+
+        <!-- ATLETA -->
+        <div class="settings-section">
+            <div class="settings-title">⚙️ Parametri Atleta</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="cp">CP (W)</label>
+                    <input type="number" id="cp" name="cp" value="250" min="50" max="600" step="5">
                 </div>
-
-                <div class="settings-title" style="margin-top: 6px;">🎯 Parametri Effort Detection</div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="window_sec">Finestra (s)</label>
-                        <input type="number" id="window_sec" name="window_sec" value="60" min="10" max="300">
-                    </div>
-                    <div class="form-group">
-                        <label for="min_cp_pct">Min CP (%)</label>
-                        <input type="number" id="min_cp_pct" name="min_cp_pct" value="100" min="50" max="200">
-                    </div>
-                    <div class="form-group">
-                        <label for="merge_pct">Merge Tolerance (%)</label>
-                        <input type="number" id="merge_pct" name="merge_pct" value="15" min="5" max="50">
-                    </div>
-                </div>
-
-                <div class="settings-title" style="margin-top: 6px;">✂️ Trim & Extend</div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="trim_win">Trim Window (s)</label>
-                        <input type="number" id="trim_win" name="trim_win" value="10" min="5" max="60">
-                    </div>
-                    <div class="form-group">
-                        <label for="trim_low">Trim Low (%)</label>
-                        <input type="number" id="trim_low" name="trim_low" value="85" min="50" max="100">
-                    </div>
-                    <div class="form-group">
-                        <label for="extend_win">Extend Window (s)</label>
-                        <input type="number" id="extend_win" name="extend_win" value="15" min="5" max="60">
-                    </div>
-                    <div class="form-group">
-                        <label for="extend_low">Extend Low (%)</label>
-                        <input type="number" id="extend_low" name="extend_low" value="80" min="50" max="100">
-                    </div>
-                </div>
-
-                <div class="settings-title" style="margin-top: 6px;">🚀 Sprint Detection</div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="sprint_min_power">Min Power (W)</label>
-                        <input type="number" id="sprint_min_power" name="sprint_min_power" value="500" min="200" max="1500">
-                    </div>
-                    <div class="form-group">
-                        <label for="sprint_min_duration">Min Duration (s)</label>
-                        <input type="number" id="sprint_min_duration" name="sprint_min_duration" value="5" min="3" max="30">
-                    </div>
-                    <div class="form-group">
-                        <label for="sprint_merge_gap">Merge Gap (s)</label>
-                        <input type="number" id="sprint_merge_gap" name="sprint_merge_gap" name="sprint_merge_gap" value="3" min="1" max="10">
-                    </div>
+                <div class="form-group">
+                    <label for="weight">Peso (kg)</label>
+                    <input type="number" id="weight" name="weight" value="60" min="30" max="150" step="0.5">
                 </div>
             </div>
+        </div>
 
-            <button type="submit" class="submit-btn" id="submitBtn" disabled>
-                🚀 Analizza e Visualizza Effort
-            </button>
-
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p style="margin-top: 15px; color: #94a3b8;">Elaborazione in corso...</p>
+        <!-- METHOD SWITCH -->
+        <div class="settings-section">
+            <div class="settings-title">🔀 Metodo di Detection</div>
+            <div class="method-switch">
+                <button type="button" class="method-btn active-ruptures" id="btn-ruptures" onclick="setMethod('ruptures')">
+                    📐 Ruptures — Changepoint
+                    <span class="method-badge badge-default">predefinito</span>
+                </button>
+                <button type="button" class="method-btn" id="btn-legacy" onclick="setMethod('legacy')">
+                    🪟 Legacy — Finestre Mobili
+                    <span class="method-badge badge-legacy">classico</span>
+                </button>
             </div>
-        </form>
-    </div>
+            <input type="hidden" id="analysis_method" name="analysis_method" value="ruptures">
 
-    <script>
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fitFile');
-        const selectedFile = document.getElementById('selectedFile');
-        const submitBtn = document.getElementById('submitBtn');
-        const form = document.getElementById('uploadForm');
-        const loading = document.getElementById('loading');
+            <!-- RUPTURES PANEL -->
+            <div id="panel-ruptures" class="panel visible">
+                <p class="settings-desc">
+                    Usa <strong>ruptures (Pelt)</strong> per rilevare automaticamente i cambi di stato nel segnale di potenza.
+                    Nessuna finestra manuale: è il segnale stesso a definire i segmenti.
+                </p>
 
-        // Local storage key
-        const STORAGE_KEY = 'peffort_form_values';
+                <!-- Model + soglia -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ruptures_model">Modello
+                            <small>l2 = veloce (consigliato) · rbf = preciso, lento · l1 = outlier-proof</small>
+                        </label>
+                        <select id="ruptures_model" name="ruptures_model">
+                            <option value="l2" selected>l2 — Least Squares (veloce)</option>
+                            <option value="rbf">rbf — Radial Basis (lento)</option>
+                            <option value="l1">l1 — Median (molto lento)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="min_cp_pct">Soglia intensità (% CP)
+                            <small>Segmenti sotto soglia vengono scartati</small>
+                        </label>
+                        <input type="number" id="min_cp_pct" name="min_cp_pct" value="100" min="50" max="200" step="5">
+                    </div>
+                </div>
 
-        // Function to save all form values to localStorage
-        function saveFormValues() {
-            const formData = new FormData(form);
-            const values = {};
-            for (let [key, value] of formData.entries()) {
-                if (key !== 'file') { // Don't save file
-                    values[key] = value;
-                }
-            }
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+                <!-- Penalty slider -->
+                <div class="form-group" style="margin-bottom:8px;">
+                    <label>Penalty (sensibilità)
+                        <small>Basso → molti segmenti corti · Alto → pochi segmenti lunghi</small>
+                    </label>
+                    <div class="slider-row">
+                        <input type="range" id="ruptures_penalty_range" min="0.5" max="60" step="0.5" value="10"
+                               oninput="syncPenalty(this.value)">
+                        <span class="slider-value" id="penaltyDisplay">10</span>
+                        <input type="hidden" id="ruptures_penalty" name="ruptures_penalty" value="10">
+                    </div>
+                    <div class="hint-box">
+                        💡 Gara / criterium: 3–8 · Intervalli strutturati: 8–15 · Fondo libero: 15–30
+                    </div>
+                </div>
+
+                <!-- Min seg + smooth -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ruptures_min_seg">Durata minima segmento (s)
+                            <small>Segmenti più corti vengono ignorati</small>
+                        </label>
+                        <input type="number" id="ruptures_min_seg" name="ruptures_min_seg" value="15" min="5" max="600" step="5">
+                    </div>
+                    <div class="form-group">
+                        <label for="ruptures_smooth">Smoothing pre-detection (s)
+                            <small>Media mobile sul segnale prima del changepoint</small>
+                        </label>
+                        <input type="number" id="ruptures_smooth" name="ruptures_smooth" value="20" min="0" max="120" step="5">
+                    </div>
+                </div>
+
+                <!-- Merge gap + merge power diff -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ruptures_merge_gap">Merge gap (s)
+                            <small>Effort vicini vengono fusi se il gap è ≤ questo valore</small>
+                        </label>
+                        <input type="number" id="ruptures_merge_gap" name="ruptures_merge_gap" value="30" min="0" max="300" step="5">
+                    </div>
+                    <div class="form-group">
+                        <label for="ruptures_merge_power_diff">Merge Δ potenza (%)
+                            <small>Merge solo se la differenza di potenza tra i due effort è ≤ %</small>
+                        </label>
+                        <input type="number" id="ruptures_merge_power_diff" name="ruptures_merge_power_diff" value="15" min="0" max="100" step="5">
+                    </div>
+                </div>
+            </div>
+
+            <!-- LEGACY PANEL -->
+            <div id="panel-legacy" class="panel">
+                <p class="settings-desc">
+                    Metodo classico con <strong>finestre mobili</strong>: scorre il segnale con una finestra di N secondi
+                    e identifica le zone sopra soglia, con merge e trim configurabili.
+                </p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="legacy_window_sec">Finestra (s)
+                            <small>Durata della finestra mobile</small>
+                        </label>
+                        <input type="number" id="legacy_window_sec" name="legacy_window_sec" value="60" min="10" max="600" step="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="legacy_min_cp_pct">Soglia intensità (% CP)
+                            <small>Finestre sotto soglia vengono scartate</small>
+                        </label>
+                        <input type="number" id="legacy_min_cp_pct" name="legacy_min_cp_pct" value="100" min="50" max="200" step="5">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="legacy_merge_pct">Merge Δ potenza (%)
+                            <small>Effort adiacenti fusi se differenza ≤ %</small>
+                        </label>
+                        <input type="number" id="legacy_merge_pct" name="legacy_merge_pct" value="15" min="0" max="100" step="5">
+                    </div>
+                    <div class="form-group">
+                        <label for="legacy_trim_window">Trim window (s)
+                            <small>Finestra di trim bordi effort</small>
+                        </label>
+                        <input type="number" id="legacy_trim_window" name="legacy_trim_window" value="10" min="0" max="60" step="5">
+                    </div>
+                    <div class="form-group">
+                        <label for="legacy_extend_window">Extend window (s)
+                            <small>Finestra di estensione effort</small>
+                        </label>
+                        <input type="number" id="legacy_extend_window" name="legacy_extend_window" value="15" min="0" max="60" step="5">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SPRINT -->
+        <div class="settings-section">
+            <div class="settings-title">🚀 Sprint Detection</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="sprint_min_power">Min Power (W)</label>
+                    <input type="number" id="sprint_min_power" name="sprint_min_power" value="500" min="200" max="1500">
+                </div>
+                <div class="form-group">
+                    <label for="sprint_min_duration">Min Duration (s)</label>
+                    <input type="number" id="sprint_min_duration" name="sprint_min_duration" value="5" min="3" max="30">
+                </div>
+                <div class="form-group">
+                    <label for="sprint_merge_gap">Merge Gap (s)</label>
+                    <input type="number" id="sprint_merge_gap" name="sprint_merge_gap" value="3" min="1" max="10">
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="submit-btn" id="submitBtn" disabled>
+            🔍 Analizza
+        </button>
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p style="margin-top:15px;color:#94a3b8;">Elaborazione in corso…</p>
+        </div>
+
+    </form>
+</div>
+
+<script>
+const STORAGE_KEY = 'peffort_form_v3';
+const form        = document.getElementById('uploadForm');
+const submitBtn   = document.getElementById('submitBtn');
+const loading     = document.getElementById('loading');
+const uploadArea  = document.getElementById('uploadArea');
+const fileInput   = document.getElementById('fitFile');
+const selectedFile= document.getElementById('selectedFile');
+
+// ── Method switch ──────────────────────────────────────────────────────────────
+function setMethod(m) {
+    document.getElementById('analysis_method').value = m;
+    document.getElementById('btn-ruptures').className =
+        'method-btn' + (m === 'ruptures' ? ' active-ruptures' : '');
+    document.getElementById('btn-legacy').className =
+        'method-btn' + (m === 'legacy' ? ' active-legacy' : '');
+    document.getElementById('panel-ruptures').className =
+        'panel' + (m === 'ruptures' ? ' visible' : '');
+    document.getElementById('panel-legacy').className =
+        'panel' + (m === 'legacy' ? ' visible' : '');
+    saveFormValues();
+}
+
+// ── Penalty slider ─────────────────────────────────────────────────────────────
+function syncPenalty(val) {
+    const v = parseFloat(val);
+    document.getElementById('penaltyDisplay').textContent = v;
+    document.getElementById('ruptures_penalty').value = v;
+    saveFormValues();
+}
+
+// ── Persist form ───────────────────────────────────────────────────────────────
+function saveFormValues() {
+    const values = { method: document.getElementById('analysis_method').value };
+    form.querySelectorAll('input[type="number"], select').forEach(el => {
+        if (el.name) values[el.name] = el.value;
+    });
+    values['ruptures_penalty_range'] = document.getElementById('ruptures_penalty_range').value;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+}
+
+function restoreFormValues() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return;
+    try {
+        const values = JSON.parse(stored);
+        if (values.method) setMethod(values.method);
+        for (const [key, value] of Object.entries(values)) {
+            const el = document.getElementById(key) || form.querySelector(`[name="${key}"]`);
+            if (el && el.type !== 'file') el.value = value;
         }
+        const pr = document.getElementById('ruptures_penalty_range');
+        if (pr) syncPenalty(pr.value);
+    } catch(e) {}
+}
 
-        // Function to restore form values from localStorage
-        function restoreFormValues() {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
-                try {
-                    const values = JSON.parse(stored);
-                    for (let [key, value] of Object.entries(values)) {
-                        const input = document.getElementById(key);
-                        if (input) {
-                            input.value = value;
-                        }
-                    }
-                } catch (e) {
-                    console.log('Could not restore form values');
-                }
-            }
-        }
+document.addEventListener('DOMContentLoaded', restoreFormValues);
+form.querySelectorAll('input[type="number"], select').forEach(el => {
+    el.addEventListener('change', saveFormValues);
+    el.addEventListener('blur', saveFormValues);
+});
 
-        // Restore values on page load
-        document.addEventListener('DOMContentLoaded', restoreFormValues);
+// ── Drag & drop ────────────────────────────────────────────────────────────────
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+    e.preventDefault(); uploadArea.classList.remove('dragover');
+    if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; updateSelectedFile(); }
+});
+uploadArea.addEventListener('click', e => {
+    if (e.target !== fileInput) fileInput.click();
+});
+fileInput.addEventListener('change', updateSelectedFile);
 
-        // Add change listeners to all input fields (except file)
-        const inputs = form.querySelectorAll('input[type="number"]');
-        inputs.forEach(input => {
-            input.addEventListener('change', saveFormValues);
-            input.addEventListener('blur', saveFormValues);
-        });
+function updateSelectedFile() {
+    if (fileInput.files.length) {
+        const f = fileInput.files[0];
+        selectedFile.textContent = `✅ ${f.name} (${(f.size/1024).toFixed(1)} KB)`;
+        selectedFile.style.display = 'block';
+        submitBtn.disabled = false;
+    } else {
+        selectedFile.style.display = 'none';
+        submitBtn.disabled = true;
+    }
+}
 
-        // Drag and drop
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                fileInput.files = e.dataTransfer.files;
-                updateSelectedFile();
-            }
-        });
-
-        // Click to upload
-        uploadArea.addEventListener('click', () => {
-            fileInput.click();
-        });
-
-        fileInput.addEventListener('change', updateSelectedFile);
-
-        function updateSelectedFile() {
-            if (fileInput.files.length) {
-                const file = fileInput.files[0];
-                selectedFile.textContent = `✅ File selezionato: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-                selectedFile.style.display = 'block';
-                submitBtn.disabled = false;
-            } else {
-                selectedFile.style.display = 'none';
-                submitBtn.disabled = true;
-            }
-        }
-
-        form.addEventListener('submit', () => {
-            saveFormValues(); // Save values before submit
-            loading.classList.add('active');
-            submitBtn.disabled = true;
-        });
-    </script>
+form.addEventListener('submit', () => {
+    saveFormValues();
+    loading.classList.add('active');
+    submitBtn.disabled = true;
+});
+</script>
 </body>
 </html>

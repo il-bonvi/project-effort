@@ -13,6 +13,7 @@ from typing import Dict, Any, MutableMapping
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from sessions import create_session_store
 
 # Import routers and their setup functions
@@ -30,6 +31,8 @@ from routes.altimetria_d3 import (
 from routes.map3d import router as map3d_router, setup_map3d_router
 from routes.map2d import router as map2d_router, setup_map2d_router
 from routes.api import router as api_router, setup_api_router
+
+from jinja_filters import register_filters
 
 # Configure logging
 _log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -86,6 +89,11 @@ app = FastAPI(
 # Mount static files directory
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# Jinja2 templates + custom filters (duration, ecc.)
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+register_filters(templates)
+app.state.templates = templates
 
 # Session storage (Redis when REDIS_URL is configured, otherwise in-memory fallback)
 # Shared across all route modules via setup_XXXX_router(sessions) functions
