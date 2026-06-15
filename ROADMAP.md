@@ -1,3 +1,9 @@
+2.0:
+1) salvare in cache i valori delle celle di opener ecc (non vengono ora...)
+2) lavoriamo su modello reale funzionante. Ora ci sta comunque
+
+
+
 1)
 aggiustamenti hover mini alt (doppio per selezione, trascinamento ON)
 

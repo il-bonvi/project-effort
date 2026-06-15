@@ -1,13 +1,18 @@
 """
 ruptures_analyzer.py — Changepoint-based effort detection using ruptures.
 
-Merge logic
------------
-After Pelt segments the signal, adjacent above-threshold segments are merged
-only when BOTH conditions hold:
-  1. The time gap between them is ≤ merge_gap_sec
-  2. Their average powers differ by ≤ merge_power_diff_pct %
-     (a 250W effort next to a 150W segment are NOT merged even if close)
+Post-merge filter logic
+-----------------------
+After Pelt + merge, each candidate effort passes the display filter if:
+  (A) duration >= min_effort_sec                          [sustained effort]
+  OR
+  (B) avg_power >= cp * opener_threshold_pct / 100       [short but very intense]
+
+Example with CP=235, min_effort_sec=60, opener_threshold_pct=200:
+  - 30s @ 100% CP  → merged with nothing → fails (A) fails (B) → SCARTATO
+  - 30s @ 100% CP  → merged into 5min effort → passes (A)      → MOSTRATO
+  - 40s @ 250% CP  → fails (A) but passes (B)                  → MOSTRATO
+  - 40s @ 101% CP  → fails (A) fails (B)                       → SCARTATO
 """
 
 from __future__ import annotations
@@ -25,13 +30,22 @@ _TARGET_HZ = 1
 
 @dataclass
 class RupturesConfig:
-    model: str                  = "l2"
-    penalty: float              = 10.0
-    min_segment_sec: int        = 15
-    smooth_window_sec: int      = 20
-    min_cp_pct: float           = 100.0
-    merge_gap_sec: int          = 30
-    merge_power_diff_pct: float = 15.0   # ← NEW: max % power diff to allow merge
+    # ── Detection ─────────────────────────────────────────────────────────────
+    model: str             = "l2"
+    penalty: float         = 10.0
+    min_segment_sec: int   = 15       # granularità Pelt (min_size)
+    smooth_window_sec: int = 20       # smoothing pre-detection
+
+    # ── Intensity threshold ────────────────────────────────────────────────────
+    min_cp_pct: float      = 100.0    # soglia per label "above/below"
+
+    # ── Merge ─────────────────────────────────────────────────────────────────
+    merge_gap_sec: int          = 30   # gap massimo tra effort adiacenti
+    merge_power_diff_pct: float = 15.0 # Δ potenza massimo per il merge
+
+    # ── Post-merge display filter ──────────────────────────────────────────────
+    min_effort_sec: int         = 60   # durata minima per essere mostrato (A)
+    opener_threshold_pct: float = 200.0  # se più corto ma sopra questa % CP → mostrato (B)
 
     def __post_init__(self):
         valid = ("rbf", "l2", "l1", "cosine", "linear", "clinear")
@@ -49,6 +63,10 @@ class RupturesConfig:
             raise ValueError("merge_gap_sec must be >= 0")
         if not (0 <= self.merge_power_diff_pct <= 100):
             raise ValueError("merge_power_diff_pct must be in [0, 100]")
+        if self.min_effort_sec < 0:
+            raise ValueError("min_effort_sec must be >= 0")
+        if self.opener_threshold_pct <= 0:
+            raise ValueError("opener_threshold_pct must be > 0")
 
 
 def detect_efforts_ruptures(
@@ -57,18 +75,16 @@ def detect_efforts_ruptures(
     config: RupturesConfig | None = None,
 ) -> List[Tuple[int, int, float]]:
     """
-    Detect efforts via Pelt changepoint detection on the power stream.
-
-    Pipeline
-    --------
-    1. Smooth power (rolling mean, smooth_window_sec)
-    2. Downsample to 1 Hz (fast Pelt on any FIT frequency)
-    3. Pelt → breakpoints, remap to original row indices
-    4. Label each segment above/below intensity threshold
-    5. Merge adjacent above-threshold segments when:
-         - time gap ≤ merge_gap_sec  AND
-         - power difference ≤ merge_power_diff_pct %
-    6. Return List[(start_idx, end_idx, avg_power)]
+    Pipeline:
+      1. Smooth signal
+      2. Downsample to 1 Hz
+      3. Pelt → breakpoints
+      4. Remap to original indices
+      5. Label above/below min_cp_pct threshold
+      6. Merge adjacent above-threshold segments
+      7. Post-merge filter:
+           keep if duration >= min_effort_sec  [sustained]
+           OR   avg_power >= cp * opener_threshold_pct / 100  [intense sprint]
     """
     try:
         import ruptures as rpt
@@ -98,7 +114,7 @@ def detect_efforts_ruptures(
     else:
         sm = np.clip(power.copy(), 0, None)
 
-    # ── 2. Downsample ─────────────────────────────────────────────────────────
+    # ── 2. Downsample to 1 Hz ─────────────────────────────────────────────────
     median_dt = float(np.median(np.diff(time_sec))) if n > 1 else 1.0
     sps       = 1.0 / median_dt if median_dt > 0 else 1.0
     factor    = max(1, int(round(sps / _TARGET_HZ)))
@@ -120,30 +136,30 @@ def detect_efforts_ruptures(
         logger.error("Pelt failed: %s", exc)
         return []
 
+    # ── 4. Remap ───────────────────────────────────────────────────────────────
     starts_orig = [0]             + [min(b * factor, n) for b in bkps[:-1]]
     ends_orig   = [min(b * factor, n) for b in bkps]
 
-    # ── 4. Label ──────────────────────────────────────────────────────────────
+    # ── 5. Label ──────────────────────────────────────────────────────────────
     threshold = cp * config.min_cp_pct / 100.0
     segments  = []
     for s, e in zip(starts_orig, ends_orig):
         seg = power[s:e]
         if len(seg) == 0:
             continue
-        avg = float(seg.mean())
-        segments.append({"s": s, "e": e, "avg": avg, "above": avg >= threshold})
+        avg   = float(seg.mean())
+        above = avg >= threshold
+        segments.append({"s": s, "e": e, "avg": avg, "above": above})
 
-    # ── 5. Merge ───────────────────────────────────────────────────────────────
+    # ── 6. Merge ───────────────────────────────────────────────────────────────
     def _similar_power(avg_a: float, avg_b: float) -> bool:
-        """True if the two averages are within merge_power_diff_pct of each other."""
         if config.merge_power_diff_pct >= 100:
-            return True                              # no power constraint
+            return True
         if avg_a <= 0 or avg_b <= 0:
             return False
-        diff_pct = abs(avg_a - avg_b) / max(avg_a, avg_b) * 100
-        return diff_pct <= config.merge_power_diff_pct
+        return abs(avg_a - avg_b) / max(avg_a, avg_b) * 100 <= config.merge_power_diff_pct
 
-    efforts: List[Tuple[int, int, float]] = []
+    merged: List[Tuple[int, int, float]] = []
     i = 0
     while i < len(segments):
         seg = segments[i]
@@ -156,16 +172,13 @@ def detect_efforts_ruptures(
 
         while j < len(segments):
             nxt = segments[j]
-            gap = nxt["s"] - me     # seconds @ 1 Hz
+            gap = nxt["s"] - me
 
             if nxt["above"] and gap <= config.merge_gap_sec and _similar_power(m_avg, nxt["avg"]):
-                # Merge: extend end, recalc running avg
                 me    = nxt["e"]
                 m_avg = float(power[ms:me].mean())
                 j    += 1
-
             elif not nxt["above"] and j + 1 < len(segments):
-                # Gap segment: peek at what's after
                 after = segments[j + 1]
                 if (after["above"]
                         and after["s"] - me <= config.merge_gap_sec
@@ -178,16 +191,34 @@ def detect_efforts_ruptures(
             else:
                 break
 
-        efforts.append((int(ms), int(me), float(power[ms:me].mean())))
+        merged.append((int(ms), int(me), float(power[ms:me].mean())))
         i = j
 
+    # ── 7. Post-merge display filter ───────────────────────────────────────────
+    # Duration in seconds (at original sampling rate, 1 sample ≈ 1/sps seconds)
+    sprint_watt_threshold = cp * config.opener_threshold_pct / 100.0
+
+    efforts: List[Tuple[int, int, float]] = []
+    discarded = 0
+    for ms, me, avg in merged:
+        duration_sec = (me - ms) / sps          # seconds at original rate
+        is_sustained = duration_sec >= config.min_effort_sec
+        is_sprint    = avg >= sprint_watt_threshold
+        if is_sustained or is_sprint:
+            efforts.append((ms, me, avg))
+        else:
+            discarded += 1
+
     logger.info(
-        "ruptures: %d segments → %d efforts ≥%.0fW  "
-        "[model=%s pen=%.1f smooth=%ds gap=%ds Δpwr≤%.0f%%]",
-        len(segments), len(efforts), threshold,
+        "ruptures: %d segments → %d merged → %d efforts "
+        "(discarded %d: too short + not intense enough) "
+        "[model=%s pen=%.1f smooth=%ds gap=%ds Δpwr≤%.0f%% "
+        "min_dur=%ds sprint≥%.0f%%CP]",
+        len(segments), len(merged), len(efforts), discarded,
         config.model, config.penalty,
         config.smooth_window_sec, config.merge_gap_sec,
         config.merge_power_diff_pct,
+        config.min_effort_sec, config.opener_threshold_pct,
     )
     return efforts
 
@@ -201,4 +232,6 @@ def ruptures_config_from_dict(d: dict) -> RupturesConfig:
         min_cp_pct           = float(d.get("min_cp_pct", 100.0)),
         merge_gap_sec        = int(d.get("ruptures_merge_gap", 30)),
         merge_power_diff_pct = float(d.get("ruptures_merge_power_diff", 15.0)),
+        min_effort_sec       = int(d.get("ruptures_min_effort", 60)),
+        opener_threshold_pct = float(d.get("ruptures_opener_threshold", 200.0)),
     )

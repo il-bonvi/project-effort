@@ -190,6 +190,25 @@
                         <input type="number" id="ruptures_merge_power_diff" name="ruptures_merge_power_diff" value="15" min="0" max="100" step="5">
                     </div>
                 </div>
+
+                <!-- Post-merge filter -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ruptures_min_effort">Durata minima effort (s)
+                            <small>Post-merge: effort più corti vengono scartati, a meno che non superino la soglia sprint</small>
+                        </label>
+                        <input type="number" id="ruptures_min_effort" name="ruptures_min_effort" value="60" min="0" max="3600" step="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="ruptures_opener_threshold">Soglia sprint (% CP)
+                            <small>Effort brevi ma sopra questa intensità vengono comunque mostrati</small>
+                        </label>
+                        <input type="number" id="ruptures_opener_threshold" name="ruptures_opener_threshold" value="200" min="50" max="500" step="10">
+                    </div>
+                </div>
+                <div class="hint-box">
+                    💡 Esempio CP=235W: effort da 40s a 250% CP (587W) → mostrato · effort da 40s a 101% (237W) → scartato · effort da 90s a 101% → mostrato (durata ≥ min)
+                </div>
             </div>
 
             <!-- LEGACY PANEL -->

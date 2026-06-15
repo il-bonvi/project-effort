@@ -109,7 +109,9 @@ async def upload_fit(
     ruptures_smooth: int         = Form(20),
     ruptures_merge_gap: int      = Form(30),
     ruptures_merge_power_diff: float = Form(15.0),
-    min_cp_pct: float            = Form(100.0),
+    ruptures_min_effort: int         = Form(60),
+    ruptures_opener_threshold: float = Form(200.0),
+    min_cp_pct: float                = Form(100.0),
 
     # ── Legacy params ──────────────────────────────────────────────────────────
     legacy_window_sec: int       = Form(60),
@@ -152,6 +154,10 @@ async def upload_fit(
             raise HTTPException(status_code=400, detail="ruptures_merge_gap must be 0–300 s")
         if not (0 <= ruptures_merge_power_diff <= 100):
             raise HTTPException(status_code=400, detail="ruptures_merge_power_diff must be 0–100")
+        if not (0 <= ruptures_min_effort <= 3600):
+            raise HTTPException(status_code=400, detail="ruptures_min_effort must be 0–3600 s")
+        if not (50 <= ruptures_opener_threshold <= 500):
+            raise HTTPException(status_code=400, detail="ruptures_opener_threshold must be 50–500 % CP")
         if not (50 <= min_cp_pct <= 300):
             raise HTTPException(status_code=400, detail="min_cp_pct must be 50–300")
 
@@ -212,6 +218,8 @@ async def upload_fit(
             min_cp_pct           = min_cp_pct,
             merge_gap_sec        = ruptures_merge_gap,
             merge_power_diff_pct = ruptures_merge_power_diff,
+            min_effort_sec       = ruptures_min_effort,
+            opener_threshold_pct = ruptures_opener_threshold,
         )
         try:
             efforts = detect_efforts_ruptures(df, cp=cp, config=ruptures_cfg)
