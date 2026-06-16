@@ -1,4 +1,6 @@
-1)
+1)implementare in configurazione-altimetria il corretto data di ruptures
+
+
 aggiustamenti hover mini alt (doppio per selezione, trascinamento ON)
 
 
