@@ -1,6 +1,43 @@
+Contesto: Ho un'app FastAPI (PEFFORT) che analizza file FIT di ciclismo. Uso ruptures (Pelt algorithm) per rilevare effort (intervalli ad alta intensità) da dati di potenza.
+Pipeline attuale:
+python# RupturesConfig params:
+model = "l2"              # l2 / rbf / l1
+penalty = 10.0            # basso=molti segmenti, alto=pochi
+min_segment_sec = 15      # granularità Pelt (min_size)
+smooth_window_sec = 20    # rolling mean pre-Pelt
+min_cp_pct = 100.0        # soglia above/below (% CP)
+merge_gap_sec = 30        # gap max per merge adiacenti
+merge_power_diff_pct = 15 # Δ potenza max per merge
+min_effort_sec = 60       # post-merge: scarta se troppo corto...
+sprint_threshold_pct = 200 # ...a meno che non superi questa % CP
+Pipeline:
+
+Smooth (rolling mean smooth_window_sec)
+Downsample a 1Hz
+Pelt → breakpoints
+Remap indici originali
+Label above/below min_cp_pct
+Merge adiacenti: gap ≤ merge_gap_sec AND Δpwr ≤ merge_power_diff_pct%
+Filter: mostra se duration >= min_effort_sec OR avg_power >= cp * sprint_threshold_pct / 100
+
+Obiettivo: Trovare i parametri ottimali per un file FIT reale (CP=235W, ~12000 samples, ~3.5h) confrontando il risultato con effort scelti manualmente tramite visual inspection.
+Dato disponibile: CSV o array numpy con colonne time_sec, power — posso incollarlo o descrivere il pattern degli effort che voglio rilevare.
+Domanda: Come faccio a calibrare i parametri in modo sistematico? Posso condividere i dati grezzi e gli effort "gold" che voglio rilevare, e voglio capire quali parametri devo alzare/abbassare per avvicinarmi al risultato.
+
+
+
+
+
+
 2.0:
 1) salvare in cache i valori delle celle di opener ecc (non vengono ora...)
 2) lavoriamo su modello reale funzionante. Ora ci sta comunque
+
+
+
+
+
+
 
 
 
