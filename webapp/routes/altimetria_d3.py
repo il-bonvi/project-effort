@@ -585,6 +585,23 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
     # The browser sends them at export time. We ship an empty list here as a safe placeholder —
     # the real zones always come from the client via the POST body.
     intensity_zones = []
+
+    # Detection method and ruptures config (when applicable)
+    analysis_method = session.get('method', 'legacy')
+    ruptures_cfg = session.get('ruptures_config')
+    ruptures_config_dict = None
+    if ruptures_cfg is not None:
+        ruptures_config_dict = {
+            'model': ruptures_cfg.model,
+            'penalty': float(ruptures_cfg.penalty),
+            'min_segment_sec': int(ruptures_cfg.min_segment_sec),
+            'smooth_window_sec': int(ruptures_cfg.smooth_window_sec),
+            'min_cp_pct': float(ruptures_cfg.min_cp_pct),
+            'merge_gap_sec': int(ruptures_cfg.merge_gap_sec),
+            'merge_power_diff_pct': float(ruptures_cfg.merge_power_diff_pct),
+            'min_effort_sec': int(ruptures_cfg.min_effort_sec),
+            'opener_threshold_pct': float(ruptures_cfg.opener_threshold_pct),
+        }
     
     return {
         'elevation_data': elevation_data,
@@ -598,6 +615,8 @@ def prepare_chart_data(session: Dict[str, Any]) -> Dict[str, Any]:
         'sprints_modified': False,  # Will be set to True at export time if user confirms
         'kjkg_sections': float(kjkg_sections),  # kJ/kg section size
         'section_distances': section_distances,  # Distances where kJ/kg thresholds occur
+        'analysis_method': analysis_method,
+        'ruptures_config': ruptures_config_dict,
         'config': {
             'window_sec': float(effort_config.window_seconds),
             'merge_pct': float(effort_config.merge_power_diff_percent),

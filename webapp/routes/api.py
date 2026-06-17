@@ -221,8 +221,8 @@ class LegacyImportRequest(BaseModel):
     deleted_sprints: list[int] = Field(default_factory=list)
 
 
-class ExportJsonLlamaRequest(BaseModel):
-    """Request to export JSON for Llama training with activity type"""
+class ExportJsonModelRequest(BaseModel):
+    """Request to export JSON for Model training with activity type"""
     activity_type: str = Field(..., description="Type of activity: allenamento, corsa_circuito, corsa_linea, ITT, TTT")
 
 
@@ -1121,6 +1121,34 @@ async def export_json_data(session_id: str, sessions: SessionsDep):
             "duration_sec": sprint.get('duration', 0)
         })
 
+    analysis_method = session.get('method', 'legacy')
+    ruptures_cfg = session.get('ruptures_config')
+    effort_cfg = session.get('effort_config', EffortConfig())
+    sprint_cfg = session.get('sprint_config', SprintConfig())
+
+    if analysis_method == 'ruptures' and ruptures_cfg is not None:
+        effort_detection_params = {
+            "method": "ruptures",
+            "model": ruptures_cfg.model,
+            "penalty": float(ruptures_cfg.penalty),
+            "min_segment_sec": int(ruptures_cfg.min_segment_sec),
+            "smooth_window_sec": int(ruptures_cfg.smooth_window_sec),
+            "min_cp_pct": float(ruptures_cfg.min_cp_pct),
+            "merge_gap_sec": int(ruptures_cfg.merge_gap_sec),
+            "merge_power_diff_pct": float(ruptures_cfg.merge_power_diff_pct),
+            "min_effort_sec": int(ruptures_cfg.min_effort_sec),
+            "opener_threshold_pct": float(ruptures_cfg.opener_threshold_pct),
+        }
+    else:
+        effort_detection_params = {
+            "method": "legacy",
+            "window_seconds": effort_cfg.window_seconds,
+            "min_cp_pct": effort_cfg.min_effort_intensity_cp,
+            "merge_pct": effort_cfg.merge_power_diff_percent,
+            "trim_window": effort_cfg.trim_window_seconds,
+            "extend_window": effort_cfg.extend_window_seconds
+        }
+
     export_data = {
         "session_info": {
             "session_id": session_id,
@@ -1132,17 +1160,11 @@ async def export_json_data(session_id: str, sessions: SessionsDep):
         "efforts": efforts_export,
         "sprints": sprints_export,
         "detection_parameters": {
-            "effort_config": {
-                "window_seconds": session.get('effort_config', EffortConfig()).window_seconds,
-                "min_cp_pct": session.get('effort_config', EffortConfig()).min_effort_intensity_cp,
-                "merge_pct": session.get('effort_config', EffortConfig()).merge_power_diff_percent,
-                "trim_window": session.get('effort_config', EffortConfig()).trim_window_seconds,
-                "extend_window": session.get('effort_config', EffortConfig()).extend_window_seconds
-            },
+            "effort_config": effort_detection_params,
             "sprint_config": {
-                "min_power": session.get('sprint_config', SprintConfig()).min_power,
-                "window_seconds": session.get('sprint_config', SprintConfig()).window_seconds,
-                "merge_gap_sec": session.get('sprint_config', SprintConfig()).merge_gap_sec
+                "min_power": sprint_cfg.min_power,
+                "window_seconds": sprint_cfg.window_seconds,
+                "merge_gap_sec": sprint_cfg.merge_gap_sec
             }
         }
     }
@@ -1259,10 +1281,10 @@ async def export_csv_data(session_id: str, sessions: SessionsDep):
     )
 
 
-@router.post("/export/{session_id}/json-llama")
-async def export_json_llama_data(session_id: str, request: ExportJsonLlamaRequest, sessions: SessionsDep):
+@router.post("/export/{session_id}/json-Model")
+async def export_json_Model_data(session_id: str, request: ExportJsonModelRequest, sessions: SessionsDep):
     """
-    Export all data as JSON for Llama training with activity type.
+    Export all data as JSON for Model training with activity type.
     Includes all data from standard JSON export plus activity type classification.
     
     Valid activity types: training, criterium, road, ITT, TTT
@@ -1318,6 +1340,34 @@ async def export_json_llama_data(session_id: str, request: ExportJsonLlamaReques
         })
 
     # Build export data with activity type
+    analysis_method = session.get('method', 'legacy')
+    ruptures_cfg = session.get('ruptures_config')
+    effort_cfg = session.get('effort_config', EffortConfig())
+    sprint_cfg = session.get('sprint_config', SprintConfig())
+
+    if analysis_method == 'ruptures' and ruptures_cfg is not None:
+        effort_detection_params = {
+            "method": "ruptures",
+            "model": ruptures_cfg.model,
+            "penalty": float(ruptures_cfg.penalty),
+            "min_segment_sec": int(ruptures_cfg.min_segment_sec),
+            "smooth_window_sec": int(ruptures_cfg.smooth_window_sec),
+            "min_cp_pct": float(ruptures_cfg.min_cp_pct),
+            "merge_gap_sec": int(ruptures_cfg.merge_gap_sec),
+            "merge_power_diff_pct": float(ruptures_cfg.merge_power_diff_pct),
+            "min_effort_sec": int(ruptures_cfg.min_effort_sec),
+            "opener_threshold_pct": float(ruptures_cfg.opener_threshold_pct),
+        }
+    else:
+        effort_detection_params = {
+            "method": "legacy",
+            "window_seconds": effort_cfg.window_seconds,
+            "min_cp_pct": effort_cfg.min_effort_intensity_cp,
+            "merge_pct": effort_cfg.merge_power_diff_percent,
+            "trim_window": effort_cfg.trim_window_seconds,
+            "extend_window": effort_cfg.extend_window_seconds
+        }
+
     export_data = {
         "session_info": {
             "session_id": session_id,
@@ -1330,17 +1380,11 @@ async def export_json_llama_data(session_id: str, request: ExportJsonLlamaReques
         "efforts": efforts_export,
         "sprints": sprints_export,
         "detection_parameters": {
-            "effort_config": {
-                "window_seconds": session.get('effort_config', EffortConfig()).window_seconds,
-                "min_cp_pct": session.get('effort_config', EffortConfig()).min_effort_intensity_cp,
-                "merge_pct": session.get('effort_config', EffortConfig()).merge_power_diff_percent,
-                "trim_window": session.get('effort_config', EffortConfig()).trim_window_seconds,
-                "extend_window": session.get('effort_config', EffortConfig()).extend_window_seconds
-            },
+            "effort_config": effort_detection_params,
             "sprint_config": {
-                "min_power": session.get('sprint_config', SprintConfig()).min_power,
-                "window_seconds": session.get('sprint_config', SprintConfig()).window_seconds,
-                "merge_gap_sec": session.get('sprint_config', SprintConfig()).merge_gap_sec
+                "min_power": sprint_cfg.min_power,
+                "window_seconds": sprint_cfg.window_seconds,
+                "merge_gap_sec": sprint_cfg.merge_gap_sec
             }
         }
     }

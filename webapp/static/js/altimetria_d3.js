@@ -1224,11 +1224,36 @@ function buildSidebar() {
     const effortsMI = chartData.efforts_modified ? ' (+MI)' : '';
     const sprintsMI = chartData.sprints_modified ? ' (+MI)' : '';
     
+    const isRuptures = chartData.analysis_method === 'ruptures';
+    const rc = chartData.ruptures_config || {};
+    const lc = chartData.config || {};
+
+    let effortConfigLine = '';
+    if (isRuptures) {
+        effortConfigLine = `
+            <span style="color:#6366f1;font-weight:700;">📐 Ruptures</span><br/>
+            model: <b>${rc.model || 'l2'}</b> |
+            pen: <b>${rc.penalty ?? '?'}</b> |
+            smooth: <b>${rc.smooth_window_sec ?? '?'}s</b> |
+            min_seg: <b>${rc.min_segment_sec ?? '?'}s</b><br/>
+            min_cp: <b>${rc.min_cp_pct ?? '?'}%</b> |
+            gap: <b>${rc.merge_gap_sec ?? '?'}s</b> |
+            Δpwr: <b>${rc.merge_power_diff_pct ?? '?'}%</b><br/>
+            min_dur: <b>${rc.min_effort_sec ?? '?'}s</b> |
+            opener: <b>${rc.opener_threshold_pct ?? '?'}% CP</b>${effortsMI}`;
+    } else {
+        effortConfigLine = `
+            <span style="color:#f59e0b;font-weight:700;">🪟 Legacy</span>
+            WIN: <b>${lc.window_sec ?? '?'}s</b> |
+            MRG: <b>${lc.merge_pct ?? '?'}%</b> |
+            MIN: <b>${lc.min_cp_pct ?? '?'}%</b>${effortsMI}`;
+    }
+
     document.getElementById('config-section').innerHTML = `
         <strong>Configuration</strong><br/>
         CP: ${chartData.cp}W | Weight: ${chartData.weight}kg<br/>
-        Efforts: WIN ${chartData.config.window_sec}s | MRG ${chartData.config.merge_pct}% | MIN ${chartData.config.min_cp_pct}%${effortsMI}<br/>
-        Sprints: WIN ${chartData.config.sprint_window_sec}s | MIN ${chartData.config.min_sprint_power}W${sprintsMI}<br/>
+        ${effortConfigLine}<br/>
+        Sprints: WIN ${lc.sprint_window_sec ?? '?'}s | MIN ${lc.min_sprint_power ?? '?'}W${sprintsMI}<br/>
         <strong>Y-axis:</strong> ${yMin}m - ${yMax}m (range: ${yMax - yMin}m)
     `;
 

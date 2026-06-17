@@ -761,16 +761,16 @@
                         </div>
 
                         <div class="export-card" style="border: 2px solid #dc2626; background: linear-gradient(135deg, #fef2f2, #fee2e2);">
-                            <h3 style="color: #991b1b;">🤖 Export per Llama AI</h3>
+                            <h3 style="color: #991b1b;">🤖 Export per Model</h3>
                             <p style="color: #b91c1c;">JSON con dati completi di effort, sprint, CP e peso per allenare modelli di machine learning sulle tue abitudini di rilevamento.</p>
-                            <button class="btn btn-success" onclick="exportDefault()" id="exportLlamaDefaultBtn" style="background: linear-gradient(135deg, #dc2626, #b91c1c); width: 100%; margin-bottom: 8px;">
+                            <button class="btn btn-success" onclick="exportDefault()" id="exportModelDefaultBtn" style="background: linear-gradient(135deg, #dc2626, #b91c1c); width: 100%; margin-bottom: 8px;">
                                 🤖 Export Default
                             </button>
-                            <button class="btn btn-success" onclick="exportGold()" id="exportLlamaGoldBtn" style="background: linear-gradient(135deg, #b91c1c, #991b1b); width: 100%;">
+                            <button class="btn btn-success" onclick="exportGold()" id="exportModelGoldBtn" style="background: linear-gradient(135deg, #b91c1c, #991b1b); width: 100%;">
                                 🥇 Export Gold
                             </button>
-                            <div id="llamaExportStatusDefault" style="margin-top: 8px; font-size: 11px; text-align: center; min-height: 16px;"></div>
-                            <div id="llamaExportStatusGold" style="margin-top: 4px; font-size: 11px; text-align: center; min-height: 16px;"></div>
+                            <div id="ModelExportStatusDefault" style="margin-top: 8px; font-size: 11px; text-align: center; min-height: 16px;"></div>
+                            <div id="ModelExportStatusGold" style="margin-top: 4px; font-size: 11px; text-align: center; min-height: 16px;"></div>
                         </div>
                     </div>
                 </div>
@@ -778,7 +778,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Activity Type Selector for Llama Export -->
+    <!-- MODAL: Activity Type Selector for Model Export -->
     <div id="activityTypeModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
         <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); animation: slideIn 0.3s ease;">
             <h2 style="margin-bottom: 20px; color: #111827;">🤖 Seleziona Tipo di Attività</h2>
@@ -1295,15 +1295,15 @@
             filenameInput.select();
         }
 
-        let llamaExportVariant = 'default';
+        let ModelExportVariant = 'default';
 
         function exportDefault() {
-            llamaExportVariant = 'default';
+            ModelExportVariant = 'default';
             showActivityTypeSelector();
         }
 
         function exportGold() {
-            llamaExportVariant = 'gold';
+            ModelExportVariant = 'gold';
             showActivityTypeSelector();
         }
 
@@ -1316,10 +1316,10 @@
         }
 
         async function selectActivityType(activityType) {
-            const isGold = llamaExportVariant === 'gold';
-            const btn = document.getElementById(isGold ? 'exportLlamaGoldBtn' : 'exportLlamaDefaultBtn');
-            const status = document.getElementById(isGold ? 'llamaExportStatusGold' : 'llamaExportStatusDefault');
-            const otherStatus = document.getElementById(isGold ? 'llamaExportStatusDefault' : 'llamaExportStatusGold');
+            const isGold = ModelExportVariant === 'gold';
+            const btn = document.getElementById(isGold ? 'exportModelGoldBtn' : 'exportModelDefaultBtn');
+            const status = document.getElementById(isGold ? 'ModelExportStatusGold' : 'ModelExportStatusDefault');
+            const otherStatus = document.getElementById(isGold ? 'ModelExportStatusDefault' : 'ModelExportStatusGold');
             const baseButtonLabel = isGold ? '🥇 Export Gold' : '🤖 Export Default';
             const fileSuffix = isGold ? '_gold' : '_default';
 
@@ -1334,7 +1334,7 @@
             closeActivityTypeModal();
             
             try {
-                const response = await fetch(`/api/export/${sessionId}/json-llama`, {
+                const response = await fetch(`/api/export/${sessionId}/json-Model`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -1357,7 +1357,7 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                btn.textContent = '✅ JSON esportato per Llama!';
+                btn.textContent = '✅ JSON esportato per Model!';
                 status.textContent = `Attività: ${activityType}`;
                 status.style.color = '#22c55e';
                 

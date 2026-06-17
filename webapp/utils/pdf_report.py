@@ -927,12 +927,32 @@ def build_pdf_report(
     # ── PAGE 1: Header ────────────────────────────────────────────────────────
     story.append(Paragraph(f"PEFFORT — {filename}", styles["title"]))
     story.append(Spacer(1, 4*mm))
+    analysis_method = chart_data.get('analysis_method', 'legacy')
+    rc = chart_data.get('ruptures_config') or {}
+
+    if analysis_method == 'ruptures' and rc:
+        effort_cfg_summary = (
+            f"Ruptures  model={rc.get('model','l2')}  "
+            f"pen={rc.get('penalty','?')}  "
+            f"smooth={rc.get('smooth_window_sec','?')}s  "
+            f"min_seg={rc.get('min_segment_sec','?')}s  |  "
+            f"min_cp={rc.get('min_cp_pct','?')}%  "
+            f"gap={rc.get('merge_gap_sec','?')}s  "
+            f"Δpwr={rc.get('merge_power_diff_pct','?')}%  "
+            f"min_dur={rc.get('min_effort_sec','?')}s  "
+            f"opener={rc.get('opener_threshold_pct','?')}%CP"
+        )
+    else:
+        effort_cfg_summary = (
+            f"Legacy  Win={int(config.get('window_sec', 0))}s  "
+            f"Min CP={int(config.get('min_cp_pct', 0))}%  "
+            f"Merge={int(config.get('merge_pct', 0))}%"
+        )
+
     story.append(Paragraph(
         f"CP: {int(cp)} W  |  Weight: {weight} kg  |  "
         f"Efforts: {len(efforts)}  |  Sprints: {len(sprints)}  |  "
-        f"Win: {int(config.get('window_sec', 0))}s  "
-        f"Min CP: {int(config.get('min_cp_pct', 0))}%  "
-        f"Merge: {int(config.get('merge_pct', 0))}%",
+        f"{effort_cfg_summary}",
         styles["subtitle"]
     ))
 
