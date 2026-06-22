@@ -616,7 +616,7 @@ function buildSelectionMetricsCard(metrics) {
     `;
 }
 
-function buildEffortSidebarCard(e) {
+function buildEffortSidebarCard(e, effortMapIdx) {
     const signErr = e.perc_err > 0 ? '+' : (e.perc_err < 0 ? '-' : '');
     const signDwkg = e.diff_wkg > 0 ? '+' : '';
     const showVamTeor = e.avg_grade >= 4.5;
@@ -629,16 +629,16 @@ function buildEffortSidebarCard(e) {
 
     return `
         <div class="selected-header">
-            <div>
+            <div style="flex:1;min-width:0;">
                 <div class="selected-title">E#${e.id + 1}</div>
-                <div class="selected-subtitle-line">Rank #${e.rank}</div>
-                <div class="selected-subtitle-line">${e.start_time}</div>
-                <div class="selected-subtitle-line">${fmtDur(e.duration)} · ${e.distance_tot} km · ${e.elevation_gain}m ↑</div>
+                <div class="selected-subtitle-line">Rank #${e.rank} · ${e.start_time}</div>
+                <div class="selected-subtitle-line">${fmtDur(e.duration)} · ${e.distance_tot}km · ${e.elevation_gain}m ↑</div>
                 <div class="selected-power" style="color:${e.color}">${e.avg_power}W <span>(${e.cp_pct}%)</span></div>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <button class="stream-btn" onclick="openStreamModal('e-${e.id}','${e.id}','effort')">📊 Stream</button>
-                <button class="sidebar-close-btn" onclick="closeEffortDetailAndShowSelection()">✕</button>
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;justify-content:flex-start;flex-shrink:0;">
+                <button class="sidebar-close-btn" style="width:28px;height:28px;padding:0;font-size:14px;" onclick="closeEffortDetailAndShowSelection()">✕</button>
+                <button class="stream-btn" style="width:28px;height:28px;padding:0;font-size:14px;" onclick="openStreamModal('e-${e.id}','${e.id}','effort')">📊</button>
+                <button class="stream-btn" style="width:28px;height:28px;padding:0;font-size:14px;background:linear-gradient(135deg,#10b981,#059669);" onclick="zoomEffortByPowerZones(${effortMapIdx})">🔍</button>
             </div>
         </div>
         <div class="selected-grid">
@@ -667,7 +667,7 @@ function buildEffortSidebarCard(e) {
     `;
 }
 
-function buildSprintSidebarCard(s) {
+function buildSprintSidebarCard(s, effortMapIdx) {
     const torqAvail = chartData.torque_available;
     const torqRows = torqAvail
         ? `
@@ -678,15 +678,16 @@ function buildSprintSidebarCard(s) {
 
     return `
         <div class="selected-header">
-            <div>
+            <div style="flex:1;min-width:0;">
                 <div class="selected-title">S#${s.rank}</div>
                 <div class="selected-subtitle-line">${s.start_time}</div>
-                <div class="selected-subtitle-line">${fmtDur(s.duration)} · ${s.distance_tot} km · ${s.elevation_gain}m ↑</div>
+                <div class="selected-subtitle-line">${fmtDur(s.duration)} · ${s.distance_tot}km · ${s.elevation_gain}m ↑</div>
                 <div class="selected-power">${s.avg_power}W</div>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <button class="stream-btn" onclick="openStreamModal('s-${s.id}','${s.id}','sprint')">📊 Stream</button>
-                <button class="sidebar-close-btn" onclick="closeEffortDetailAndShowSelection()">✕</button>
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;justify-content:flex-start;flex-shrink:0;">
+                <button class="sidebar-close-btn" style="width:28px;height:28px;padding:0;font-size:14px;" onclick="closeEffortDetailAndShowSelection()">✕</button>
+                <button class="stream-btn" style="width:28px;height:28px;padding:0;font-size:14px;" onclick="openStreamModal('s-${s.id}','${s.id}','sprint')">📊</button>
+                <button class="stream-btn" style="width:28px;height:28px;padding:0;font-size:14px;background:linear-gradient(135deg,#10b981,#059669);" onclick="zoomEffortByPowerZones(${effortMapIdx})">🔍</button>
             </div>
         </div>
         <div class="selected-grid">
@@ -728,8 +729,8 @@ function openEffortSidebar(idx) {
     }
 
     const html = selected.type === 'effort'
-        ? buildEffortSidebarCard(selected.data)
-        : buildSprintSidebarCard(selected.data);
+        ? buildEffortSidebarCard(selected.data, idx)
+        : buildSprintSidebarCard(selected.data, idx);
 
     activeSelectionType = selected.type;
     setSelectionZonesDimmed(selected.type === 'effort' || selected.type === 'sprint');
@@ -810,6 +811,41 @@ function closeEffortDetailAndShowSelection() {
     if (currentSelectionMetrics) showSelectionMetricsCard();
     else showFullRideMetricsCard();
 }
+/**
+ * Zoom to an effort/sprint using power-zone coloring (reuses altimetry drag-drop logic).
+ * Replaces the solid highlight with zone-colored track segment.
+ * @param {number} effortMapIdx  Index into currentEfforts[].
+ */
+function zoomEffortByPowerZones(effortMapIdx) {
+    const effort = currentEfforts[effortMapIdx];
+    if (!effort || !effort.distance || effort.distance.length < 2) return;
+
+    const startDist = Number(effort.distance[0]);
+    const endDist   = Number(effort.distance[effort.distance.length - 1]);
+
+    // Drop solid highlight layer (MapLibre) — zone colours will replace it
+    removeActiveEffortLayer();
+    setSelectionZonesDimmed(false);
+    resetChartHighlight();
+
+    // filterTraceByDistance: fits map bounds + draws zone-coloured overlay
+    filterTraceByDistance(startDist, endDist);
+
+    // Keep selection state in sync
+    const { startIdx, endIdx } = getDistanceRangeIndices(startDist, endDist);
+    currentSelectionRange = { startDist, endDist, startIdx, endIdx };
+    currentSelectionMetrics = calculateSelectionMetrics();
+
+    // ← FIX: allinea la selezione drag-drop dell'altimetria all'effort zoomato
+    //   Così l'area evidenziata in altimetria corrisponde alla nuova zoom, non alla precedente
+    altimetrySelection = { start: startDist, end: endDist };
+    isAltimetrySelecting = false;
+    altimetryDragEdge = null;
+    altimetrySelectionBeforeDrag = null;
+    if (d3AltimetryState?.drawSelectionVisual) d3AltimetryState.drawSelectionVisual();
+}
+
+
 
 // D3 altimetry chart state holder
 let elevationChartInstance = null;

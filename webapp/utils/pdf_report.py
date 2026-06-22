@@ -673,7 +673,7 @@ def build_effort_metrics_table(e: Dict, cp: float, styles) -> Table:
     w_teor = e.get('wkg_teoric', 0)
     rows.append(_metric_row("VAM (Real | Teor | W/kg Teor)", f"{vam_real} | {vam_teor} m/h | {w_teor} W/kg", styles))
 
-    rows.append(_section_row("Energy", styles))
+    rows.append(_section_row("After", styles))
     rows.append(_metric_row("kJ Total",     f"{int(e.get('kj', 0))} kJ", styles))
     rows.append(_metric_row("kJ > CP",      f"{int(e.get('kj_over_cp', 0))} kJ", styles))
     rows.append(_metric_row("kJ/kg",        str(e.get("kj_kg", 0)), styles))
@@ -745,8 +745,8 @@ def build_sprint_metrics_table(s: Dict, styles) -> Table:
     max_cad = int(float(s.get('max_cadence', 0)))
     rows.append(_metric_row("Cadence (Avg | Max)", f"{avg_cad} | {max_cad} rpm", styles))
 
-    # 4) ENERGY
-    rows.append(_section_row("Energy", styles))
+    # 4) After
+    rows.append(_section_row("After", styles))
     rows.append(_metric_row("kJ Total",      f"{int(float(s.get('kj', 0)))} kJ", styles))
     rows.append(_metric_row("kJ > CP",       f"{int(float(s.get('kj_over_cp', 0)))} kJ", styles))
     rows.append(_metric_row("kJ/kg",         str(s.get("kj_kg", 0)), styles))
