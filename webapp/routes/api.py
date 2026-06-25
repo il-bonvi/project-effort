@@ -913,6 +913,101 @@ async def redetect_sprints_json(session_id: str, params: Dict[str, Any], session
     )
 
 
+async def redetect_efforts_ruptures_impl(
+    session_id: str,
+    sessions,
+    model: str = "l2",
+    penalty: float = 10.0,
+    min_seg: int = 15,
+    smooth: int = 20,
+    min_cp_pct: float = 100.0,
+    merge_gap: int = 30,
+    merge_power_diff: float = 15.0,
+    min_effort: int = 60,
+    opener_threshold: float = 200.0,
+):
+    """Re-detect efforts with the Ruptures (changepoint) engine."""
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    from utils.ruptures_analyzer import RupturesConfig, detect_efforts_ruptures
+
+    session = sessions[session_id]
+    df = session["df"]
+    cp = session.get("cp", 250)
+
+    try:
+        cfg = RupturesConfig(
+            model=model,
+            penalty=penalty,
+            min_segment_sec=min_seg,
+            smooth_window_sec=smooth,
+            min_cp_pct=min_cp_pct,
+            merge_gap_sec=merge_gap,
+            merge_power_diff_pct=merge_power_diff,
+            min_effort_sec=min_effort,
+            opener_threshold_pct=opener_threshold,
+        )
+        efforts = detect_efforts_ruptures(df, cp=cp, config=cfg)
+        logger.info("ruptures re-detect: %d efforts for session %s", len(efforts), session_id)
+    except Exception as e:
+        logger.error("Error in ruptures re-detection: %s", e)
+        raise HTTPException(status_code=500, detail=f"Ruptures re-detection error: {e}")
+
+    session["efforts"] = _normalize_efforts(efforts)
+    session["method"] = "ruptures"
+    session["ruptures_config"] = cfg
+    session["effort_config"] = EffortConfig(
+        window_seconds=min_seg,
+        min_effort_intensity_cp=min_cp_pct,
+        merge_power_diff_percent=merge_power_diff,
+        trim_window_seconds=0,
+        trim_low_percent=85.0,
+        extend_window_seconds=0,
+        extend_low_percent=80.0,
+    )
+    _invalidate_session_caches(session)
+
+    return {
+        "success": True,
+        "message": f"Efforts re-detected with Ruptures ({len(efforts)} found)",
+        "total_efforts": len(efforts),
+        "method": "ruptures",
+        "parameters": {
+            "model": model,
+            "penalty": penalty,
+            "min_segment_sec": min_seg,
+            "smooth_window_sec": smooth,
+            "min_cp_pct": min_cp_pct,
+            "merge_gap_sec": merge_gap,
+            "merge_power_diff_pct": merge_power_diff,
+            "min_effort_sec": min_effort,
+            "opener_threshold_pct": opener_threshold,
+        },
+    }
+
+
+@router.post("/{session_id}/redetect-efforts-ruptures")
+async def redetect_efforts_ruptures_json(
+    session_id: str, params: Dict[str, Any], sessions: SessionsDep
+):
+    """Re-detect efforts with Ruptures parameters (JSON body)."""
+    return await redetect_efforts_ruptures_impl(
+        session_id=session_id,
+        sessions=sessions,
+        model=str(params.get("model", "l2")),
+        penalty=float(params.get("penalty", 10.0)),
+        min_seg=int(params.get("min_seg", 15)),
+        smooth=int(params.get("smooth", 20)),
+        min_cp_pct=float(params.get("min_cp_pct", 100.0)),
+        merge_gap=int(params.get("merge_gap", 30)),
+        merge_power_diff=float(params.get("merge_power_diff", 15.0)),
+        min_effort=int(params.get("min_effort", 60)),
+        opener_threshold=float(params.get("opener_threshold", 200.0)),
+    )
+
+
+
 @router.post("/{session_id}/apply-local-modifications")
 async def apply_local_modifications(session_id: str, data: LocalModificationsRequest, sessions: SessionsDep):
     """

@@ -438,6 +438,16 @@
             background: linear-gradient(135deg, #047857, #065f46);
             transform: translateY(-1px);
         }
+
+        /* Method toggle buttons */
+        .method-btn--ruptures-active { background: linear-gradient(135deg,#6366f1,#4f46e5); color: white; }
+        .method-btn--legacy-active   { background: linear-gradient(135deg,#f59e0b,#d97706); color: white; }
+        .method-btn--inactive        { background: #e5e7eb; color: #374151; }
+        .method-badge                { font-size:10px; margin-left:6px; background:rgba(255,255,255,.25); padding:2px 6px; border-radius:10px; }
+
+        /* Panel visibility */
+        .panel-visible { display: block; }
+        .panel-hidden  { display: none; }
     </style>
 </head>
 <body>
@@ -613,74 +623,182 @@
                     <span class="fullscreen-icon">⛶</span>
                 </button>
                 <div class="settings-content" style="padding: 20px;">
-                    <h2 style="margin-bottom: 25px; color: #374151;">⚙️ Detection Settings & Re-Analysis</h2>
-                    
+                    <h2 style="margin-bottom: 20px; color: #374151;">⚙️ Settings & Re-Analysis</h2>
+
+                    <!-- Atleta -->
                     <div class="controls-section">
-                        <div class="controls-title">🚴‍♂️ Athlete Parameters</div>
+                        <div class="controls-title">🚴‍♂️ Athlete</div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="cpValue">CP (W)</label>
-                                <input type="number" id="cpValue" value="{{ session.cp | int }}" min="50" max="500" step="5">
+                                <input type="number" id="cpValue" value="{{ session.cp | int }}" min="50" max="600" step="5">
                             </div>
                             <div class="form-group">
                                 <label for="weightValue">Weight (kg)</label>
-                                <input type="number" id="weightValue" value="{{ session.weight }}" min="40" max="150" step="0.5">
+                                <input type="number" id="weightValue" value="{{ session.weight }}" min="30" max="200" step="0.5">
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="updateCpWeight()">💾 Update CP & Weight</button>
                     </div>
-                    
+
+                    <!-- Effort detection -->
                     <div class="controls-section">
-                        <div class="controls-title">🎯 Effort Detection Parameters</div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="effortWindowSec">Window (s)</label>
-                                <input type="number" id="effortWindowSec" value="{{ session.effort_config.window_seconds | default(30) | int }}" min="10" max="300">
-                            </div>
-                            <div class="form-group">
-                                <label for="effortMinCpPct">Min CP (%)</label>
-                                <input type="number" id="effortMinCpPct" value="{{ session.effort_config.min_effort_intensity_cp | default(90) | int }}" min="50" max="200">
-                            </div>
-                            <div class="form-group">
-                                <label for="effortMergePct">Merge Tolerance (%)</label>
-                                <input type="number" id="effortMergePct" value="{{ session.effort_config.merge_power_diff_percent | default(20) | int }}" min="5" max="50">
-                            </div>
+                        <div class="controls-title">🔀 Effort Detection</div>
+
+                        <!-- Method switch buttons -->
+                        {% set active_method = session.get('method','legacy') %}
+                        <div style="display:flex; gap:12px; margin-bottom:16px;">
+                            <button id="switchToRuptures" onclick="setDetectionMethod('ruptures')" class="btn method-btn {% if active_method=='ruptures' %}method-btn--ruptures-active{% else %}method-btn--inactive{% endif %}" style="flex:1;">
+                                📐 Ruptures — Changepoint
+                                {% if active_method == 'ruptures' %}<span class="method-badge">ACTIVE</span>{% endif %}
+                            </button>
+                            <button id="switchToLegacy" onclick="setDetectionMethod('legacy')" class="btn method-btn {% if active_method!='ruptures' %}method-btn--legacy-active{% else %}method-btn--inactive{% endif %}" style="flex:1;">
+                                🪟 Legacy — Sliding Window
+                                {% if active_method != 'ruptures' %}<span class="method-badge">ACTIVE</span>{% endif %}
+                            </button>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="trimWin">Trim Window (s)</label>
-                                <input type="number" id="trimWin" value="{{ session.effort_config.trim_window_seconds | default(10) | int }}" min="0" max="120">
+
+                        <!-- RUPTURES PANEL -->
+                        <div id="panel-ruptures-settings" class="{% if active_method=='ruptures' %}panel-visible{% else %}panel-hidden{% endif %}">
+                            <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
+                                Segmentazione automatica via <strong>Ruptures PELT</strong>. Nessuna finestra manuale — è il segnale a definire i segmenti.
+                            </p>
+                            {% set rc = session.get('ruptures_config') %}
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rModel">Model
+                                        <small style="display:block;color:#6b7280;font-weight:normal;">l2 = veloce (default) · rbf = preciso · l1 = outlier-proof</small>
+                                    </label>
+                                    <select id="rModel" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;background:white;color:#111827;font-size:0.9rem;">
+                                        <option value="l2" {% if rc and rc.model=='l2' %}selected{% endif %}>l2 — Least Squares (veloce)</option>
+                                        <option value="rbf" {% if rc and rc.model=='rbf' %}selected{% endif %}>rbf — Radial Basis (preciso)</option>
+                                        <option value="l1"  {% if rc and rc.model=='l1'  %}selected{% endif %}>l1 — Median (outlier-proof)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="rMinCpPct">Soglia intensità (% CP)
+                                        <small style="display:block;color:#6b7280;font-weight:normal;">Segmenti sotto soglia vengono scartati</small>
+                                    </label>
+                                    <input type="number" id="rMinCpPct" value="{{ rc.min_cp_pct | int if rc else 100 }}" min="50" max="300" step="5">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label for="trimLow">Trim Low (%)</label>
-                                <input type="number" id="trimLow" value="{{ session.effort_config.trim_low_percent | default(80) | int }}" min="50" max="100">
+                            <div class="form-group" style="margin-bottom:12px;">
+                                <label for="rPenaltyRange">Penalty (sensibilità)
+                                    <small style="display:block;color:#6b7280;font-weight:normal;">Basso → molti segmenti corti · Alto → pochi segmenti lunghi</small>
+                                </label>
+                                <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+                                    <input type="range" id="rPenaltyRange" min="0.5" max="60" step="0.5"
+                                           value="{{ rc.penalty if rc else 10 }}"
+                                           oninput="document.getElementById('rPenaltyVal').textContent=this.value;document.getElementById('rPenalty').value=this.value;"
+                                           style="flex:1;">
+                                    <span id="rPenaltyVal" style="min-width:36px;font-weight:700;color:#fbbf24;font-size:1rem;">{{ rc.penalty if rc else 10 }}</span>
+                                    <input type="hidden" id="rPenalty" value="{{ rc.penalty if rc else 10 }}">
+                                </div>
+                                <small style="color:#6b7280;">💡 Gara/criterium: 3–8 · Intervalli strutturati: 8–15 · Fondo libero: 15–30</small>
                             </div>
-                            <div class="form-group">
-                                <label for="extendWin">Extend Window (s)</label>
-                                <input type="number" id="extendWin" value="{{ session.effort_config.extend_window_seconds | default(10) | int }}" min="0" max="120">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rMinSeg">Min segment (s)
+                                        <small style="display:block;color:#6b7280;font-weight:normal;">Granularità PELT — segmenti più corti ignorati</small>
+                                    </label>
+                                    <input type="number" id="rMinSeg" value="{{ rc.min_segment_sec if rc else 15 }}" min="5" max="600" step="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="rSmooth">Smoothing (s)
+                                        <small style="display:block;color:#6b7280;font-weight:normal;">Media mobile sul segnale prima del changepoint</small>
+                                    </label>
+                                    <input type="number" id="rSmooth" value="{{ rc.smooth_window_sec if rc else 20 }}" min="0" max="120" step="5">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label for="extendLow">Extend Low (%)</label>
-                                <input type="number" id="extendLow" value="{{ session.effort_config.extend_low_percent | default(80) | int }}" min="50" max="100">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rMergeGap">Merge gap (s)
+                                        <small style="display:block;color:#6b7280;font-weight:normal;">Effort adiacenti fusi se gap ≤ questo valore</small>
+                                    </label>
+                                    <input type="number" id="rMergeGap" value="{{ rc.merge_gap_sec if rc else 30 }}" min="0" max="300" step="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="rMergeDiff">Merge Δ potenza (%)
+                                        <small style="display:block;color:#6b7280;font-weight:normal;">Merge solo se differenza di potenza ≤ %</small>
+                                    </label>
+                                    <input type="number" id="rMergeDiff" value="{{ rc.merge_power_diff_pct if rc else 15 }}" min="0" max="100" step="5">
+                                </div>
                             </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rMinEffort">Min effort (s)
+                                        <small style="display:block;color:#6b7280;font-weight:normal;">Post-merge: effort più corti vengono scartati</small>
+                                    </label>
+                                    <input type="number" id="rMinEffort" value="{{ rc.min_effort_sec if rc else 60 }}" min="0" max="3600" step="10">
+                                </div>
+                                <div class="form-group">
+                                    <label for="rOpener">Opener threshold (% CP)
+                                        <small style="display:block;color:#6b7280;font-weight:normal;">Effort brevi ma sopra questa intensità vengono mantenuti</small>
+                                    </label>
+                                    <input type="number" id="rOpener" value="{{ rc.opener_threshold_pct if rc else 200 }}" min="50" max="500" step="10">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="redetectEffortsRuptures()">🔄 Re-Detect (Ruptures)</button>
                         </div>
-                        <button class="btn btn-primary" onclick="redetectEfforts()">🔄 Re-Detect Efforts</button>
+
+                        <!-- LEGACY PANEL -->
+                        <div id="panel-legacy-settings" class="{% if active_method!='ruptures' %}panel-visible{% else %}panel-hidden{% endif %}">
+                            <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
+                                Metodo classico a <strong>finestre mobili</strong>: scorre il segnale con una finestra di N secondi e identifica le zone sopra soglia.
+                            </p>
+                            {% set ec = session.get('effort_config') %}
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="effortWindowSec">Window (s)</label>
+                                    <input type="number" id="effortWindowSec" value="{{ ec.window_seconds | int if ec else 60 }}" min="10" max="600" step="10">
+                                </div>
+                                <div class="form-group">
+                                    <label for="effortMinCpPct">Min CP (%)</label>
+                                    <input type="number" id="effortMinCpPct" value="{{ ec.min_effort_intensity_cp | int if ec else 100 }}" min="50" max="200" step="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="effortMergePct">Merge Δ (%)</label>
+                                    <input type="number" id="effortMergePct" value="{{ ec.merge_power_diff_percent | int if ec else 15 }}" min="0" max="100" step="5">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="trimWin">Trim window (s)</label>
+                                    <input type="number" id="trimWin" value="{{ ec.trim_window_seconds | int if ec else 10 }}" min="0" max="120" step="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="trimLow">Trim low (%)</label>
+                                    <input type="number" id="trimLow" value="{{ ec.trim_low_percent | int if ec else 85 }}" min="50" max="100" step="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="extendWin">Extend window (s)</label>
+                                    <input type="number" id="extendWin" value="{{ ec.extend_window_seconds | int if ec else 15 }}" min="0" max="120" step="5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="extendLow">Extend low (%)</label>
+                                    <input type="number" id="extendLow" value="{{ ec.extend_low_percent | int if ec else 80 }}" min="50" max="100" step="5">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="redetectEffortsLegacy()">🔄 Re-Detect (Legacy)</button>
+                        </div>
                     </div>
-                    
+
+                    <!-- Sprint -->
                     <div class="controls-section">
-                        <div class="controls-title">🚀 Sprint Detection Parameters</div>
+                        <div class="controls-title">🚀 Sprint Detection</div>
+                        {% set sc = session.get('sprint_config') %}
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="sprintMinPower">Min Power (W)</label>
-                                <input type="number" id="sprintMinPower" value="{{ session.sprint_config.min_power | default(600) }}" min="200" max="1500">
+                                <input type="number" id="sprintMinPower" value="{{ sc.min_power if sc else 500 }}" min="200" max="2000">
                             </div>
                             <div class="form-group">
                                 <label for="sprintMinDuration">Min Duration (s)</label>
-                                <input type="number" id="sprintMinDuration" value="{{ session.sprint_config.window_seconds | default(5) }}" min="3" max="30">
+                                <input type="number" id="sprintMinDuration" value="{{ sc.window_seconds if sc else 5 }}" min="1" max="120">
                             </div>
                             <div class="form-group">
                                 <label for="sprintMergeGap">Merge Gap (s)</label>
-                                <input type="number" id="sprintMergeGap" value="{{ session.sprint_config.merge_gap_sec | default(3) }}" min="1" max="10">
+                                <input type="number" id="sprintMergeGap" value="{{ sc.merge_gap_sec if sc else 3 }}" min="0" max="60">
                             </div>
                             <div class="form-group">
                                 <label for="sprintCadenceMin">Cadence Min (rpm)</label>
@@ -689,18 +807,21 @@
                         </div>
                         <button class="btn btn-primary" onclick="redetectSprints()">🔄 Re-Detect Sprints</button>
                     </div>
-                    
+
+                    <!-- Altimetria -->
                     <div class="controls-section">
-                        <div class="controls-title">📈 Altimetria Visualization</div>
+                        <div class="controls-title">📈 Altimetria — kJ/kg Sections</div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="kjkgSections">kJ/kg Sections</label>
-                                <input type="number" id="kjkgSections" value="{{ session.get('kjkg_sections', 5) }}" min="1" max="20" step="0.5">
-                                <span style="font-size: 12px; color: #6b7280; display: block; margin-top: 4px;">Vertical section dividers on altimetria chart (light blue bars)</span>
+                                <label for="kjkgSections">kJ/kg per section
+                                    <small style="display:block;color:#6b7280;font-weight:normal;">Barre verticali cielo-azzurre sul grafico altimetrico</small>
+                                </label>
+                                <input type="number" id="kjkgSections" value="{{ session.get('kjkg_sections', 5) }}" min="0.5" max="20" step="0.5">
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="updateKjkgSections()">💾 Update kJ/kg Sections</button>
                     </div>
+
                 </div>
             </div>
             
@@ -944,17 +1065,68 @@
             refreshEmbeddedTabs();
         }
         
-        async function redetectEfforts() {
+        function setDetectionMethod(method) {
+            const isRuptures = method === 'ruptures';
+            const pR = document.getElementById('panel-ruptures-settings');
+            const pL = document.getElementById('panel-legacy-settings');
+            const btnR = document.getElementById('switchToRuptures');
+            const btnL = document.getElementById('switchToLegacy');
+            if (pR) pR.style.display = isRuptures ? 'block' : 'none';
+            if (pL) pL.style.display = isRuptures ? 'none'  : 'block';
+            if (btnR) {
+                btnR.style.background = isRuptures ? 'linear-gradient(135deg,#6366f1,#4f46e5)' : '#e5e7eb';
+                btnR.style.color = isRuptures ? 'white' : '#374151';
+            }
+            if (btnL) {
+                btnL.style.background = isRuptures ? '#e5e7eb' : 'linear-gradient(135deg,#f59e0b,#d97706)';
+                btnL.style.color = isRuptures ? '#374151' : 'white';
+            }
+        }
+
+        async function redetectEffortsRuptures() {
+            const params = {
+                model:            document.getElementById('rModel').value,
+                penalty:          parseFloat(document.getElementById('rPenalty').value),
+                min_seg:          parseInt(document.getElementById('rMinSeg').value),
+                smooth:           parseInt(document.getElementById('rSmooth').value),
+                min_cp_pct:       parseFloat(document.getElementById('rMinCpPct').value),
+                merge_gap:        parseInt(document.getElementById('rMergeGap').value),
+                merge_power_diff: parseFloat(document.getElementById('rMergeDiff').value),
+                min_effort:       parseInt(document.getElementById('rMinEffort').value),
+                opener_threshold: parseFloat(document.getElementById('rOpener').value),
+            };
+            try {
+                const response = await fetch(`/api/${sessionId}/redetect-efforts-ruptures`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(params)
+                });
+                if (!response.ok) {
+                    const message = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${message || response.statusText}`);
+                }
+                const result = await response.json();
+                if (result.success) {
+                    alert(`✅ Re-detected ${result.total_efforts} efforts (Ruptures)!`);
+                    await refreshDashboardAfterMutation();
+                } else {
+                    alert(`❌ Error: ${result.message}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function redetectEffortsLegacy() {
             const params = {
                 window_sec: document.getElementById('effortWindowSec').value,
                 min_cp_pct: document.getElementById('effortMinCpPct').value,
-                merge_pct: document.getElementById('effortMergePct').value,
-                trim_win: document.getElementById('trimWin').value,
-                trim_low: document.getElementById('trimLow').value,
+                merge_pct:  document.getElementById('effortMergePct').value,
+                trim_win:   document.getElementById('trimWin').value,
+                trim_low:   document.getElementById('trimLow').value,
                 extend_win: document.getElementById('extendWin').value,
                 extend_low: document.getElementById('extendLow').value
             };
-            
             try {
                 const response = await fetch(`/api/${sessionId}/redetect-efforts`, {
                     method: 'POST',
@@ -965,10 +1137,9 @@
                     const message = await response.text();
                     throw new Error(`HTTP ${response.status}: ${message || response.statusText}`);
                 }
-                
                 const result = await response.json();
                 if (result.success) {
-                    alert(`✅ Re-detected ${result.total_efforts} efforts!`);
+                    alert(`✅ Re-detected ${result.total_efforts} efforts (Legacy)!`);
                     await refreshDashboardAfterMutation();
                 } else {
                     alert(`❌ Error: ${result.message}`);
@@ -977,15 +1148,16 @@
                 alert(`❌ Error: ${error.message}`);
             }
         }
-        
+
+        async function redetectEfforts() { await redetectEffortsLegacy(); }
+
         async function redetectSprints() {
             const params = {
-                min_power: parseInt(document.getElementById('sprintMinPower').value),
+                min_power:        parseInt(document.getElementById('sprintMinPower').value),
                 min_duration_sec: parseInt(document.getElementById('sprintMinDuration').value),
-                merge_gap_sec: parseInt(document.getElementById('sprintMergeGap').value),
-                cadence_min_rpm: parseInt(document.getElementById('sprintCadenceMin').value)
+                merge_gap_sec:    parseInt(document.getElementById('sprintMergeGap').value),
+                cadence_min_rpm:  parseInt(document.getElementById('sprintCadenceMin').value)
             };
-            
             try {
                 const response = await fetch(`/api/${sessionId}/redetect-sprints`, {
                     method: 'POST',
@@ -996,7 +1168,6 @@
                     const message = await response.text();
                     throw new Error(`HTTP ${response.status}: ${message || response.statusText}`);
                 }
-                
                 const result = await response.json();
                 if (result.success) {
                     alert(`✅ Re-detected ${result.total_sprints} sprints!`);
