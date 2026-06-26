@@ -1217,52 +1217,37 @@ function setupSidebarCollapsers() {
 }
 
 // 
-// SIDEBAR  exact same HTML structure as ECharts version
+// SIDEBAR SORT STATE
 // 
-function buildSidebar() {
-    // Config section with MI flags
-    const effortsMI = chartData.efforts_modified ? ' (+MI)' : '';
-    const sprintsMI = chartData.sprints_modified ? ' (+MI)' : '';
-    
-    const isRuptures = chartData.analysis_method === 'ruptures';
-    const rc = chartData.ruptures_config || {};
-    const lc = chartData.config || {};
+let effortSortOrder = 'power';   // 'chrono' | 'power'
+let sprintSortOrder = 'power';   // 'chrono' | 'power'
 
-    let effortConfigLine = '';
-    if (isRuptures) {
-        effortConfigLine = `
-            <span style="color:#6366f1;font-weight:700;">📐 Ruptures</span><br/>
-            model: <b>${rc.model || 'l2'}</b> |
-            pen: <b>${rc.penalty ?? '?'}</b> |
-            smooth: <b>${rc.smooth_window_sec ?? '?'}s</b> |
-            min_seg: <b>${rc.min_segment_sec ?? '?'}s</b><br/>
-            min_cp: <b>${rc.min_cp_pct ?? '?'}%</b> |
-            gap: <b>${rc.merge_gap_sec ?? '?'}s</b> |
-            Δpwr: <b>${rc.merge_power_diff_pct ?? '?'}%</b><br/>
-            min_dur: <b>${rc.min_effort_sec ?? '?'}s</b> |
-            opener: <b>${rc.opener_threshold_pct ?? '?'}% CP</b>${effortsMI}`;
+/**
+ * Sort a copy of an array by sort order.
+ * @param {Array} arr
+ * @param {'chrono'|'power'} order
+ * @returns {Array}
+ */
+function sortedItems(arr, order) {
+    const copy = arr.slice();
+    if (order === 'chrono') {
+        copy.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
     } else {
-        effortConfigLine = `
-            <span style="color:#f59e0b;font-weight:700;">🪟 Legacy</span>
-            WIN: <b>${lc.window_sec ?? '?'}s</b> |
-            MRG: <b>${lc.merge_pct ?? '?'}%</b> |
-            MIN: <b>${lc.min_cp_pct ?? '?'}%</b>${effortsMI}`;
+        copy.sort((a, b) => (b.avg_power || 0) - (a.avg_power || 0));
     }
+    return copy;
+}
 
-    document.getElementById('config-section').innerHTML = `
-        <strong>Configuration</strong><br/>
-        CP: ${chartData.cp}W | Weight: ${chartData.weight}kg<br/>
-        ${effortConfigLine}<br/>
-        Sprints: WIN ${lc.sprint_window_sec ?? '?'}s | MIN ${lc.min_sprint_power ?? '?'}W${sprintsMI}<br/>
-        <strong>Y-axis:</strong> ${yMin}m - ${yMax}m (range: ${yMax - yMin}m)
-    `;
-
-    // Efforts
-    const effortsSection = document.getElementById('efforts-section');
-    const sprintsSection = document.getElementById('sprints-section');
+/**
+ * Render only the effort and sprint cards into their list containers,
+ * without rebuilding config section or toggle buttons.
+ * @returns {void}
+ */
+function renderSidebarCards() {
+    // ── Efforts ──────────────────────────────────────────────────────────────
     const effortsList = document.getElementById('efforts-list');
     effortsList.innerHTML = '';
-    chartData.efforts.forEach((effort, idx) => {
+    sortedItems(chartData.efforts, effortSortOrder).forEach((effort) => {
         const id = `e-${effort.id}`;
         const card = document.createElement('div');
         card.className = 'effort-card';
@@ -1305,15 +1290,15 @@ function buildSidebar() {
                 <span class="a"> 🔋 kJ</span><span class="b">${effort.kj}</span><span class="c">kJ &gt; CP</span><span class="d">${effort.kj_over_cp}</span>
                 <span class="a"> 💪 kJ/kg</span><span class="b">${effort.kj_kg}</span><span class="c">kJ/kg &gt; CP</span><span class="d">${effort.kj_kg_over_cp}</span>
                 <span class="a"> 🔥 kJ/h/kg</span><span class="b">${effort.kj_h_kg}</span><span class="c">kJ/h/kg&gt;CP</span><span class="d">${effort.kj_h_kg_over_cp}</span>
-            </div>`
+            </div>`;
         effortsList.appendChild(card);
     });
 
-    // Sprints
+    // ── Sprints ───────────────────────────────────────────────────────────────
     const sprintsList = document.getElementById('sprints-list');
     sprintsList.innerHTML = '';
-    chartData.sprints.forEach((sprint, idx) => {
-        const id = `s-${idx}`;
+    sortedItems(chartData.sprints, sprintSortOrder).forEach((sprint, idx) => {
+        const id = `s-${chartData.sprints.indexOf(sprint)}`;
         const torqAvail = chartData.torque_available;
         const card = document.createElement('div');
         card.className = 'sprint-card';
@@ -1399,6 +1384,96 @@ function buildSidebar() {
             </div>`;
         sprintsList.appendChild(card);
     });
+}
+
+/**
+ * Build the inline CSS for sort toggle buttons.
+ * @param {'chrono'|'power'} active
+ * @returns {string} HTML string with two buttons
+ */
+function buildSortToggle(id, active, onChange) {
+    const base = 'display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.7rem;cursor:pointer;border:1px solid #d1d5db;margin-left:4px;';
+    const on   = base + 'background:#374151;color:#fff;border-color:#374151;font-weight:700;';
+    const off  = base + 'background:#f3f4f6;color:#6b7280;';
+    return `<span style="white-space:nowrap;">
+        <button id="${id}-chrono" style="${active==='chrono'?on:off}" title="Ordine cronologico">🕒</button>
+        <button id="${id}-power"  style="${active==='power' ?on:off}" title="Ordine potenza">⚡</button>
+    </span>`;
+}
+
+// 
+// SIDEBAR  exact same HTML structure as ECharts version
+// 
+function buildSidebar() {
+    // Config section with MI flags
+    const effortsMI = chartData.efforts_modified ? ' (+MI)' : '';
+    const sprintsMI = chartData.sprints_modified ? ' (+MI)' : '';
+    
+    const isRuptures = chartData.analysis_method === 'ruptures';
+    const rc = chartData.ruptures_config || {};
+    const lc = chartData.config || {};
+
+    let effortConfigLine = '';
+    if (isRuptures) {
+        effortConfigLine = `
+            <span style="color:#6366f1;font-weight:700;">📐 Ruptures</span><br/>
+            model: <b>${rc.model || 'l2'}</b> |
+            pen: <b>${rc.penalty ?? '?'}</b> |
+            smooth: <b>${rc.smooth_window_sec ?? '?'}s</b> |
+            min_seg: <b>${rc.min_segment_sec ?? '?'}s</b><br/>
+            min_cp: <b>${rc.min_cp_pct ?? '?'}%</b> |
+            gap: <b>${rc.merge_gap_sec ?? '?'}s</b> |
+            Δpwr: <b>${rc.merge_power_diff_pct ?? '?'}%</b><br/>
+            min_dur: <b>${rc.min_effort_sec ?? '?'}s</b> |
+            opener: <b>${rc.opener_threshold_pct ?? '?'}% CP</b>${effortsMI}`;
+    } else {
+        effortConfigLine = `
+            <span style="color:#f59e0b;font-weight:700;">🪟 Legacy</span>
+            WIN: <b>${lc.window_sec ?? '?'}s</b> |
+            MRG: <b>${lc.merge_pct ?? '?'}%</b> |
+            MIN: <b>${lc.min_cp_pct ?? '?'}%</b>${effortsMI}`;
+    }
+
+    document.getElementById('config-section').innerHTML = `
+        <strong>Configuration</strong><br/>
+        CP: ${chartData.cp}W | Weight: ${chartData.weight}kg<br/>
+        ${effortConfigLine}<br/>
+        Sprints: WIN ${lc.sprint_window_sec ?? '?'}s | MIN ${lc.min_sprint_power ?? '?'}W${sprintsMI}<br/>
+        <strong>Y-axis:</strong> ${yMin}m - ${yMax}m (range: ${yMax - yMin}m)
+    `;
+
+    const effortsSection = document.getElementById('efforts-section');
+    const sprintsSection = document.getElementById('sprints-section');
+
+    // ── Inject sort toggles (once) into dedicated containers ─────────────────
+    function ensureSortToggle(containerId, stateGetter, stateSetter, refreshFn) {
+        let wrap = document.getElementById(containerId);
+        if (!wrap) {
+            // Look for a natural insertion point: a label/header span inside the section
+            const section = document.getElementById(containerId.replace('-sort-toggle', '-section'));
+            if (!section) return;
+            // Find the first child element that acts as a header row
+            const headerEl = section.querySelector('.section-header, .sidebar-section-header, h3, h4, label') || section.firstElementChild;
+            if (!headerEl) return;
+            wrap = document.createElement('span');
+            wrap.id = containerId;
+            wrap.style.cssText = 'margin-left:6px;vertical-align:middle;';
+            headerEl.appendChild(wrap);
+        }
+        wrap.innerHTML = buildSortToggle(containerId.replace('-sort-toggle','sort'), stateGetter());
+        wrap.querySelector('button:first-child').addEventListener('click', (e) => {
+            e.stopPropagation(); stateSetter('chrono'); refreshFn(); renderSidebarCards();
+        });
+        wrap.querySelector('button:last-child').addEventListener('click', (e) => {
+            e.stopPropagation(); stateSetter('power'); refreshFn(); renderSidebarCards();
+        });
+    }
+
+    refreshEffortToggle();
+    refreshSprintToggle();
+
+    // ── Render cards ──────────────────────────────────────────────────────────
+    renderSidebarCards();
 
     // Hide empty sections entirely (header + body) when there are no items.
     setSectionVisibility(effortsSection, chartData.efforts.length > 0);
@@ -1406,6 +1481,28 @@ function buildSidebar() {
 
     // Enable collapse/expand controls when sections are visible.
     setupSidebarCollapsers();
+}
+
+/**
+ * Refresh the effort sort toggle buttons to reflect current state.
+ */
+function refreshEffortToggle() {
+    const wrap = document.getElementById('efforts-sort-toggle');
+    if (!wrap) return;
+    wrap.innerHTML = buildSortToggle('sort-efforts', effortSortOrder);
+    wrap.querySelector('button:first-child').addEventListener('click', (e) => { e.stopPropagation(); effortSortOrder='chrono'; refreshEffortToggle(); renderSidebarCards(); });
+    wrap.querySelector('button:last-child').addEventListener('click',  (e) => { e.stopPropagation(); effortSortOrder='power';  refreshEffortToggle(); renderSidebarCards(); });
+}
+
+/**
+ * Refresh the sprint sort toggle buttons to reflect current state.
+ */
+function refreshSprintToggle() {
+    const wrap = document.getElementById('sprints-sort-toggle');
+    if (!wrap) return;
+    wrap.innerHTML = buildSortToggle('sort-sprints', sprintSortOrder);
+    wrap.querySelector('button:first-child').addEventListener('click', (e) => { e.stopPropagation(); sprintSortOrder='chrono'; refreshSprintToggle(); renderSidebarCards(); });
+    wrap.querySelector('button:last-child').addEventListener('click',  (e) => { e.stopPropagation(); sprintSortOrder='power';  refreshSprintToggle(); renderSidebarCards(); });
 }
 
 // 
@@ -2408,4 +2505,3 @@ window.addEventListener('storage', function(e) {
         buildStreamChartsD3();
     }
 });
-

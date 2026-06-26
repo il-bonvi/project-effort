@@ -230,6 +230,7 @@ class ExportPdfRequest(BaseModel):
     """Request to export PDF report"""
     zones: Optional[list] = None
     cp: Optional[float] = None
+    sort_order: str = "power"
 
 
 # =============================================================================
@@ -2006,6 +2007,7 @@ async def export_pdf_report(session_id: str, request: Request, sessions: Session
         chart_data = json.loads(get_chart_data_json(session))
         zones  = DEFAULT_ZONES
         cp_val = None
+        sort_order = "power"
 
         try:
             body = await request.json()
@@ -2014,6 +2016,8 @@ async def export_pdf_report(session_id: str, request: Request, sessions: Session
                     zones = body["zones"]
                 if "cp" in body and body["cp"]:
                     cp_val = float(body["cp"])
+                if "sort_order" in body and body["sort_order"] in ("power", "chrono"):
+                    sort_order = body["sort_order"]
         except Exception:
             pass  # GET request or no JSON body
 
@@ -2022,6 +2026,7 @@ async def export_pdf_report(session_id: str, request: Request, sessions: Session
             filename=session.get("filename", "activity"),
             zones=zones,
             cp_override=cp_val,
+            sort_order=sort_order,
         )
 
         safe_name = (

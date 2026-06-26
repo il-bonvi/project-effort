@@ -896,6 +896,7 @@ def build_pdf_report(
     filename: str = "peffort_report",
     zones: Optional[List[Dict]] = None,
     cp_override: Optional[float] = None,
+    sort_order: str = "power",
 ) -> bytes:
     """
     Build the full PDF report and return bytes.
@@ -910,6 +911,12 @@ def build_pdf_report(
     efforts  = chart_data.get("efforts", [])
     sprints  = chart_data.get("sprints", [])
     config   = chart_data.get("config", {})
+
+    # Apply sort order to efforts and sprints
+    if sort_order == "chrono":
+        efforts = sorted(efforts, key=lambda e: e.get("start_time", ""))
+        sprints = sorted(sprints, key=lambda s: s.get("start_time", ""))
+    # else: already sorted by power/rank from backend
 
     styles = build_styles()
 

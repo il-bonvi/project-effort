@@ -874,6 +874,19 @@
                             <p style="color: #b91c1c;">
                                 Report PDF landscape A4: 0.1
                             </p>
+                            <div style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:10px;">
+                                <span style="font-size:0.78rem; color:#7f1d1d; font-weight:600;">Ordine effort/sprint:</span>
+                                <button id="pdfSortChronoBtn" onclick="setPdfSortOrder('chrono')"
+                                        title="Ordine cronologico"
+                                        style="padding:3px 10px; border-radius:4px; border:1px solid #d1d5db; font-size:0.75rem; cursor:pointer; background:#f3f4f6; color:#6b7280;">
+                                    🕒 Time
+                                </button>
+                                <button id="pdfSortPowerBtn" onclick="setPdfSortOrder('power')"
+                                        title="Ordine potenza decrescente"
+                                        style="padding:3px 10px; border-radius:4px; border:1px solid #374151; font-size:0.75rem; cursor:pointer; font-weight:700; background:#374151; color:#fff;">
+                                    ⚡ Power
+                                </button>
+                            </div>
                             <button class="btn btn-success" onclick="exportPdfReport()" id="exportPdfBtn"
                                     style="background: linear-gradient(135deg, #dc2626, #b91c1c); width:100%;">
                                 ⬇️ Download Report PDF
@@ -1720,6 +1733,19 @@
             }
         });
 
+        // ── PDF sort order state ────────────────────────────────────────────────
+        let pdfSortOrder = 'power'; // 'power' | 'chrono'  (default: power, matches backend default)
+
+        function setPdfSortOrder(order) {
+            pdfSortOrder = order;
+            const onStyle  = 'padding:3px 10px;border-radius:4px;border:1px solid #374151;font-size:0.75rem;cursor:pointer;font-weight:700;background:#374151;color:#fff;';
+            const offStyle = 'padding:3px 10px;border-radius:4px;border:1px solid #d1d5db;font-size:0.75rem;cursor:pointer;background:#f3f4f6;color:#6b7280;';
+            const chronoBtn = document.getElementById('pdfSortChronoBtn');
+            const powerBtn  = document.getElementById('pdfSortPowerBtn');
+            if (chronoBtn) chronoBtn.style.cssText = order === 'chrono' ? onStyle : offStyle;
+            if (powerBtn)  powerBtn.style.cssText  = order === 'power'  ? onStyle : offStyle;
+        }
+
         async function exportPdfReport() {
             const btn    = document.getElementById('exportPdfBtn');
             const status = document.getElementById('pdfExportStatus');
@@ -1761,7 +1787,7 @@
                 const response = await fetch(`/api/export/${sessionId}/pdf-report`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ zones, cp })
+                    body: JSON.stringify({ zones, cp, sort_order: pdfSortOrder })
                 });
 
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
