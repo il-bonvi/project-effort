@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 # =====================
 # CONFIGURAZIONE DEFAULT
 # =====================
-WINDOW_SECONDS = 60
+WINDOW_SECONDS = 30
 MERGE_POWER_DIFF_PERCENT = 15
-MIN_EFFORT_INTENSITY_CP = 100
+MIN_EFFORT_INTENSITY_CP = 90
 TRIM_WINDOW_SECONDS = 10
 TRIM_LOW_PERCENT = 85
 EXTEND_WINDOW_SECONDS = 15
@@ -30,11 +30,11 @@ MIN_SPRINT_POWER = 500
 SEMICIRCLES_TO_DEGREES = 180 / (2**31)
 
 ZONE_COLORS = [
-    (106, "#1f77b4", "CP–just above"),
-    (116, "#3eb33e", "Threshold+"),
-    (126, "#ff7f0e", "VO₂max"),
-    (136, "#da2fbd", "High VO₂max / MAP"),
-    (999, "#7315ca", "Supra-MAP"),
+    (96, "#3eb33e", "CP–just above"),
+    (106, "#ff7f0e", "Threshold+"),
+    (126, "#ff0e0e", "VO₂max"),
+    (156, "#da2fbd", "Anaerobic"),
+    (999, "#7315ca", "Supra"),
 ]
 ZONE_DEFAULT = ("Anaerobico", "#6B3C3C73")
 
