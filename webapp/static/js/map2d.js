@@ -1,22 +1,43 @@
-﻿    // 
+﻿// 
     // MAP SETUP
     // 
+    // Leaflet tile layer with referrerPolicy='origin' set on every img element.
+    // This bypasses Firefox's refusal to honour the <meta name="referrer"> tag
+    // for cross-origin requests, ensuring OSM tile servers always receive a
+    // valid Referer even in exported standalone reports.
+    const ReferrerTileLayer = L.TileLayer.extend({
+        createTile(coords, done) {
+            const tile = L.TileLayer.prototype.createTile.call(this, coords, done);
+            tile.referrerPolicy = 'origin';
+            return tile;
+        }
+    });
+    function rTileLayer(url, opts) { return new ReferrerTileLayer(url, opts); }
+
     const tileLayers = {
-        osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '(c) <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            maxZoom: 19
+        osm: rTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '(c) <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            updateWhenIdle: true,
+            keepBuffer: 2
         }),
-        topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        topo: rTileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
             attribution: '(c) <a href="https://opentopomap.org">OpenTopoMap</a>',
-            maxZoom: 17
+            maxZoom: 17,
+            updateWhenIdle: true,
+            keepBuffer: 2
         }),
-        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        satellite: rTileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '(c) Esri',
-            maxZoom: 19
+            maxZoom: 19,
+            updateWhenIdle: true,
+            keepBuffer: 2
         }),
-        cycle: L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
+        cycle: rTileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
             attribution: '(c) <a href="https://www.cyclosm.org/">CyclOSM</a>',
-            maxZoom: 20
+            maxZoom: 20,
+            updateWhenIdle: true,
+            keepBuffer: 2
         })
     };
 
@@ -63,9 +84,36 @@
     // Selected zone overlay (zone-colored)
     let selectedZoneLine = null;
 
-    // Fit to track
-    if (trackCoords.length > 0) {
-        map.fitBounds(L.latLngBounds(trackCoords), { padding: [40, 40] });
+    // Fit to track — deferred until the map container is visible.
+    // If called while the pane is hidden (display:none), Leaflet measures
+    // zero dimensions and produces a wrong zoom level.
+    let initialFitDone = false;
+    function fitToTrack() {
+        if (!initialFitDone && trackCoords.length > 0) {
+            map.invalidateSize();
+            map.fitBounds(L.latLngBounds(trackCoords), { padding: [40, 40] });
+            initialFitDone = true;
+        }
+    }
+
+    // Trigger fitToTrack only once the map container has real pixel dimensions.
+    // Using ResizeObserver on the DOM element (not Leaflet's 'resize' event)
+    // avoids false triggers from invalidateSize() calls while the pane is hidden.
+    const mapEl = document.getElementById('map');
+    if (mapEl.offsetWidth > 0) {
+        fitToTrack();
+    } else if (window.ResizeObserver) {
+        const mapSizeObserver = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                if (entry.contentRect.width > 0) {
+                    mapSizeObserver.disconnect();
+                    fitToTrack();
+                }
+            }
+        });
+        mapSizeObserver.observe(mapEl);
+    } else {
+        map.once('resize', fitToTrack);
     }
 
     // 
@@ -2002,8 +2050,29 @@
         }
     });
 
+    // Redraw the altimetry chart whenever its container's real size settles
+    // (e.g. late CSS application, tab activation, flex layout reflow).
+    // This replaces relying on a single guessed setTimeout delay, which is
+    // what caused the chart to render squished until something else
+    // happened to trigger a resize.
+    let elevationChartResizeObserver = null;
+    const elevationChartEl = document.getElementById('elevation-chart');
+    if (elevationChartEl && window.ResizeObserver) {
+        let lastObservedWidth = 0;
+        elevationChartResizeObserver = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                const w = Math.round(entry.contentRect.width);
+                if (w > 0 && w !== lastObservedWidth) {
+                    lastObservedWidth = w;
+                    drawFullElevationChart();
+                    map.invalidateSize();
+                }
+            }
+        });
+        elevationChartResizeObserver.observe(elevationChartEl);
+    }
+
     drawFullElevationChart();
     map.invalidateSize();
     showFullRideMetricsCard();
     setTimeout(refreshMap2DLayout, 120);
-

@@ -2,6 +2,7 @@
 <html>
 <head>
     <meta charset='utf-8' />
+    <meta name='referrer' content='no-referrer-when-downgrade' />
     <title>2D Map View - {{ distance_km|round(1) }} km</title>
     <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
     <link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css' />
@@ -83,7 +84,6 @@
             if (effortUpdateChannel) effortUpdateChannel.close();
         });
     </script>
-    <script src="/static/js/map2d.js?v=2026040402"></script>
+    <script src="/static/js/map2d.js?v=2026040405"></script>
 </body>
 </html>
-

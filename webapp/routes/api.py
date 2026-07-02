@@ -1815,6 +1815,399 @@ async def export_modifications(session_id: str, sessions: SessionsDep):
     return data
 
 
+def _generate_map2d_data(session: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Generate all data needed to render the 2D map tab in the export.
+    Returns None when GPS is unavailable or an error occurs.
+    """
+    import numpy as _np
+    from utils.map3d_core import export_traccia_geojson, calculate_zoom_level, prepare_efforts_data
+    from utils.effort_analyzer import format_time_hhmmss, format_time_mmss
+
+    df = session.get('df')
+    if df is None:
+        return None
+    if 'position_lat' not in df.columns or 'position_long' not in df.columns:
+        return None
+
+    try:
+        lat_all = df['position_lat'].values
+        lon_all = df['position_long'].values
+        nan_mask   = (~_np.isnan(lat_all)) & (~_np.isnan(lon_all))
+        range_mask = (_np.abs(lat_all) <= 90) & (_np.abs(lon_all) <= 180)
+        zero_mask  = ~((_np.abs(lat_all) < 1e-9) & (_np.abs(lon_all) < 1e-9))
+        df_geom = df.loc[nan_mask & range_mask & zero_mask].copy()
+
+        if len(df_geom) < 10:
+            return None
+
+        geojson_data, orig_indices = export_traccia_geojson(df_geom)
+
+        lat = df_geom['position_lat'].values
+        lon = df_geom['position_long'].values
+        center_lat = float(_np.nanmean([_np.nanmin(lat), _np.nanmax(lat)]))
+        center_lon = float(_np.nanmean([_np.nanmin(lon), _np.nanmax(lon)]))
+        zoom = calculate_zoom_level(lat, lon)
+
+        alt_full      = df['altitude'].values      if 'altitude'    in df.columns      else _np.zeros(len(df))
+        dist_full     = df['distance_km'].values   if 'distance_km' in df.columns      else _np.zeros(len(df))
+        alt_filtered  = df_geom['altitude'].values  if 'altitude'    in df_geom.columns else _np.zeros(len(df_geom))
+        dist_filtered = df_geom['distance_km'].values if 'distance_km' in df_geom.columns else _np.zeros(len(df_geom))
+
+        efforts = session.get('efforts', [])
+        sprints = session.get('sprints', [])
+        cp      = session.get('cp', session.get('ftp', 250))
+        weight  = session.get('weight', 70)
+
+        efforts_data_json = prepare_efforts_data(
+            df, efforts, sprints, cp, weight, geojson_data,
+            orig_indices, alt_full, dist_full, alt_filtered, dist_filtered
+        )
+
+        time_total    = df['time_sec'].values.tolist()   if 'time_sec'   in df.columns else list(range(len(df)))
+        power_total   = df['power'].values.tolist()       if 'power'      in df.columns else [0.0] * len(df)
+        hr_total      = df['heartrate'].values.tolist()   if 'heartrate'  in df.columns else [0.0] * len(df)
+        cadence_total = df['cadence'].values.tolist()     if 'cadence'    in df.columns else [0.0] * len(df)
+        time_fmt = [format_time_hhmmss(t) if t >= 3600 else format_time_mmss(t) for t in time_total]
+
+        elevation_graph = json.dumps({
+            'distance':  dist_full.tolist(),
+            'altitude':  alt_full.tolist(),
+            'time_sec':  time_total,
+            'time':      time_fmt,
+            'power':     power_total,
+            'heartrate': hr_total,
+            'cadence':   cadence_total,
+            'efforts':   json.loads(efforts_data_json),
+        })
+
+        return {
+            'geojson_str':         json.dumps(geojson_data),
+            'efforts_data_json':   efforts_data_json,
+            'elevation_data_json': elevation_graph,
+            'center_lat':          center_lat,
+            'center_lon':          center_lon,
+            'zoom':                zoom,
+        }
+    except Exception as exc:
+        logger.warning("_generate_map2d_data failed: %s", exc, exc_info=True)
+        return None
+
+
+# DOM element IDs in map2d.js that must be prefixed with 'm2d-' for the
+# two-tab export page so they don't collide with altimetria's DOM elements.
+_MAP2D_EXPORT_ID_RENAMES: tuple[str, ...] = (
+    "map",
+    "elevation-chart",
+    "resize-handle",
+    "hover-tooltip",
+    "sidebar",
+    "sidebar-content",
+    "controls",
+    "styleSelect",
+    "toggleEfforts",
+    "toggleSprints",
+    "resetViewBtn",
+    "streamSelectionBtn",
+)
+
+
+def _make_map2d_export_js(static_js_dir: Path, session_id: str) -> str:
+    """
+    Return map2d.js transformed for safe embedding alongside altimetria_d3.js:
+    - All conflicting DOM IDs prefixed with 'm2d-'
+    - onclick strings in dynamic HTML updated to call window.m2d_* functions
+    - Global window.openStreamModal etc. assignments removed (would clobber altimetria's)
+    - Entire script wrapped in an IIFE to isolate variable scope
+    - Required functions re-exported as window.m2d_*
+    """
+    try:
+        js = (static_js_dir / "map2d.js").read_text(encoding='utf-8')
+    except Exception as exc:
+        logger.warning("Cannot read map2d.js for export: %s", exc)
+        return ""
+
+    # Rename DOM IDs
+    for id_name in _MAP2D_EXPORT_ID_RENAMES:
+        js = js.replace(f"getElementById('{id_name}')", f"getElementById('m2d-{id_name}')")
+        js = js.replace(f'getElementById("{id_name}")', f"getElementById('m2d-{id_name}')")
+
+    # Leaflet map constructor
+    js = js.replace("L.map('map',", "L.map('m2d-map',")
+
+    # Jinja2 template variables → actual values
+    js = js.replace("{{ session_id }}", session_id)
+
+    # Rename onclick literals inside dynamic HTML strings
+    for old, new in (
+        ("onclick=\"openStreamModal(",                   "onclick=\"window.m2d_openStreamModal("),
+        ("onclick=\"openSelectionStreamModal()",          "onclick=\"window.m2d_openSelectionStreamModal()"),
+        ("onclick=\"closeEffortDetailAndShowSelection()", "onclick=\"window.m2d_closeEffortDetailAndShowSelection()"),
+        ("onclick=\"zoomEffortByPowerZones(",             "onclick=\"window.m2d_zoomEffortByPowerZones("),
+    ):
+        js = js.replace(old, new)
+
+    # Remove global window.* assignments that would shadow altimetria's versions
+    for fn in ('openStreamModal', 'closeStreamModal', 'openSelectionStreamModal'):
+        js = js.replace(
+            f"window.{fn} = {fn};",
+            f"/* m2d export: {fn} re-exported as window.m2d_{fn} below */"
+        )
+
+    # Wrap in IIFE and re-export functions needed by onclick attributes
+    return f"""(function () {{
+// ── MAP2D EXPORT MODULE (m2d- prefixed IDs, isolated scope) ─────────────────
+{js}
+// Re-export functions for dynamically generated sidebar onclick handlers
+window.m2d_openStreamModal                   = openStreamModal;
+window.m2d_closeStreamModal                  = closeStreamModal;
+window.m2d_openSelectionStreamModal          = openSelectionStreamModal;
+window.m2d_closeEffortDetailAndShowSelection = closeEffortDetailAndShowSelection;
+window.m2d_zoomEffortByPowerZones            = zoomEffortByPowerZones;
+// Expose Leaflet map so the tab switcher can call invalidateSize()
+window._m2d_leaflet_map = map;
+}})();"""
+
+
+def _wrap_export_html_with_tabs(
+    html: str,
+    map2d_data: Dict[str, Any],
+    map2d_js: str,
+    filename_escaped: str,
+    chart_data_json_str: str,
+) -> str:
+    """
+    Transform the single-tab altimetria export HTML into a two-tab page.
+    Tab 1: Altimetria (existing content, unmodified).
+    Tab 2: 2D Map (Leaflet, full map2d feature set).
+
+    Strategy for avoiding conflicts between the two tabs:
+    - map2d DOM IDs are prefixed with 'm2d-' (done in _make_map2d_export_js)
+    - map2d JS is wrapped in an IIFE (done in _make_map2d_export_js)
+    - stream modal is moved to <body> root by JS so it stays visible from both tabs
+    - Leaflet CSS/JS are injected into <head> unconditionally (they are non-intrusive)
+    """
+
+    def _safe_json(s: str) -> str:
+        """Escape </script> so it cannot close the enclosing script tag."""
+        return re.sub(r"</script>", r"<\\/script>", s, flags=re.IGNORECASE)
+
+    # ── CSS: tab chrome + scoped map2d layout rules ───────────────────────────
+    TAB_CSS = """
+<style>
+/* ── PEFFORT Export: two-tab wrapper ──────────────────────────────── */
+html, body { overflow: hidden !important; height: 100vh !important; margin: 0 !important; }
+
+#peffort-hdr {
+    position: fixed; top: 0; left: 0; right: 0; height: 30px;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    display: flex; align-items: center; gap: 8px; padding: 0 12px;
+    z-index: 99999; border-bottom: 1px solid #334155;
+    box-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+.peffort-tb {
+    padding: 2px 12px; border-radius: 4px;
+    border: 1px solid #475569; background: transparent;
+    color: #9ca3af; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all .2s; white-space: nowrap;
+}
+.peffort-tb.active  { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+.peffort-tb:hover:not(.active) { background: #334155; color: #e2e8f0; }
+
+.peffort-wrap {
+    position: fixed; top: 30px; left: 0; right: 0; bottom: 0; overflow: hidden;
+}
+.peffort-pane { display: none; position: absolute; inset: 0; overflow: hidden; }
+.peffort-pane.active { display: block; }
+
+/* Altimetria #container must fill the pane (it normally uses 100vh) */
+.peffort-pane #container { height: 100% !important; }
+
+/* ── Map2D tab — layout (mirrors map3d.css but scoped + absolute instead of fixed) */
+#peffort-tab-map2d {
+    background: #0f172a; color: #e2e8f0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+#m2d-map {
+    position: absolute; top: 0; bottom: 150px; left: 280px;
+    width: calc(100% - 280px); height: calc(100% - 150px); z-index: 1;
+}
+#m2d-elevation-chart {
+    position: absolute; bottom: 0; left: 280px;
+    width: calc(100% - 280px); height: 150px;
+    background: rgba(15,23,42,.95); overflow: hidden; z-index: 1;
+}
+#m2d-resize-handle {
+    position: absolute; top: -5px; left: 0; right: 0;
+    height: 10px; cursor: ns-resize; z-index: 20;
+}
+#m2d-hover-tooltip {
+    position: absolute; top: 10px; right: 20px;
+    background: rgba(15,23,42,.95); padding: 12px 16px;
+    border-radius: 8px; border: 1px solid rgba(255,255,255,.2);
+    font-size: 12px; color: #fbbf24; z-index: 100;
+    display: none; box-shadow: 0 4px 12px rgba(0,0,0,.5);
+}
+#m2d-sidebar {
+    position: absolute; left: 0; top: 0; width: 280px; height: 100%;
+    background: rgba(15,23,42,.98);
+    border-right: 1px solid rgba(255,255,255,.15);
+    z-index: 100; overflow-y: auto; padding: 20px; font-size: 13px;
+}
+#m2d-sidebar::-webkit-scrollbar { width: 4px; }
+#m2d-sidebar::-webkit-scrollbar-track { background: rgba(255,255,255,.05); }
+#m2d-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 2px; }
+#m2d-controls {
+    position: absolute; bottom: 170px; right: 20px;
+    display: flex; flex-direction: column; gap: 10px; z-index: 1000;
+}
+#m2d-controls .control-btn {
+    background: #1e40af; color: #fff; border: none;
+    padding: 10px 16px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    min-width: 120px; text-align: center; transition: background .3s;
+}
+#m2d-controls .control-btn:hover { background: #1e3a8a; }
+#m2d-controls #m2d-styleSelect {
+    background: #1e40af; color: #fff; border: none;
+    padding: 8px 12px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}
+/* Sidebar card styles (scoped) */
+#m2d-sidebar .sidebar-empty { margin-top:40px; color:#94a3b8; font-size:13px; line-height:1.6; text-align:center; }
+#m2d-sidebar .selected-header { background:#111827; border-radius:8px; padding:10px 12px; margin-top:24px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+#m2d-sidebar .selected-title { color:#e5e7eb; font-size:15px; font-weight:700; }
+#m2d-sidebar .selected-subtitle-line { color:#9ca3af; font-size:11.5px; margin-top:1px; }
+#m2d-sidebar .selected-power { color:#f3f4f6; font-size:19px; font-weight:700; margin-top:6px; }
+#m2d-sidebar .selected-power span { font-size:12px; font-weight:500; color:#9ca3af; }
+#m2d-sidebar .selected-grid { display:grid; grid-template-columns:1fr; gap:10px; }
+#m2d-sidebar .metric-col { background:#0b1220; border:1px solid rgba(148,163,184,.18); border-radius:8px; padding:9px 10px; }
+#m2d-sidebar .metric-row { display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:2px 0; }
+#m2d-sidebar .metric-label { color:#9ca3af; font-size:11.5px; white-space:nowrap; }
+#m2d-sidebar .metric-value { color:#f8fafc; font-size:11.5px; font-weight:600; text-align:right; }
+#m2d-sidebar .stream-btn { background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:700; padding:7px 12px; cursor:pointer; white-space:nowrap; }
+#m2d-sidebar .sidebar-close-btn { background:rgba(239,68,68,.15); color:#ef4444; border:1px solid rgba(239,68,68,.3); border-radius:4px; font-size:16px; font-weight:600; padding:4px 8px; cursor:pointer; min-width:32px; height:32px; display:flex; align-items:center; justify-content:center; }
+#m2d-sidebar .sidebar-close-btn:hover { background:rgba(239,68,68,.25); }
+/* Leaflet popup dark theme */
+.leaflet-popup-content-wrapper { background:rgba(15,23,42,.95); color:#9ca3af; border:1px solid rgba(255,255,255,.2); }
+.leaflet-popup-tip { background:rgba(15,23,42,.95); }
+</style>"""
+
+    # Inject Leaflet CSS/JS + tab CSS into <head>.
+    # The meta referrer tag is critical: without it browsers (especially
+    # Firefox) apply strict-origin-when-cross-origin and may strip the
+    # Referer for tile requests, causing OSM to return 403 "Access blocked"
+    # in standalone exported reports. 'origin' sends just the page origin
+    # which satisfies OSM policy without exposing the full URL path.
+    head_inject = (
+        '<meta name="referrer" content="origin" />\n'
+        '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />\n'
+        '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>\n'
+        + TAB_CSS
+    )
+    html = html.replace('</head>', head_inject + '\n</head>', 1)
+
+    # ── Tab header + open altimetria pane ─────────────────────────────────────
+    tab_header = (
+        '\n<div id="peffort-hdr">'
+        f'<span style="color:#60a5fa;font-weight:700;font-size:12px;">🚴 PEFFORT Report</span>'
+        f'<span style="color:#64748b;font-size:11px;"> — {filename_escaped}</span>'
+        "<button class=\"peffort-tb active\" data-ptab=\"altimetria\" "
+        "onclick=\"switchPeffortTab('altimetria')\">📈 Altimetria</button>"
+        "<button class=\"peffort-tb\" data-ptab=\"map2d\" "
+        "onclick=\"switchPeffortTab('map2d')\">🗺️ Mappa 2D</button>"
+        '<span style="margin-left:auto;color:#374151;font-size:10px;">bFactor · Exported report</span>'
+        '</div>'
+        '\n<div class="peffort-wrap">'
+        '\n<div id="peffort-tab-altimetria" class="peffort-pane active">'
+    )
+
+    # ── Map2D data variables (defined before the IIFE so they're in outer scope) ──
+    map2d_data_script = (
+        "<script>\n"
+        f"var efforts_data_json   = {_safe_json(map2d_data['efforts_data_json'])};\n"
+        f"var chart_data_json     = {_safe_json(chart_data_json_str)};\n"
+        f"var geojson_str         = {_safe_json(map2d_data['geojson_str'])};\n"
+        f"var elevation_data_json = {_safe_json(map2d_data['elevation_data_json'])};\n"
+        f"var center_lat   = {map2d_data['center_lat']};\n"
+        f"var center_lon   = {map2d_data['center_lon']};\n"
+        f"var initial_zoom = {map2d_data['zoom']};\n"
+        "</script>"
+    )
+
+    # ── Map2D pane HTML ────────────────────────────────────────────────────────
+    map2d_pane = f"""
+</div><!-- /peffort-tab-altimetria -->
+<div id="peffort-tab-map2d" class="peffort-pane">
+    <div id="m2d-hover-tooltip"></div>
+    <div id="m2d-map"></div>
+    <div id="m2d-elevation-chart"><div id="m2d-resize-handle"></div></div>
+    <div id="m2d-sidebar"><div id="m2d-sidebar-content"></div></div>
+    <div id="m2d-controls">
+        <select id="m2d-styleSelect">
+            <option value="osm">OpenStreetMap</option>
+            <option value="topo">OpenTopoMap</option>
+            <option value="satellite">Esri Satellite</option>
+            <option value="cycle">CyclOSM</option>
+        </select>
+        <button class="control-btn" id="m2d-toggleEfforts">👊 Efforts: ON</button>
+        <button class="control-btn" id="m2d-toggleSprints">🏃 Sprints: ON</button>
+        <button class="control-btn" id="m2d-resetViewBtn">🎯 Reset View</button>
+        <button class="control-btn" id="m2d-streamSelectionBtn" style="display:none">📊 Stream Selection</button>
+    </div>
+    {map2d_data_script}
+    <script>
+{map2d_js}
+    </script>
+</div><!-- /peffort-tab-map2d -->
+</div><!-- /peffort-wrap -->
+
+<script>
+(function () {{
+    /* Tab switching */
+    function switchPeffortTab(name) {{
+        document.querySelectorAll('.peffort-pane').forEach(function (p) {{
+            p.classList.remove('active');
+        }});
+        document.querySelectorAll('[data-ptab]').forEach(function (b) {{
+            b.classList.remove('active');
+        }});
+        document.getElementById('peffort-tab-' + name).classList.add('active');
+        var btn = document.querySelector('[data-ptab="' + name + '"]');
+        if (btn) btn.classList.add('active');
+        /* Leaflet needs invalidateSize() after the container becomes visible */
+        if (name === 'map2d' && window._m2d_leaflet_map) {{
+            setTimeout(function () {{ window._m2d_leaflet_map.invalidateSize(); }}, 80);
+        }}
+    }}
+    window.switchPeffortTab = switchPeffortTab;
+
+    /*
+     * Move the stream modal to <body> root.
+     * It lives inside #peffort-tab-altimetria in the inlined template, which
+     * means it would be hidden (display:none) when the map2d tab is active.
+     * Moving it to body ensures position:fixed keeps it visible from both tabs.
+     */
+    document.addEventListener('DOMContentLoaded', function () {{
+        ['streamModalOverlay', 'streamModal'].forEach(function (id) {{
+            var el = document.getElementById(id);
+            if (el && el.parentNode !== document.body) {{
+                document.body.appendChild(el);
+            }}
+        }});
+    }});
+}})();
+</script>"""
+
+    # Stitch the tab structure into the existing HTML
+    html = html.replace('<body>', '<body>' + tab_header, 1)
+    html = html.replace('</body>', map2d_pane + '\n</body>', 1)
+
+    return html
+
+
+# =============================================================================
+
 @router.api_route("/export/{session_id}/html-report", methods=["GET", "POST"])
 async def export_html_report(session_id: str, request: Request, sessions: SessionsDep):
     """
@@ -1938,8 +2331,17 @@ async def export_html_report(session_id: str, request: Request, sessions: Sessio
         # because inline JS may contain the same token.
         html = html.replace('{{ session_id }}', session_id)
 
-        # Add a slim header banner
-        export_banner = f"""
+        # ── Generate 2D map data (GPS optional) ──────────────────────────────
+        map2d_data = _generate_map2d_data(session)
+        map2d_js   = _make_map2d_export_js(static_js_dir, session_id) if map2d_data else ""
+
+        if map2d_data and map2d_js:
+            html = _wrap_export_html_with_tabs(
+                html, map2d_data, map2d_js, filename_escaped, safe_chart_data_json,
+            )
+        else:
+            # Fallback: single-tab with slim banner (no GPS / map2d.js unavailable)
+            export_banner = f"""
 <div id="export-banner" style="
     position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
     background: linear-gradient(135deg, #1e293b, #0f172a);
@@ -1956,7 +2358,7 @@ async def export_html_report(session_id: str, request: Request, sessions: Sessio
     html, body {{ overflow: hidden; }}
 </style>
 """
-        html = html.replace('<body>', '<body>' + export_banner, 1)
+            html = html.replace('<body>', '<body>' + export_banner, 1)
 
         safe_name = re.sub(r'[^\w.\-]', '_', filename.replace('.fit', '')).strip('_') or 'report'
         return StreamingResponse(
